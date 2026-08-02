@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { runAction } from '$lib/actions';
 	import { flip } from 'svelte/animate';
 	import { fly, slide } from 'svelte/transition';
 	import { toast } from 'svelte-sonner';
@@ -40,16 +40,11 @@
 	);
 
 	async function setQuantity(card: CardWithSet, quantity: number) {
-		const body = new FormData();
-		body.set('cardId', card.id);
-		body.set('quantity', String(Math.max(0, quantity)));
-
-		const response = await fetch('?/setQuantity', { method: 'POST', body });
-		if (!response.ok) {
-			toast.error('Could not update the deck');
-			return;
+		try {
+			await runAction('?/setQuantity', { cardId: card.id, quantity: Math.max(0, quantity) });
+		} catch (error) {
+			toast.error((error as Error).message);
 		}
-		await invalidateAll();
 	}
 
 	const quantityOf = (cardId: string) =>

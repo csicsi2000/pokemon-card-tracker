@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { runAction } from '$lib/actions';
 	import { flip } from 'svelte/animate';
 	import { fly } from 'svelte/transition';
 	import { toast } from 'svelte-sonner';
@@ -54,16 +54,11 @@
 	});
 
 	async function addToPool(card: CardWithSet) {
-		const body = new FormData();
-		body.set('cardId', card.id);
-		body.set('quantity', '1');
-
-		const response = await fetch('?/addCard', { method: 'POST', body });
-		if (!response.ok) {
-			toast.error('Could not add that card');
-			return;
+		try {
+			await runAction('?/addCard', { cardId: card.id, quantity: 1 });
+		} catch (error) {
+			toast.error((error as Error).message);
 		}
-		await invalidateAll();
 	}
 </script>
 
