@@ -19,6 +19,8 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
 	import Copy from '@lucide/svelte/icons/copy';
+	import Check from '@lucide/svelte/icons/check';
+	import { cn } from '$lib/utils';
 	import CardImage from '$lib/components/CardImage.svelte';
 	import { store } from '$lib/store.svelte';
 	import { parseRules, type FormatRules } from '$lib/tcg/format-rules';
@@ -62,6 +64,29 @@
 		store.updateFormat(formatId, { rules: { ...rules, ...changes } });
 	}
 
+	// -- "Chosen sets" pool picker -------------------------------------------
+
+	let setSearch = $state('');
+
+	const selectedSetIds = $derived(new Set(rules.pool.setIds));
+
+	const pickableSets = $derived.by(() => {
+		const needle = setSearch.trim().toLowerCase();
+		if (!needle) return data.catalogue.sets;
+		return data.catalogue.sets.filter(
+			(set) =>
+				set.name.toLowerCase().includes(needle) ||
+				(set.ptcglCode ?? '').toLowerCase().includes(needle)
+		);
+	});
+
+	function toggleSet(setId: string) {
+		const next = new Set(rules.pool.setIds);
+		if (next.has(setId)) next.delete(setId);
+		else next.add(setId);
+		patchRules({ pool: { ...rules.pool, setIds: [...next] } });
+	}
+
 	function addToPool(card: CardType) {
 		const existing = format?.pool.find((row) => row.cardId === card.id);
 		store.setPoolQuantity(formatId, card.id, (existing?.quantity ?? 0) + 1);
@@ -97,13 +122,15 @@
 		}
 	}
 
+	// Seed the textarea per format, then let the user type freely. Keyed by format id
+	// because navigating between two formats reuses this component instance — a plain
+	// "seeded once" flag would leave format B showing format A's banlist.
 	let bannedText = $state('');
-	let bannedInitialised = false;
+	let bannedSeededFor: string | null = null;
 	$effect(() => {
-		// Seed the textarea once, then let the user type freely.
-		if (!bannedInitialised && format) {
+		if (format && bannedSeededFor !== format.id) {
 			bannedText = rules.bannedNames.join('\n');
-			bannedInitialised = true;
+			bannedSeededFor = format.id;
 		}
 	});
 
@@ -190,6 +217,42 @@
 							</Select.Root>
 						</div>
 					</div>
+
+					{#if rules.pool.type === 'sets'}
+						<div class="flex flex-col gap-2">
+							<Label>
+								Sets in the pool
+								<span class="text-muted-foreground font-normal">
+									— {selectedSetIds.size} selected
+								</span>
+							</Label>
+							{#if selectedSetIds.size === 0}
+								<p class="text-destructive text-xs">
+									No sets selected yet — every deck is illegal until you pick at least one.
+								</p>
+							{/if}
+							<Input bind:value={setSearch} placeholder="Filter sets…" class="max-w-72" />
+							<div class="flex max-h-64 flex-col gap-0.5 overflow-y-auto rounded-lg border p-1">
+								{#each pickableSets as set (set.id)}
+									{@const selected = selectedSetIds.has(set.id)}
+									<button
+										type="button"
+										onclick={() => toggleSet(set.id)}
+										class={cn(
+											'flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+											selected ? 'bg-accent font-medium' : 'hover:bg-accent/50'
+										)}
+									>
+										<Check class={cn('size-3.5 shrink-0', !selected && 'invisible')} />
+										<span class="min-w-0 flex-1 truncate">{set.name}</span>
+										<span class="text-muted-foreground shrink-0 text-xs">
+											{set.ptcglCode ?? set.id} · {set.releaseDate?.slice(0, 4) ?? '—'}
+										</span>
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
 
 					<div class="flex flex-col gap-2">
 						<Label for="format-description">Description</Label>
@@ -280,7 +343,7 @@
 							id="banned"
 							bind:value={bannedText}
 							rows={5}
-							placeholder={'Lysandre&#39;s Trump Card\nForest of Giant Plants'}
+							placeholder={"Lysandre's Trump Card\nForest of Giant Plants"}
 							onchange={() =>
 								patchRules({
 									bannedNames: bannedText
