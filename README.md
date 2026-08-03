@@ -53,8 +53,9 @@ sub-path. Local builds need no such variable. A user or organisation site
 npm run build:catalogue
 ```
 
-Rebuilds `static/catalogue.json` from TCGdex; run it when a new set releases, then
-commit the file. It is checked in so a fresh clone works without a network fetch.
+Rebuilds `static/catalogue.json` and `static/details/*.json` from TCGdex; run it when a
+new set releases, then commit the files. They are checked in so a fresh clone works
+without a network fetch — and so the app keeps working if TCGdex is down.
 
 The script reads two TCGdex surfaces because neither alone is complete: REST
 `/sets/{id}` for the PTCGL set code (`OBF`, `PR-SW`) and legality, GraphQL for every
@@ -62,19 +63,33 @@ card of a set in one request. Card images and set logos are hotlinked to
 `assets.tcgdex.net`, never bundled — and new sets sometimes appear in the catalogue
 before their artwork is published, in which case the app falls back to showing names.
 
-### What is in the file, and what is not
+### What ships with the app, and what does not
 
-The catalogue holds only what browsing and deck rules need: names, sets, numbers,
-types, HP, rarity, regulation marks and available finishes. Attacks, abilities,
-weaknesses, retreat cost, illustrator and **market prices** are fetched per card from
-TCGdex when you open one — see [card-details.ts](src/lib/card-details.ts). Bundling
-card text for 21k printings would add megabytes to a file every visitor downloads, to
-show something only ever read one card at a time, and prices would be stale the moment
-the file was built. The service worker caches those responses, so a card you have
-opened stays readable offline.
+Three tiers, chosen by how often each thing changes and how much of it you need at once:
 
-That module also repairs a TCGdex quirk: text for newer cards arrives as UTF-8 that
-was decoded as Latin-1, so "Pokémon" comes through as "PokÃ©mon".
+| Data | Where | Why |
+|---|---|---|
+| Names, sets, numbers, types, HP, rarity, finishes | `static/catalogue.json`, 1.9 MB, loaded on start | Needed for search and deck rules, so all of it is needed at once |
+| Attacks, abilities, weaknesses, retreat, illustrator | `static/details/<setId>.json`, 7.3 MB total, one file fetched per set you open | Fixed once a set is printed. Split by set because ~13 KB gzipped per set beats 1.3 MB up front, and opening one card makes the rest of that set instant |
+| Market prices | Live TCGdex call per card | Change daily; storing them would ship stale numbers |
+| Card images and set logos | Hotlinked to `assets.tcgdex.net` | ~550 MB at low quality, 2.1 GB at high — GitHub Pages allows 1 GB per site |
+
+Net effect: everything except prices works offline, and the first visit downloads
+~2.6 MB rather than 10 MB. The service worker precaches the catalogue and app shell,
+then caches detail files, card art and price responses as you encounter them.
+
+The build script also repairs a TCGdex quirk on the way in: text for newer cards is
+served as UTF-8 that was decoded as Latin-1, so "Pokémon" arrives as "PokÃ©mon". See
+[text.ts](src/lib/tcg/text.ts), which is careful to leave genuine accented text alone.
+
+### Sets without artwork
+
+TCGdex lists a set's cards as soon as it is announced, sometimes weeks before the scans
+exist, and some older promo sets and trainer kits have no images at all. The build
+checks a few cards per set and records the answer, so the app can sort those sets to the
+back of the card browser — otherwise a just-released set fills the opening screen with
+cards that have no art — and badge them "No art yet" on the Sets page. Currently 55 of
+203 sets are in that state; they fall back to showing card names.
 
 ## Working with AI
 
@@ -132,7 +147,7 @@ sets is still four Charmander, and any printing you own counts toward what a dec
 
 ```
 src/lib/catalogue.ts        loads static/catalogue.json, indexes it, searches it
-src/lib/card-details.ts     per-card attacks/abilities/prices, fetched on demand
+src/lib/card-details.ts     bundled rules text per set, plus live prices per card
 src/lib/store.svelte.ts     all user data; reactive state mirrored to localStorage
 src/lib/tcg/                parser, resolver, exporter, legality, buylist, format rules
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, EnergyPip, …

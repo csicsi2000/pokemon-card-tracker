@@ -139,6 +139,10 @@
 						</div>
 						{#if row.total > 0 && row.owned === row.total}
 							<Badge class="shrink-0">Complete</Badge>
+						{:else if !row.set.artworkPublished}
+							<Badge variant="outline" class="shrink-0" title="TCGdex has not scanned this set yet">
+								No art yet
+							</Badge>
 						{/if}
 					</div>
 

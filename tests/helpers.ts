@@ -16,6 +16,7 @@ export function makeSet(overrides: Partial<CardSet> & { id: string }): CardSet {
 		logoUrl: null,
 		legalStandard: true,
 		legalExpanded: true,
+		artworkPublished: true,
 		...overrides
 	};
 }

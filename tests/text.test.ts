@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { repairText } from '../src/lib/card-details';
+import { repairText } from '../src/lib/tcg/text';
 
 describe('repairText', () => {
 	it('repairs UTF-8 that was decoded as Latin-1', () => {

@@ -14,8 +14,17 @@
  * Prices are not included. TCGdex only exposes them per card over REST, which would
  * mean ~21k requests for numbers that go stale immediately.
  */
-import { writeFileSync } from 'node:fs';
-import { CATALOGUE_PATH, EXCLUDED_SERIES, type CatalogueFile } from '../src/lib/catalogue-format.js';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+	CATALOGUE_PATH,
+	DETAILS_DIR,
+	EXCLUDED_SERIES,
+	type CardDetailRow,
+	type CatalogueFile,
+	type SetDetailFile
+} from '../src/lib/catalogue-format.js';
+import { cleanText } from '../src/lib/tcg/text.js';
 
 const REST = 'https://api.tcgdex.net/v2/en';
 const GRAPHQL = 'https://api.tcgdex.net/v2/graphql';
@@ -50,13 +59,23 @@ type GqlCard = {
 	image?: string | null;
 	set?: { id: string } | null;
 	variants?: Record<string, boolean> | null;
+	// Rules text, written to the per-set detail files rather than the catalogue.
+	illustrator?: string | null;
+	retreat?: number | null;
+	effect?: string | null;
+	abilities?: { type?: string; name?: string; effect?: string }[] | null;
+	attacks?: { name?: string; cost?: string[]; damage?: string; effect?: string }[] | null;
+	weaknesses?: { type?: string; value?: string }[] | null;
 };
 
 const CARD_FIELDS = `
 	id localId name category rarity regulationMark hp types evolveFrom
-	stage suffix trainerType energyType image
+	stage suffix trainerType energyType image illustrator retreat effect
 	set { id }
 	variants { normal reverse holo firstEdition wPromo }
+	abilities { type name effect }
+	attacks { name cost damage effect }
+	weaknesses { type value }
 `;
 
 async function fetchJson<T>(url: string, init?: RequestInit, attempt = 1): Promise<T> {
@@ -71,7 +90,7 @@ async function fetchJson<T>(url: string, init?: RequestInit, attempt = 1): Promi
 	}
 }
 
-async function fetchSetCards(setId: string): Promise<GqlCard[]> {
+async function fetchSetCards(setId: string): Promise<{ cards: GqlCard[]; warning?: string }> {
 	const query = `{ cards(filters: { id: "${setId}-" }) { ${CARD_FIELDS} } }`;
 	const body = await fetchJson<{ data?: { cards?: GqlCard[] }; errors?: unknown[] }>(GRAPHQL, {
 		method: 'POST',
@@ -79,12 +98,19 @@ async function fetchSetCards(setId: string): Promise<GqlCard[]> {
 		body: JSON.stringify({ query })
 	});
 
-	if (body.errors?.length) {
-		throw new Error(`GraphQL error for ${setId}: ${JSON.stringify(body.errors).slice(0, 300)}`);
+	// TCGdex declares attack names non-nullable but has cards whose extra attack rows are
+	// blank, so older sets always come back with errors attached. The card list itself is
+	// still complete and correct, so use it and only bail when there is no data at all.
+	const cards = body.data?.cards;
+	if (!Array.isArray(cards)) {
+		throw new Error(`no card data for ${setId}: ${JSON.stringify(body.errors ?? {}).slice(0, 200)}`);
 	}
 
-	// The prefix filter is a substring match, so re-check ownership before trusting a row.
-	return (body.data?.cards ?? []).filter((card) => (card.set?.id ?? card.id.split('-')[0]) === setId);
+	return {
+		// The prefix filter is a substring match, so re-check ownership per row.
+		cards: cards.filter((card) => card && (card.set?.id ?? card.id.split('-')[0]) === setId),
+		warning: body.errors?.length ? `${setId}: ${body.errors.length} field error(s), data kept` : undefined
+	};
 }
 
 /** Run `worker` over `items` with a bounded number of in-flight requests. */
@@ -118,6 +144,72 @@ const VARIANT_CODE: Record<string, string> = {
 	wPromo: 'w'
 };
 
+/** Drops empty keys so the detail files stay compact. */
+function toDetailRow(card: GqlCard): CardDetailRow | null {
+	const row: CardDetailRow = { localId: card.localId };
+
+	const illustrator = cleanText(card.illustrator);
+	if (illustrator) row.illustrator = illustrator;
+	if (typeof card.retreat === 'number') row.retreat = card.retreat;
+
+	const effect = cleanText(card.effect);
+	if (effect) row.effect = effect;
+
+	const abilities = (card.abilities ?? []).map((ability) => ({
+		type: cleanText(ability.type) ?? 'Ability',
+		name: cleanText(ability.name) ?? '',
+		effect: cleanText(ability.effect) ?? ''
+	}));
+	if (abilities.length) row.abilities = abilities;
+
+	// Blank attack rows are what makes the GraphQL query complain; drop them here.
+	const attacks = (card.attacks ?? [])
+		.filter((attack) => attack && cleanText(attack.name))
+		.map((attack) => {
+			const damage = cleanText(attack.damage);
+			const effect = cleanText(attack.effect);
+			return {
+				name: cleanText(attack.name)!,
+				cost: attack.cost ?? [],
+				...(damage ? { damage } : {}),
+				...(effect ? { effect } : {})
+			};
+		});
+	if (attacks.length) row.attacks = attacks;
+
+	const weaknesses = (card.weaknesses ?? [])
+		.filter((weakness) => weakness && cleanText(weakness.type))
+		.map((weakness) => {
+			const value = cleanText(weakness.value);
+			return { type: cleanText(weakness.type)!, ...(value ? { value } : {}) };
+		});
+	if (weaknesses.length) row.weaknesses = weaknesses;
+
+	// A row with nothing but its id is not worth writing.
+	return Object.keys(row).length > 1 ? row : null;
+}
+
+/**
+ * Does this set's card art actually exist? TCGdex publishes card lists as soon as a set
+ * is announced, so `image` is populated weeks before the scans are uploaded and the URL
+ * 404s. A few cards are sampled rather than one, so a single missing scan in an
+ * otherwise-illustrated set does not condemn the whole thing.
+ */
+async function hasPublishedArtwork(cards: GqlCard[]) {
+	const samples = cards.filter((card) => card.image).slice(0, 3);
+
+	for (const sample of samples) {
+		try {
+			const response = await fetch(`${sample.image}/low.webp`, { method: 'HEAD' });
+			if (response.ok) return true;
+		} catch {
+			// Network hiccup on one sample; try the next.
+		}
+	}
+
+	return false;
+}
+
 async function main() {
 	console.log('Fetching set list…');
 	const brief = await fetchJson<{ id: string }[]>(`${REST}/sets`);
@@ -132,12 +224,19 @@ async function main() {
 	const setIndex = new Map(sets.map((set, i) => [set.id, i]));
 	const imageBases = new Map<string, string>();
 	const cardRows: CatalogueFile['cards'] = [];
+	const detailsBySet = new Map<string, CardDetailRow[]>();
+	const artworkPublished = new Set<string>();
 	const failures: string[] = [];
+	const warnings: string[] = [];
 	let done = 0;
 
 	await mapLimit(sets, CONCURRENCY, async (set) => {
 		try {
-			for (const card of await fetchSetCards(set.id)) {
+			const { cards, warning } = await fetchSetCards(set.id);
+			if (warning) warnings.push(warning);
+			const details: CardDetailRow[] = [];
+
+			for (const card of cards) {
 				// Every card image is "<set base>/<collector number>", verified across the
 				// whole catalogue — so the base is stored once per set, not once per card.
 				if (card.image) {
@@ -169,7 +268,15 @@ async function main() {
 					variants,
 					card.image ? 1 : 0
 				]);
+
+				const detail = toDetailRow(card);
+				if (detail) details.push(detail);
 			}
+
+			details.sort((a, b) => a.localId.localeCompare(b.localId));
+			if (details.length) detailsBySet.set(set.id, details);
+
+			if (await hasPublishedArtwork(cards)) artworkPublished.add(set.id);
 		} catch (error) {
 			failures.push(`${set.id}: ${(error as Error).message}`);
 		}
@@ -196,7 +303,8 @@ async function main() {
 			set.symbol ?? null,
 			set.logo ?? null,
 			set.legal?.standard ? 1 : 0,
-			set.legal?.expanded ? 1 : 0
+			set.legal?.expanded ? 1 : 0,
+			artworkPublished.has(set.id) ? 1 : 0
 		]),
 		cards: cardRows
 	};
@@ -208,6 +316,28 @@ async function main() {
 		`\nWrote ${CATALOGUE_PATH} — ${cardRows.length} cards, ${sets.length} sets, ${(json.length / 1e6).toFixed(2)} MB.`
 	);
 
+	// Rewrite the detail directory from scratch, so sets dropped upstream do not linger.
+	mkdirSync(DETAILS_DIR, { recursive: true });
+	for (const existing of readdirSync(DETAILS_DIR)) {
+		if (existing.endsWith('.json')) rmSync(join(DETAILS_DIR, existing));
+	}
+
+	let detailBytes = 0;
+	for (const [setId, cards] of detailsBySet) {
+		const payload: SetDetailFile = { setId, cards };
+		const body = JSON.stringify(payload);
+		detailBytes += body.length;
+		writeFileSync(join(DETAILS_DIR, `${setId}.json`), body);
+	}
+
+	console.log(
+		`Wrote ${detailsBySet.size} detail file(s) to ${DETAILS_DIR}/ — ${(detailBytes / 1e6).toFixed(2)} MB total.`
+	);
+
+	if (warnings.length) {
+		console.warn(`\n${warnings.length} set(s) returned field errors but usable data.`);
+	}
+
 	if (failures.length) {
 		console.warn(`\n${failures.length} set(s) failed:`);
 		for (const failure of failures) console.warn(`  ${failure}`);
@@ -218,6 +348,13 @@ async function main() {
 	if (noCode) {
 		console.warn(
 			`\n${noCode} set(s) have no PTCGL code — imports referencing them fall back to name matching.`
+		);
+	}
+
+	const noArt = catalogue.sets.filter((set) => !set[11]);
+	if (noArt.length) {
+		console.warn(
+			`\n${noArt.length} set(s) have no published card art yet: ${noArt.map((set) => set[0]).join(', ')}`
 		);
 	}
 }

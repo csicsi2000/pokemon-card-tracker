@@ -1,76 +1,118 @@
 /**
- * Full card detail — attacks, abilities, weaknesses, illustrator, market prices —
- * fetched from TCGdex one card at a time, when the user actually opens a card.
+ * The parts of a card the catalogue does not carry, from two sources with very
+ * different change rates:
  *
- * This deliberately stays out of static/catalogue.json. Card text for ~21k printings
- * would add several megabytes to a file every visitor downloads up front, to show
- * information that is only ever read one card at a time. Prices would be stale the
- * moment the file was built, too.
- *
- * The service worker caches these responses, so a card stays readable offline once
- * it has been opened.
+ *   * Rules text — attacks, abilities, weaknesses, retreat, illustrator. Fixed once a
+ *     set is printed, so it ships with the app in static/details/<setId>.json, one file
+ *     per set (~13 KB gzipped). Open one card and the rest of that set is already local,
+ *     works offline, and survives TCGdex being down.
+ *   * Prices — change daily, so they are fetched live per card and never stored. When
+ *     the network is unavailable this is the only part that goes missing.
  */
-const API = 'https://api.tcgdex.net/v2/en/cards';
+import { base } from '$app/paths';
+import { detailUrl, type CardDetailRow, type SetDetailFile } from './catalogue-format';
+import { cleanText } from './tcg/text';
+
+const REST = 'https://api.tcgdex.net/v2/en/cards';
 
 export type Ability = { type: string; name: string; effect: string };
 export type Attack = { name: string; cost: string[]; damage: string | null; effect: string | null };
 export type Weakness = { type: string; value: string | null };
 
+export type CardText = {
+	illustrator: string | null;
+	abilities: Ability[];
+	attacks: Attack[];
+	weaknesses: Weakness[];
+	/** Retreat cost in energy; null for Trainer and Energy cards. */
+	retreat: number | null;
+	effect: string | null;
+};
+
 export type MarketPrice = {
 	source: 'Cardmarket' | 'TCGplayer';
 	currency: 'EUR' | 'USD';
-	/** Best single number to show — trend for Cardmarket, market for TCGplayer. */
+	/** The headline number: trend for Cardmarket, market price for TCGplayer. */
 	price: number;
 	low: number | null;
 	updated: string | null;
 };
 
-export type CardDetail = {
-	illustrator: string | null;
-	dexIds: number[];
-	abilities: Ability[];
-	attacks: Attack[];
-	weaknesses: Weakness[];
-	/** Retreat cost in energy, or null for Trainer/Energy cards. */
-	retreat: number | null;
-	effect: string | null;
-	prices: MarketPrice[];
-	setLogo: string | null;
-	setSymbol: string | null;
+const EMPTY_TEXT: CardText = {
+	illustrator: null,
+	abilities: [],
+	attacks: [],
+	weaknesses: [],
+	retreat: null,
+	effect: null
 };
 
-/**
- * TCGdex serves some newer cards' text as UTF-8 that was decoded as Latin-1 on their
- * side, so "Pokémon" arrives as "PokÃ©mon". Re-encoding the characters back to bytes
- * and decoding them as UTF-8 undoes it. Only safe when every character fits in a byte,
- * and the strict decoder rejects anything that was not mojibake to begin with.
- */
-export function repairText(value: string): string {
-	if (!/[ÃÂ]/.test(value)) return value;
+function toText(row: CardDetailRow | undefined): CardText {
+	if (!row) return EMPTY_TEXT;
+	return {
+		illustrator: row.illustrator ?? null,
+		abilities: row.abilities ?? [],
+		attacks: (row.attacks ?? []).map((attack) => ({
+			name: attack.name,
+			cost: attack.cost ?? [],
+			damage: attack.damage ?? null,
+			effect: attack.effect ?? null
+		})),
+		weaknesses: (row.weaknesses ?? []).map((weakness) => ({
+			type: weakness.type,
+			value: weakness.value ?? null
+		})),
+		retreat: row.retreat ?? null,
+		effect: row.effect ?? null
+	};
+}
 
-	const bytes = new Uint8Array(value.length);
-	for (let i = 0; i < value.length; i++) {
-		const code = value.charCodeAt(i);
-		if (code > 0xff) return value;
-		bytes[i] = code;
-	}
+// -- rules text (bundled, per set) -----------------------------------------
 
+const setFiles = new Map<string, Map<string, CardDetailRow>>();
+const setRequests = new Map<string, Promise<Map<string, CardDetailRow>>>();
+
+async function loadSetDetail(setId: string) {
+	const cached = setFiles.get(setId);
+	if (cached) return cached;
+
+	const existing = setRequests.get(setId);
+	if (existing) return existing;
+
+	const request = (async () => {
+		let rows: CardDetailRow[] = [];
+		try {
+			const response = await fetch(`${base}${detailUrl(setId)}`);
+			// A set whose cards are all vanilla has no file at all; that is not an error.
+			if (response.ok) rows = ((await response.json()) as SetDetailFile).cards ?? [];
+		} catch {
+			rows = [];
+		}
+
+		const byLocalId = new Map(rows.map((row) => [row.localId, row]));
+		setFiles.set(setId, byLocalId);
+		return byLocalId;
+	})();
+
+	setRequests.set(setId, request);
 	try {
-		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-	} catch {
-		return value;
+		return await request;
+	} finally {
+		setRequests.delete(setId);
 	}
 }
 
-const text = (value: unknown): string | null =>
-	typeof value === 'string' && value.trim() ? repairText(value) : null;
+export async function loadCardText(setId: string, localId: string): Promise<CardText> {
+	return toText((await loadSetDetail(setId)).get(localId));
+}
+
+// -- prices (live) ---------------------------------------------------------
 
 type ApiPricing = {
 	cardmarket?: { trend?: number; avg?: number; low?: number; updated?: string };
-	tcgplayer?: Record<
-		string,
-		{ marketPrice?: number; lowPrice?: number } | string | undefined
-	> & { updated?: string; unit?: string };
+	tcgplayer?: Record<string, { marketPrice?: number; lowPrice?: number } | string | undefined> & {
+		updated?: string;
+	};
 };
 
 function readPrices(pricing: ApiPricing | undefined): MarketPrice[] {
@@ -88,8 +130,8 @@ function readPrices(pricing: ApiPricing | undefined): MarketPrice[] {
 		});
 	}
 
-	// TCGplayer nests one object per finish (normal, holofoil, reverseHolofoil…).
-	// Take the cheapest market price across them; the finish names vary by era.
+	// TCGplayer nests one object per finish (normal, holofoil, reverseHolofoil…), and the
+	// finish names vary by era — so take the cheapest market price across all of them.
 	const player = pricing?.tcgplayer;
 	if (player) {
 		let best: { market: number; low: number | null } | null = null;
@@ -115,66 +157,42 @@ function readPrices(pricing: ApiPricing | undefined): MarketPrice[] {
 	return prices;
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- shape of a third-party payload */
-function toDetail(raw: any): CardDetail {
-	// Newer cards carry prices per variant; older ones have a single top-level block.
-	const variantPricing = (raw.variants_detailed ?? [])
-		.map((variant: any) => variant?.pricing)
-		.find(Boolean);
+const priceCache = new Map<string, MarketPrice[]>();
+const priceRequests = new Map<string, Promise<MarketPrice[]>>();
 
-	return {
-		illustrator: text(raw.illustrator),
-		dexIds: Array.isArray(raw.dexId) ? raw.dexId : [],
-		abilities: (raw.abilities ?? []).map((ability: any) => ({
-			type: text(ability.type) ?? 'Ability',
-			name: text(ability.name) ?? '',
-			effect: text(ability.effect) ?? ''
-		})),
-		attacks: (raw.attacks ?? []).map((attack: any) => ({
-			name: text(attack.name) ?? '',
-			cost: Array.isArray(attack.cost) ? attack.cost : [],
-			damage: attack.damage ? String(attack.damage) : null,
-			effect: text(attack.effect)
-		})),
-		weaknesses: (raw.weaknesses ?? []).map((weakness: any) => ({
-			type: text(weakness.type) ?? '',
-			value: text(weakness.value)
-		})),
-		retreat: typeof raw.retreat === 'number' ? raw.retreat : null,
-		effect: text(raw.effect),
-		prices: readPrices(raw.pricing ?? variantPricing),
-		setLogo: typeof raw.set?.logo === 'string' ? raw.set.logo : null,
-		setSymbol: typeof raw.set?.symbol === 'string' ? raw.set.symbol : null
-	};
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-const cache = new Map<string, CardDetail>();
-const inflight = new Map<string, Promise<CardDetail>>();
-
-export async function loadCardDetail(cardId: string): Promise<CardDetail> {
-	const cached = cache.get(cardId);
+export async function loadPrices(cardId: string): Promise<MarketPrice[]> {
+	const cached = priceCache.get(cardId);
 	if (cached) return cached;
 
-	const existing = inflight.get(cardId);
+	const existing = priceRequests.get(cardId);
 	if (existing) return existing;
 
 	const request = (async () => {
-		const response = await fetch(`${API}/${encodeURIComponent(cardId)}`);
+		const response = await fetch(`${REST}/${encodeURIComponent(cardId)}`);
 		if (!response.ok) throw new Error(`TCGdex returned ${response.status}`);
 
-		const detail = toDetail(await response.json());
-		cache.set(cardId, detail);
-		return detail;
+		/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- third-party shape */
+		const raw: any = await response.json();
+		// Newer cards carry prices per variant; older ones have one top-level block.
+		const variantPricing = (raw.variants_detailed ?? [])
+			/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- third-party shape */
+			.map((variant: any) => variant?.pricing)
+			.find(Boolean);
+
+		const prices = readPrices(raw.pricing ?? variantPricing);
+		priceCache.set(cardId, prices);
+		return prices;
 	})();
 
-	inflight.set(cardId, request);
+	priceRequests.set(cardId, request);
 	try {
 		return await request;
 	} finally {
-		inflight.delete(cardId);
+		priceRequests.delete(cardId);
 	}
 }
+
+// -- presentation helpers --------------------------------------------------
 
 /** Energy-type accents, close to the printed colours. Used for cost pips and badges. */
 export const TYPE_COLORS: Record<string, string> = {
@@ -193,14 +211,11 @@ export const TYPE_COLORS: Record<string, string> = {
 
 export const typeColor = (type: string) => TYPE_COLORS[type] ?? 'bg-neutral-500';
 
-export const formatPrice = (price: MarketPrice) =>
+export const formatPrice = (price: MarketPrice, amount = price.price) =>
 	new Intl.NumberFormat(price.currency === 'EUR' ? 'de-DE' : 'en-US', {
 		style: 'currency',
 		currency: price.currency
-	}).format(price.price);
+	}).format(amount);
 
-/** Cheapest listed price across markets, for rough collection/buylist totals. */
-export const lowestPrice = (detail: CardDetail): MarketPrice | null =>
-	detail.prices.length === 0
-		? null
-		: detail.prices.reduce((best, price) => (price.price < best.price ? price : best));
+/** Re-exported so callers repairing live API text do not need a second import. */
+export { cleanText };

@@ -28,6 +28,11 @@ export type CardSet = {
 	logoUrl: string | null;
 	legalStandard: boolean;
 	legalExpanded: boolean;
+	/**
+	 * False for sets TCGdex has listed but not yet scanned — the cards exist, the art
+	 * does not. Checked at build time, since the URLs look valid until requested.
+	 */
+	artworkPublished: boolean;
 };
 
 export type Card = {

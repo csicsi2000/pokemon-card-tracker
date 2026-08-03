@@ -64,9 +64,23 @@ export default defineConfig({
 				// catalogue.json is ~2 MB, well over the default 2 MiB precache limit, and
 				// it is the one file the app cannot run without — so raise the ceiling.
 				globPatterns: ['**/*.{js,css,html,json,svg,png,webp,woff,woff2}'],
+				// The per-set detail files come to ~7.5 MB together. Precaching them would
+				// put all of it on the first visit, which is exactly what splitting by set
+				// avoids — they are cached at runtime instead, as each set is opened.
+				globIgnores: ['**/details/*.json'],
 				maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
 				navigateFallback: `${basePath}/404.html`,
 				runtimeCaching: [
+					{
+						// Immutable for a given build: rules text does not change once printed.
+						urlPattern: /\/details\/[^/]+\.json$/i,
+						handler: 'CacheFirst',
+						options: {
+							cacheName: 'card-details',
+							expiration: { maxEntries: 250 },
+							cacheableResponse: { statuses: [0, 200] }
+						}
+					},
 					{
 						// Card art never changes once published — cache it hard so the grid
 						// stays usable offline and on a phone data connection.

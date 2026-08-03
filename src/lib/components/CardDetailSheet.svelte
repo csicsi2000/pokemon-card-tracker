@@ -13,7 +13,7 @@
 	import Footprints from '@lucide/svelte/icons/footprints';
 	import CardImage from './CardImage.svelte';
 	import EnergyPip from './EnergyPip.svelte';
-	import { loadCardDetail, formatPrice, type CardDetail } from '$lib/card-details';
+	import { loadCardText, loadPrices, formatPrice, type CardText, type MarketPrice } from '$lib/card-details';
 	import { store } from '$lib/store.svelte';
 	import { VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
 
@@ -22,31 +22,42 @@
 		open = $bindable(false)
 	}: { card: Card | null; open: boolean } = $props();
 
-	let detail = $state<CardDetail | null>(null);
-	let detailError = $state<string | null>(null);
+	let text = $state<CardText | null>(null);
+	let prices = $state<MarketPrice[] | null>(null);
+	let priceError = $state<string | null>(null);
 
-	// Full card text and prices are fetched per card rather than bundled — see
-	// src/lib/card-details.ts. Repeat opens are served from its cache.
+	// Rules text ships with the app, one file per set; prices are live. Loading them
+	// separately means an offline card still shows its attacks — see card-details.ts.
 	$effect(() => {
-		const id = card?.id;
-		if (!open || !id) return;
+		if (!open || !card) return;
+		const { id, set, localId } = card;
 
-		detail = null;
-		detailError = null;
+		text = null;
+		prices = null;
+		priceError = null;
 
 		let cancelled = false;
-		loadCardDetail(id)
+
+		loadCardText(set.id, localId).then((result) => {
+			if (!cancelled) text = result;
+		});
+
+		loadPrices(id)
 			.then((result) => {
-				if (!cancelled) detail = result;
+				if (!cancelled) prices = result;
 			})
 			.catch((error: Error) => {
-				if (!cancelled) detailError = error.message;
+				if (!cancelled) priceError = error.message;
 			});
 
 		return () => {
 			cancelled = true;
 		};
 	});
+
+	const hasText = $derived(
+		Boolean(text && (text.abilities.length || text.attacks.length || text.effect))
+	);
 
 	// Offer the finishes this printing exists in, plus any the user already recorded —
 	// so nothing becomes uneditable if the catalogue changes under them.
@@ -95,26 +106,28 @@
 					class="mx-auto aspect-[63/88] w-64 max-w-full rounded-xl shadow-lg"
 				/>
 
-				<!-- Market prices, straight from TCGdex -->
-				{#if detail?.prices.length}
+				<!-- Live market prices; the only part that needs a connection -->
+				{#if prices === null && !priceError}
+					<div class="grid grid-cols-2 gap-2">
+						<Skeleton class="h-[74px] rounded-lg" />
+						<Skeleton class="h-[74px] rounded-lg" />
+					</div>
+				{:else if prices?.length}
 					<div class="grid grid-cols-2 gap-2" in:fly={{ y: 6, duration: 200 }}>
-						{#each detail.prices as price (price.source)}
+						{#each prices as price (price.source)}
 							<div class="rounded-lg border p-2.5">
 								<p class="text-muted-foreground text-xs">{price.source}</p>
 								<p class="text-lg font-semibold tabular-nums">{formatPrice(price)}</p>
 								{#if price.low !== null}
 									<p class="text-muted-foreground text-xs">
-										from {formatPrice({ ...price, price: price.low })}
+										from {formatPrice(price, price.low)}
 									</p>
 								{/if}
 							</div>
 						{/each}
 					</div>
-				{:else if !detail && !detailError}
-					<div class="grid grid-cols-2 gap-2">
-						<Skeleton class="h-[74px] rounded-lg" />
-						<Skeleton class="h-[74px] rounded-lg" />
-					</div>
+				{:else if priceError}
+					<p class="text-muted-foreground text-xs">Prices need a connection — {priceError}.</p>
 				{/if}
 
 				<div class="flex flex-wrap gap-1.5">
@@ -143,9 +156,9 @@
 				{/if}
 
 				<!-- Abilities and attacks -->
-				{#if detail}
+				{#if text}
 					<div class="flex flex-col gap-4" in:fly={{ y: 6, duration: 200 }}>
-						{#each detail.abilities as ability (ability.name)}
+						{#each text.abilities as ability (ability.name)}
 							<div class="flex flex-col gap-1">
 								<p class="flex items-center gap-2 text-sm font-semibold">
 									<Badge variant="secondary" class="text-[10px]">{ability.type}</Badge>
@@ -155,7 +168,7 @@
 							</div>
 						{/each}
 
-						{#each detail.attacks as attack (attack.name)}
+						{#each text.attacks as attack (attack.name)}
 							<div class="flex flex-col gap-1">
 								<div class="flex items-center gap-2">
 									<span class="flex gap-0.5">
@@ -174,13 +187,13 @@
 							</div>
 						{/each}
 
-						{#if detail.effect}
-							<p class="text-muted-foreground text-sm leading-relaxed">{detail.effect}</p>
+						{#if text.effect}
+							<p class="text-muted-foreground text-sm leading-relaxed">{text.effect}</p>
 						{/if}
 
-						{#if detail.weaknesses.length || detail.retreat !== null}
+						{#if text.weaknesses.length || text.retreat !== null}
 							<div class="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
-								{#each detail.weaknesses as weakness (weakness.type)}
+								{#each text.weaknesses as weakness (weakness.type)}
 									<span class="flex items-center gap-1.5">
 										<Shield class="size-3.5" />
 										Weakness
@@ -188,24 +201,26 @@
 										{weakness.value ?? ''}
 									</span>
 								{/each}
-								{#if detail.retreat !== null}
+								{#if text.retreat !== null}
 									<span class="flex items-center gap-1.5">
-										<Footprints class="size-3.5" /> Retreat {detail.retreat}
+										<Footprints class="size-3.5" /> Retreat {text.retreat}
 									</span>
 								{/if}
 							</div>
 						{/if}
 
-						{#if detail.illustrator}
+						{#if text.illustrator}
 							<p class="text-muted-foreground flex items-center gap-1.5 text-xs">
-								<Brush class="size-3.5" /> {detail.illustrator}
+								<Brush class="size-3.5" /> {text.illustrator}
+							</p>
+						{/if}
+
+						{#if !hasText}
+							<p class="text-muted-foreground text-sm">
+								No rules text recorded for this printing.
 							</p>
 						{/if}
 					</div>
-				{:else if detailError}
-					<p class="text-muted-foreground text-sm">
-						Attacks, abilities and prices need a connection — {detailError}.
-					</p>
 				{:else}
 					<div class="flex flex-col gap-2">
 						<Skeleton class="h-4 w-2/5" />

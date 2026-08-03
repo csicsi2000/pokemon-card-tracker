@@ -43,7 +43,8 @@ function toSet(row: SetRow): CardSet {
 		symbolUrl: row[7],
 		logoUrl: row[8],
 		legalStandard: row[9] === 1,
-		legalExpanded: row[10] === 1
+		legalExpanded: row[10] === 1,
+		artworkPublished: row[11] === 1
 	};
 }
 
@@ -91,9 +92,16 @@ function build(file: CatalogueFile): Catalogue {
 	for (const bucket of byName.values()) bucket.sort(newestFirst);
 	sets.sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''));
 
-	// Browse order: newest set first, then collector number. Search results inherit it.
+	// Browse order: newest set first, then collector number — except that sets TCGdex has
+	// not scanned yet sort last, whatever their date. A just-announced set would otherwise
+	// fill the opening screen with cards that have no art to show.
 	const collectorNumber = (card: Card) => Number(card.localId.replace(/\D/g, '')) || 0;
-	cards.sort((a, b) => newestFirst(a, b) || collectorNumber(a) - collectorNumber(b));
+	cards.sort(
+		(a, b) =>
+			Number(b.set.artworkPublished) - Number(a.set.artworkPublished) ||
+			newestFirst(a, b) ||
+			collectorNumber(a) - collectorNumber(b)
+	);
 
 	return { generatedAt: file.generatedAt, cards, sets, byId, byName, setsById, setsByCode };
 }

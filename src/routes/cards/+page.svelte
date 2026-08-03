@@ -33,18 +33,29 @@
 
 	const activeSet = $derived(setId ? data.catalogue.setsById.get(setId) : undefined);
 
-	// Any filter change puts you back on page one, and is mirrored into the URL so the
-	// view can be shared or reloaded.
+	/**
+	 * Filters are mirrored into the URL so a view can be shared or reloaded, and any
+	 * change drops you back to page one.
+	 *
+	 * The first run only records the starting point: the URL already matches the state
+	 * it seeded, and calling replaceState while the router is still initialising throws.
+	 * Params are compared serialised rather than as hrefs, because URLSearchParams writes
+	 * a space as "+" where the address bar has "%20" — comparing hrefs never converges.
+	 */
+	let lastSynced: string | null = null;
+
 	$effect(() => {
-		const url = new URL(page.url);
-		const sync = (key: string, value: string) =>
-			value ? url.searchParams.set(key, value) : url.searchParams.delete(key);
+		const params = new URLSearchParams();
+		if (query) params.set('q', query);
+		if (setId) params.set('set', setId);
+		const next = params.toString();
 
-		sync('q', query);
-		sync('set', setId);
+		if (lastSynced !== null && next !== lastSynced) {
+			replaceState(`${page.url.pathname}${next ? `?${next}` : ''}`, {});
+			pageNumber = 1;
+		}
 
-		if (url.href !== page.url.href) replaceState(url, {});
-		pageNumber = 1;
+		lastSynced = next;
 	});
 
 	const setOptions = $derived([
