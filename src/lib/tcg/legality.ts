@@ -1,15 +1,14 @@
 /**
- * Deck legality against a format. Pure functions — everything they need is passed in,
- * so they are trivially testable and reusable by the MCP server.
+ * Deck legality against a format. Pure functions — everything they need is passed in.
  *
  * Copy limits count by card NAME, not by printing: four Charmander from four
  * different sets is still four Charmander.
  */
-import type { CardWithSet } from '$lib/database.types';
+import type { Card } from '$lib/types';
 import type { FormatRules } from './format-rules';
 import { normalizeName } from './normalize';
 
-export type DeckEntry = { card: CardWithSet; quantity: number };
+export type DeckEntry = { card: Card; quantity: number };
 
 export type LegalityIssue = {
 	kind: 'deck-size' | 'copies' | 'banned' | 'pool';
@@ -23,7 +22,7 @@ export type LegalityReport = {
 	issues: LegalityIssue[];
 };
 
-export const isBasicEnergy = (card: CardWithSet) =>
+export const isBasicEnergy = (card: Card) =>
 	card.supertype === 'Energy' && !card.subtypes.includes('Special');
 
 /** Sums quantities per card name — the unit every copy rule works in. */
@@ -38,6 +37,21 @@ export function countByName(entries: DeckEntry[]) {
 	}
 
 	return counts;
+}
+
+export function isInPool(card: Card, rules: FormatRules, poolCardIds?: Set<string>) {
+	switch (rules.pool.type) {
+		case 'all':
+			return true;
+		case 'sets':
+			return rules.pool.setIds.includes(card.set.id);
+		case 'explicit':
+			return poolCardIds?.has(card.id) ?? false;
+		case 'standard':
+			return card.set.legalStandard;
+		case 'expanded':
+			return card.set.legalExpanded;
+	}
 }
 
 export function checkLegality(
@@ -81,30 +95,10 @@ export function checkLegality(
 			issues.push({
 				kind: 'pool',
 				cardName: card.name,
-				message: `${card.name} (${card.set?.ptcgl_code ?? card.set_id}) is outside the card pool.`
+				message: `${card.name} (${card.set.ptcglCode ?? card.set.id}) is outside the card pool.`
 			});
 		}
 	}
 
 	return { legal: issues.length === 0, total, issues };
-}
-
-export function isInPool(card: CardWithSet, rules: FormatRules, poolCardIds?: Set<string>) {
-	switch (rules.pool.type) {
-		case 'all':
-			return true;
-		case 'sets':
-			return rules.pool.setIds.includes(card.set_id);
-		case 'explicit':
-			return poolCardIds?.has(card.id) ?? false;
-		case 'standard':
-		case 'expanded':
-			// Set legality flags live on the set row; the caller joins them in.
-			return card.set ? isSetLegal(card, rules.pool.type) : true;
-	}
-}
-
-function isSetLegal(card: CardWithSet, type: 'standard' | 'expanded') {
-	const set = card.set as unknown as { legal_standard?: boolean; legal_expanded?: boolean };
-	return type === 'standard' ? !!set.legal_standard : !!set.legal_expanded;
 }

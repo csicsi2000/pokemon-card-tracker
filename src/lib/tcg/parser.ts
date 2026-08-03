@@ -10,7 +10,7 @@
  * Pure and dependency-free so it can be unit tested and reused by the MCP server.
  * Resolving entries to actual card ids is a separate step — see resolver.ts.
  */
-import type { Supertype } from '$lib/database.types';
+import type { Supertype } from '$lib/types';
 
 export type ParsedEntry = {
 	quantity: number;

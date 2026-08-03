@@ -1,245 +1,273 @@
 <script lang="ts">
-	import { runAction } from '$lib/actions';
+	import { page } from '$app/state';
+	import { base } from '$app/paths';
 	import { flip } from 'svelte/animate';
-	import { fly, slide } from 'svelte/transition';
-	import { toast } from 'svelte-sonner';
+	import { fly } from 'svelte/transition';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CardSearchPanel from '$lib/components/CardSearchPanel.svelte';
-	import StatTile from '$lib/components/StatTile.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Separator } from '$lib/components/ui/separator';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as Card from '$lib/components/ui/card';
+	import * as Select from '$lib/components/ui/select';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import { cardImage } from '$lib/tcg/queries';
-	import Copy from '@lucide/svelte/icons/copy';
+	import { toast } from 'svelte-sonner';
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Copy from '@lucide/svelte/icons/copy';
+	import Check from '@lucide/svelte/icons/check';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
-	import type { CardWithSet, Supertype } from '$lib/database.types';
+	import CardImage from '$lib/components/CardImage.svelte';
+	import { store } from '$lib/store.svelte';
+	import { parseRules } from '$lib/tcg/format-rules';
+	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
+	import { buildBuylist } from '$lib/tcg/buylist';
+	import { toPtcglText, toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
+	import type { Card as CardType } from '$lib/types';
 
 	let { data } = $props();
 
-	const SECTIONS: Supertype[] = ['Pokemon', 'Trainer', 'Energy'];
-	const SECTION_LABELS: Record<Supertype, string> = {
-		Pokemon: 'Pokémon',
-		Trainer: 'Trainer',
-		Energy: 'Energy'
-	};
+	const deckId = $derived(page.params.id!);
+	const deck = $derived(store.deck(deckId));
 
-	const total = $derived(data.entries.reduce((sum, entry) => sum + entry.quantity, 0));
+	/** Deck rows joined to the catalogue, in the order players expect. */
+	const entries = $derived.by((): DeckEntry[] => {
+		if (!deck) return [];
+		const order = { Pokemon: 0, Trainer: 1, Energy: 2 };
+		return deck.cards
+			.flatMap((row) => {
+				const card = data.catalogue.byId.get(row.cardId);
+				return card ? [{ card, quantity: row.quantity }] : [];
+			})
+			.sort(
+				(a, b) =>
+					order[a.card.supertype] - order[b.card.supertype] ||
+					a.card.name.localeCompare(b.card.name)
+			);
+	});
 
-	const grouped = $derived(
-		SECTIONS.map((supertype) => ({
-			supertype,
-			entries: data.entries.filter((entry) => entry.card.supertype === supertype)
-		})).filter((group) => group.entries.length > 0)
+	const total = $derived(entries.reduce((sum, entry) => sum + entry.quantity, 0));
+
+	const format = $derived(deck?.formatId ? store.format(deck.formatId) : null);
+
+	const report = $derived.by(() => {
+		if (!format) return null;
+		const poolIds = new Set(format.pool.map((card) => card.cardId));
+		return checkLegality(entries, parseRules(format.rules), poolIds);
+	});
+
+	/** What you would still have to buy to sleeve this deck up. */
+	const buylist = $derived(
+		buildBuylist(
+			entries,
+			store.collection.flatMap((entry) => {
+				const card = data.catalogue.byId.get(entry.cardId);
+				return card ? [{ name: card.name, quantity: entry.quantity }] : [];
+			})
+		)
 	);
 
-	async function setQuantity(card: CardWithSet, quantity: number) {
-		try {
-			await runAction('?/setQuantity', { cardId: card.id, quantity: Math.max(0, quantity) });
-		} catch (error) {
-			toast.error((error as Error).message);
-		}
+	const ptcglText = $derived(toPtcglText(entries));
+	const aiPayload = $derived(
+		`${AI_PREAMBLE}\n${JSON.stringify(
+			{ deck: deck?.name, format: format?.name ?? null, cards: toAiEntries(entries) },
+			null,
+			2
+		)}`
+	);
+
+	function adjust(cardId: string, delta: number) {
+		if (!deck) return;
+		const current = deck.cards.find((row) => row.cardId === cardId)?.quantity ?? 0;
+		store.setDeckQuantity(deckId, cardId, current + delta);
 	}
 
-	const quantityOf = (cardId: string) =>
-		data.entries.find((entry) => entry.card.id === cardId)?.quantity ?? 0;
+	const add = (card: CardType) => adjust(card.id, 1);
 
-	async function copyList() {
-		await navigator.clipboard.writeText(data.ptcgl);
-		toast.success('Decklist copied in PTCGL format');
+	async function copy(text: string, label: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toast.success(`${label} copied`);
+		} catch {
+			toast.error('Could not copy — the browser blocked clipboard access.');
+		}
 	}
 </script>
 
-<svelte:head><title>{data.deck.name} · Cardex</title></svelte:head>
+<svelte:head><title>{deck?.name ?? 'Deck'} · Cardex</title></svelte:head>
 
-<PageHeader title={data.deck.name} subtitle={`${total} cards`}>
-	{#snippet actions()}
-		<Button variant="outline" size="sm" onclick={copyList}>
-			<Copy class="size-4" /> Copy list
-		</Button>
-	{/snippet}
-</PageHeader>
+{#if !deck}
+	<div class="flex flex-col items-center gap-3 py-24 text-center">
+		<p class="text-muted-foreground text-sm">This deck does not exist in this browser.</p>
+		<Button href="{base}/decks">Back to decks</Button>
+	</div>
+{:else}
+	<PageHeader
+		title={deck.name}
+		subtitle={`${total} cards${format ? ` · ${format.name}` : ''}`}
+		backHref="{base}/decks"
+	>
+		{#snippet actions()}
+			<Button variant="outline" size="sm" onclick={() => copy(ptcglText, 'Decklist')}>
+				<Copy class="size-4" /> Copy list
+			</Button>
+			<Button variant="outline" size="sm" onclick={() => copy(aiPayload, 'AI export')}>
+				Copy for AI
+			</Button>
+		{/snippet}
+	</PageHeader>
 
-<div class="grid gap-6 p-4 md:p-8 lg:grid-cols-[1fr_320px]">
-	<div class="flex min-w-0 flex-col gap-5">
-		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-			<StatTile label="Cards" value={total} />
-			<StatTile label="Unique" value={data.entries.length} />
-			<StatTile
-				label="Owned"
-				value={`${Math.round(data.buylist.coverage * 100)}%`}
-				hint="of this deck"
-			/>
-			<StatTile label="To buy" value={data.buylist.totalMissing} />
-		</div>
+	<div class="grid gap-6 p-4 md:p-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+		<div class="flex min-w-0 flex-col gap-4">
+			<div class="flex flex-wrap items-center gap-2">
+				<Input
+					value={deck.name}
+					class="h-9 max-w-64"
+					aria-label="Deck name"
+					onchange={(event) => store.updateDeck(deckId, { name: event.currentTarget.value })}
+				/>
 
-		{#if data.legality}
-			<div transition:slide>
-				{#if data.legality.legal}
-					<Alert.Root>
-						<CircleCheck class="size-4" />
-						<Alert.Title>Legal in {data.deck.format?.name}</Alert.Title>
-					</Alert.Root>
-				{:else}
-					<Alert.Root variant="destructive">
-						<TriangleAlert class="size-4" />
-						<Alert.Title>Not legal in {data.deck.format?.name}</Alert.Title>
-						<Alert.Description>
-							<ul class="list-disc pl-4">
-								{#each data.legality.issues.slice(0, 8) as issue (issue.message)}
-									<li>{issue.message}</li>
-								{/each}
-								{#if data.legality.issues.length > 8}
-									<li>…and {data.legality.issues.length - 8} more</li>
-								{/if}
-							</ul>
-						</Alert.Description>
-					</Alert.Root>
+				<Select.Root
+					type="single"
+					value={deck.formatId ?? ''}
+					onValueChange={(value) => store.updateDeck(deckId, { formatId: value || null })}
+				>
+					<Select.Trigger class="h-9 w-44">{format?.name ?? 'No format'}</Select.Trigger>
+					<Select.Content>
+						<Select.Item value="">No format</Select.Item>
+						{#each store.formats as option (option.id)}
+							<Select.Item value={option.id}>{option.name}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+
+				{#if report}
+					{#if report.legal}
+						<Badge class="gap-1"><Check class="size-3" /> Legal</Badge>
+					{:else}
+						<Badge variant="destructive" class="gap-1">
+							<TriangleAlert class="size-3" />
+							{report.issues.length} issue{report.issues.length === 1 ? '' : 's'}
+						</Badge>
+					{/if}
 				{/if}
 			</div>
-		{/if}
 
-		<Tabs.Root value="list">
-			<Tabs.List>
-				<Tabs.Trigger value="list">Decklist</Tabs.Trigger>
-				<Tabs.Trigger value="buy">
-					Buylist
-					{#if data.buylist.rows.length}
-						<Badge variant="secondary" class="ml-1.5">{data.buylist.rows.length}</Badge>
-					{/if}
-				</Tabs.Trigger>
-				<Tabs.Trigger value="text">Text</Tabs.Trigger>
-			</Tabs.List>
-
-			<Tabs.Content value="list" class="flex flex-col gap-5 pt-4">
-				{#if data.entries.length === 0}
-					<p class="text-muted-foreground py-16 text-center text-sm">
-						Empty deck — search on the right to add cards.
-					</p>
-				{/if}
-
-				{#each grouped as group (group.supertype)}
-					<section class="flex flex-col gap-2">
-						<h2 class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-							{SECTION_LABELS[group.supertype]}
-							· {group.entries.reduce((sum, e) => sum + e.quantity, 0)}
-						</h2>
-
-						{#each group.entries as entry (entry.card.id)}
-							<div
-								animate:flip={{ duration: 220 }}
-								in:fly|global={{ y: 6, duration: 180 }}
-								class="flex items-center gap-3 rounded-lg border p-2"
-							>
-								{#if entry.card.image_url}
-									<img
-										src={cardImage(entry.card.image_url)}
-										alt=""
-										loading="lazy"
-										class="h-12 w-9 shrink-0 rounded object-cover"
-									/>
-								{:else}
-									<div class="bg-muted h-12 w-9 shrink-0 rounded"></div>
-								{/if}
-
-								<div class="min-w-0 flex-1">
-									<p class="truncate text-sm font-medium">{entry.card.name}</p>
-									<p class="text-muted-foreground truncate text-xs">
-										{entry.card.set?.ptcgl_code ?? entry.card.set_id} · #{entry.card.local_id}
-									</p>
-								</div>
-
-								<div class="flex shrink-0 items-center gap-1">
-									<Button
-										variant="outline"
-										size="icon"
-										class="size-7"
-										onclick={() => setQuantity(entry.card, entry.quantity - 1)}
-										aria-label="Remove one"
-									>
-										<Minus class="size-3" />
-									</Button>
-									<span class="w-6 text-center text-sm font-semibold tabular-nums">
-										{entry.quantity}
-									</span>
-									<Button
-										variant="outline"
-										size="icon"
-										class="size-7"
-										onclick={() => setQuantity(entry.card, entry.quantity + 1)}
-										aria-label="Add one"
-									>
-										<Plus class="size-3" />
-									</Button>
-								</div>
-							</div>
+			{#if report && !report.legal}
+				<Card.Root class="border-destructive/40">
+					<Card.Content class="flex flex-col gap-1 py-4 text-sm">
+						{#each report.issues as issue (issue.message)}
+							<p class="text-muted-foreground">{issue.message}</p>
 						{/each}
-					</section>
-				{/each}
-			</Tabs.Content>
+					</Card.Content>
+				</Card.Root>
+			{/if}
 
-			<Tabs.Content value="buy" class="pt-4">
-				{#if data.buylist.rows.length === 0}
-					<Alert.Root>
-						<CircleCheck class="size-4" />
-						<Alert.Title>You own every card in this deck.</Alert.Title>
-					</Alert.Root>
-				{:else}
-					<Card.Root>
-						<Card.Header>
-							<Card.Title class="flex items-center gap-2">
-								<ShoppingCart class="size-4" />
-								{data.buylist.totalMissing} cards to buy
-							</Card.Title>
-							<Card.Description>
-								Counted by card name — any printing you own counts.
-							</Card.Description>
-						</Card.Header>
-						<Card.Content class="flex flex-col gap-1">
-							{#each data.buylist.rows as row (row.name)}
-								<div class="flex items-center justify-between gap-3 py-1.5">
-									<div class="min-w-0">
-										<p class="truncate text-sm">{row.name}</p>
+			<Tabs.Root value="list">
+				<Tabs.List>
+					<Tabs.Trigger value="list">Decklist</Tabs.Trigger>
+					<Tabs.Trigger value="buylist">
+						Buylist
+						{#if buylist.totalMissing > 0}
+							<Badge variant="secondary" class="ml-1.5">{buylist.totalMissing}</Badge>
+						{/if}
+					</Tabs.Trigger>
+				</Tabs.List>
+
+				<Tabs.Content value="list" class="flex flex-col gap-1.5 pt-3">
+					{#if entries.length === 0}
+						<p class="text-muted-foreground py-12 text-center text-sm">
+							Empty deck — search on the right to add cards.
+						</p>
+					{/if}
+
+					{#each entries as entry (entry.card.id)}
+						{@const owned = store.ownedTotal(entry.card.id)}
+						<div
+							animate:flip={{ duration: 200 }}
+							in:fly|global={{ y: 6, duration: 160 }}
+							class="hover:bg-accent/50 flex items-center gap-3 rounded-lg p-1.5 transition-colors"
+						>
+							<CardImage card={entry.card} class="h-11 w-8 shrink-0 rounded" />
+
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium">{entry.card.name}</p>
+								<p class="text-muted-foreground truncate text-xs">
+									{entry.card.set.ptcglCode ?? entry.card.set.id} · #{entry.card.localId}
+									{#if owned > 0}· {owned} owned{/if}
+								</p>
+							</div>
+
+							<div class="flex items-center gap-1">
+								<Button
+									variant="outline"
+									size="icon"
+									class="size-7"
+									aria-label="Remove one"
+									onclick={() => adjust(entry.card.id, -1)}
+								>
+									<Minus class="size-3" />
+								</Button>
+								<span class="w-6 text-center text-sm font-semibold tabular-nums">
+									{entry.quantity}
+								</span>
+								<Button
+									variant="outline"
+									size="icon"
+									class="size-7"
+									aria-label="Add one"
+									onclick={() => adjust(entry.card.id, 1)}
+								>
+									<Plus class="size-3" />
+								</Button>
+							</div>
+						</div>
+					{/each}
+				</Tabs.Content>
+
+				<Tabs.Content value="buylist" class="pt-3">
+					{#if buylist.rows.length === 0}
+						<p class="text-muted-foreground py-12 text-center text-sm">
+							{entries.length === 0
+								? 'Add some cards first.'
+								: 'You already own every card in this deck.'}
+						</p>
+					{:else}
+						<div class="flex flex-col gap-2">
+							<p class="text-muted-foreground text-sm">
+								{buylist.totalMissing} card{buylist.totalMissing === 1 ? '' : 's'} to buy ·
+								{Math.round(buylist.coverage * 100)}% of the deck already owned
+							</p>
+							{#each buylist.rows as row (row.name)}
+								<div class="flex items-center gap-3 rounded-lg border p-2">
+									<ShoppingCart class="text-muted-foreground size-4 shrink-0" />
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-medium">{row.name}</p>
 										<p class="text-muted-foreground text-xs">
-											own {row.owned} of {row.needed} · e.g. {row.suggestion.set?.ptcgl_code ??
-												row.suggestion.set_id} #{row.suggestion.local_id}
+											need {row.needed} · own {row.owned} · e.g.
+											{row.suggestion.set.ptcglCode ?? row.suggestion.set.id} #{row.suggestion
+												.localId}
 										</p>
 									</div>
-									<Badge variant="destructive">+{row.missing}</Badge>
+									<Badge variant="secondary">{row.missing}×</Badge>
 								</div>
-								<Separator />
 							{/each}
-						</Card.Content>
-					</Card.Root>
-				{/if}
-			</Tabs.Content>
+						</div>
+					{/if}
+				</Tabs.Content>
+			</Tabs.Root>
+		</div>
 
-			<Tabs.Content value="text" class="pt-4">
-				<pre
-					class="bg-muted overflow-x-auto rounded-lg p-4 font-mono text-xs whitespace-pre">{data.ptcgl}</pre>
-				<Button class="mt-3" variant="outline" onclick={copyList}>
-					<Copy class="size-4" /> Copy
-				</Button>
-			</Tabs.Content>
-		</Tabs.Root>
+		<aside class="lg:sticky lg:top-24 lg:h-[calc(100svh-8rem)]">
+			<Card.Root class="flex h-full flex-col">
+				<Card.Header>
+					<Card.Title class="text-base">Add cards</Card.Title>
+				</Card.Header>
+				<Card.Content class="flex min-h-0 flex-1 flex-col">
+					<CardSearchPanel catalogue={data.catalogue} onadd={add} />
+				</Card.Content>
+			</Card.Root>
+		</aside>
 	</div>
-
-	<aside class="lg:sticky lg:top-24 lg:h-[calc(100svh-8rem)]">
-		<Card.Root class="flex h-full flex-col">
-			<Card.Header>
-				<Card.Title class="text-base">Add cards</Card.Title>
-			</Card.Header>
-			<Card.Content class="flex min-h-0 flex-1 flex-col">
-				<CardSearchPanel
-					onadd={(card) => setQuantity(card, quantityOf(card.id) + 1)}
-				/>
-			</Card.Content>
-		</Card.Root>
-	</aside>
-</div>
+{/if}

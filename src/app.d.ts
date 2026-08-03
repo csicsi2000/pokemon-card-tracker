@@ -1,19 +1,9 @@
 /// <reference types="@vite-pwa/sveltekit" />
-import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
 
+// There is no server: no locals, no session. All state lives in localStorage.
 declare global {
-	namespace App {
-		interface Locals {
-			supabase: SupabaseClient;
-			safeGetSession: () => Promise<{ session: Session | null; user: User | null }>;
-			session: Session | null;
-			user: User | null;
-		}
-		interface PageData {
-			session: Session | null;
-			user: User | null;
-		}
-	}
+	// eslint-disable-next-line @typescript-eslint/no-namespace
+	namespace App {}
 }
 
 export {};

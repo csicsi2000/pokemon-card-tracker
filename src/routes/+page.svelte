@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
+	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -8,8 +9,26 @@
 	import Layers from '@lucide/svelte/icons/layers';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Import from '@lucide/svelte/icons/import';
+	import { store } from '$lib/store.svelte';
 
 	let { data } = $props();
+
+	const stats = $derived({
+		owned: store.collection.reduce((sum, entry) => sum + entry.quantity, 0),
+		printings: new Set(store.collection.map((entry) => entry.cardId)).size,
+		decks: store.decks.length,
+		catalogue: data.catalogue.cards.length
+	});
+
+	const recentDecks = $derived(
+		[...store.decks]
+			.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+			.slice(0, 6)
+			.map((deck) => ({
+				...deck,
+				cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0)
+			}))
+	);
 
 	const shortcuts = [
 		{ href: '/collection', icon: Library, title: 'Collection', text: 'Track what you own.' },
@@ -25,20 +44,20 @@
 
 <div class="flex flex-col gap-6 p-4 md:p-8">
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		<StatTile label="Cards owned" value={data.stats.owned} />
-		<StatTile label="Unique printings" value={data.stats.printings} />
-		<StatTile label="Decks" value={data.stats.decks} />
+		<StatTile label="Cards owned" value={stats.owned} />
+		<StatTile label="Unique printings" value={stats.printings} />
+		<StatTile label="Decks" value={stats.decks} />
 		<StatTile
 			label="Cards in catalogue"
-			value={data.stats.catalogue}
-			hint="synced from TCGdex"
+			value={stats.catalogue}
+			hint={`TCGdex, ${data.catalogue.generatedAt}`}
 		/>
 	</div>
 
 	<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 		{#each shortcuts as shortcut, index (shortcut.href)}
 			{@const Icon = shortcut.icon}
-			<a href={shortcut.href} in:fly|global={{ y: 10, duration: 220, delay: index * 40 }}>
+			<a href="{base}{shortcut.href}" in:fly|global={{ y: 10, duration: 220, delay: index * 40 }}>
 				<Card.Root class="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
 					<Card.Header>
 						<Icon class="text-primary size-5" />
@@ -50,12 +69,12 @@
 		{/each}
 	</div>
 
-	{#if data.recentDecks.length}
+	{#if recentDecks.length}
 		<section class="flex flex-col gap-3">
 			<h2 class="text-sm font-semibold">Recent decks</h2>
 			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-				{#each data.recentDecks as deck (deck.id)}
-					<a href="/decks/{deck.id}">
+				{#each recentDecks as deck (deck.id)}
+					<a href="{base}/decks/{deck.id}">
 						<Card.Root class="transition-shadow hover:shadow-md">
 							<Card.Header>
 								<Card.Title class="text-base">{deck.name}</Card.Title>
@@ -71,13 +90,13 @@
 			<Card.Header>
 				<Card.Title class="text-base">Nothing here yet</Card.Title>
 				<Card.Description>
-					Import a pkmn.gg list, or browse the {data.stats.catalogue.toLocaleString()} card catalogue
-					and start marking what you own.
+					Import a pkmn.gg list, or browse the {stats.catalogue.toLocaleString()} card catalogue and
+					start marking what you own. Everything is stored in this browser.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="flex gap-2">
-				<Button href="/import">Import a list</Button>
-				<Button href="/cards" variant="outline">Browse cards</Button>
+				<Button href="{base}/import">Import a list</Button>
+				<Button href="{base}/cards" variant="outline">Browse cards</Button>
 			</Card.Content>
 		</Card.Root>
 	{/if}

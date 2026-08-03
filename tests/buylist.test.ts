@@ -9,8 +9,8 @@ describe('buildBuylist', () => {
 		const list = buildBuylist(
 			[{ card: charmander, quantity: 4 }],
 			[
-				{ card_id: 'mew-4', quantity: 1, name: 'Charmander' }, // different printing
-				{ card_id: 'obf-26', quantity: 1, name: 'Charmander' } // reverse holo copy
+				{ name: 'Charmander', quantity: 1 }, // a different printing
+				{ name: 'Charmander', quantity: 1 } // a reverse holo copy
 			]
 		);
 
@@ -24,7 +24,7 @@ describe('buildBuylist', () => {
 	it('omits cards that are fully owned', () => {
 		const list = buildBuylist(
 			[{ card: makeCard({ name: 'Iono' }), quantity: 2 }],
-			[{ card_id: 'x', quantity: 3, name: 'Iono' }]
+			[{ name: 'Iono', quantity: 3 }]
 		);
 
 		expect(list.rows).toEqual([]);
@@ -35,7 +35,7 @@ describe('buildBuylist', () => {
 		const list = buildBuylist(
 			[
 				{ card: makeCard({ id: 'a-1', name: 'Ultra Ball' }), quantity: 2 },
-				{ card: makeCard({ id: 'b-1', name: 'Ultra Ball' }), quantity: 2 }
+				{ card: makeCard({ id: 'b-2', name: 'Ultra Ball' }), quantity: 2 }
 			],
 			[]
 		);

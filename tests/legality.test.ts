@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkLegality } from '../src/lib/tcg/legality';
 import { parseRules } from '../src/lib/tcg/format-rules';
-import { makeCard } from './helpers';
+import { makeCard, makeSet } from './helpers';
 
 const standard = parseRules({ pool: { type: 'all' } });
 
@@ -26,7 +26,7 @@ describe('checkLegality', () => {
 	it('counts copies by name across different printings', () => {
 		const entries = [
 			{ card: makeCard({ id: 'a-1', name: 'Charmander' }), quantity: 3 },
-			{ card: makeCard({ id: 'b-1', name: 'Charmander' }), quantity: 2 },
+			{ card: makeCard({ id: 'b-2', name: 'Charmander' }), quantity: 2 },
 			...filler(55)
 		];
 
@@ -85,14 +85,12 @@ describe('checkLegality', () => {
 		const rules = parseRules({ deckSize: { min: 1, max: 1 }, pool: { type: 'standard' } });
 		const rotated = makeCard({
 			name: 'Old Card',
-			set: {
+			set: makeSet({
 				id: 'swsh1',
 				name: 'Sword & Shield',
-				ptcgl_code: 'SSH',
-				symbol_url: null,
-				legal_standard: false,
-				legal_expanded: true
-			}
+				ptcglCode: 'SSH',
+				legalStandard: false
+			})
 		});
 
 		expect(checkLegality([{ card: rotated, quantity: 1 }], rules).legal).toBe(false);

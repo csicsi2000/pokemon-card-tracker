@@ -5,9 +5,10 @@
  *     decks can be pasted straight back into the importer.
  *   * AI JSON — flat and token-cheap, for pasting a whole collection into a chat.
  */
-import type { CardWithSet, Supertype } from '$lib/database.types';
+import type { Card, Supertype } from '$lib/types';
+import { exportSetCode } from './set-code-overrides';
 
-export type ExportLine = { quantity: number; card: CardWithSet };
+export type ExportLine = { quantity: number; card: Card; variant?: string };
 
 const SECTION_ORDER: Supertype[] = ['Pokemon', 'Trainer', 'Energy'];
 const SECTION_LABEL: Record<Supertype, string> = {
@@ -26,7 +27,7 @@ export function toPtcglText(lines: ExportLine[]): string {
 		const count = section.reduce((sum, line) => sum + line.quantity, 0);
 		const body = section.map(
 			({ quantity, card }) =>
-				`${quantity} ${card.name} ${card.set?.ptcgl_code ?? 'null'} ${card.local_id}`
+				`${quantity} ${card.name} ${exportSetCode(card.set) ?? 'null'} ${card.localId}`
 		);
 
 		blocks.push([`${SECTION_LABEL[supertype]}: ${count}`, ...body].join('\n'));
@@ -49,18 +50,18 @@ export type AiCardEntry = {
 	variant?: string;
 };
 
-export function toAiEntries(lines: (ExportLine & { variant?: string })[]): AiCardEntry[] {
+export function toAiEntries(lines: ExportLine[]): AiCardEntry[] {
 	return lines.map(({ quantity, card, variant }) => ({
 		name: card.name,
-		set: card.set?.ptcgl_code ?? card.set_id,
-		number: card.local_id,
+		set: exportSetCode(card.set) ?? card.set.id,
+		number: card.localId,
 		qty: quantity,
 		supertype: card.supertype,
 		subtypes: card.subtypes,
 		types: card.types,
 		rarity: card.rarity,
-		regulationMark: card.regulation_mark,
-		...(variant ? { variant } : {})
+		regulationMark: card.regulationMark,
+		...(variant && variant !== 'normal' ? { variant } : {})
 	}));
 }
 

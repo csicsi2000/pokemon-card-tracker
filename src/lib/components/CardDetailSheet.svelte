@@ -6,71 +6,32 @@
 	import { toast } from 'svelte-sonner';
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
-	import type { CardVariant, CardWithSet } from '$lib/database.types';
-	import { cardImage } from '$lib/tcg/queries';
-	import { setCollectionQuantity } from '$lib/collection.svelte';
+	import CardImage from './CardImage.svelte';
+	import { store } from '$lib/store.svelte';
+	import { VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
 
 	let {
 		card = $bindable(),
-		open = $bindable(false),
-		quantities = {},
-		onchange,
-		onclose
-	}: {
-		card: CardWithSet | null;
-		open: boolean;
-		/** Owned counts for this card keyed by variant. */
-		quantities?: Partial<Record<CardVariant, number>>;
-		onchange?: (cardId: string, variant: CardVariant, quantity: number) => void;
-		/** Called after closing, but only if a quantity actually changed. */
-		onclose?: () => void;
-	} = $props();
+		open = $bindable(false)
+	}: { card: Card | null; open: boolean } = $props();
 
-	let dirty = $state(false);
-
-	$effect(() => {
-		if (open) return;
-		if (dirty) {
-			dirty = false;
-			onclose?.();
-		}
-	});
-
-	const VARIANT_LABELS: Record<CardVariant, string> = {
-		normal: 'Normal',
-		reverse: 'Reverse holo',
-		holo: 'Holo',
-		firstEdition: '1st edition',
-		promo: 'Promo'
-	};
-
-	// Only offer the variants this printing actually exists in — plus any the user
-	// already recorded, so nothing becomes uneditable after a data change.
+	// Offer the finishes this printing exists in, plus any the user already recorded —
+	// so nothing becomes uneditable if the catalogue changes under them.
 	const variants = $derived.by(() => {
 		if (!card) return [] as CardVariant[];
-		const available = Object.entries(card.variants ?? {})
-			.filter(([, enabled]) => enabled)
-			.map(([key]) => key as CardVariant);
-		const recorded = Object.keys(quantities) as CardVariant[];
-		const all = new Set<CardVariant>([...available, ...recorded]);
+		const recorded = store.collection
+			.filter((entry) => entry.cardId === card!.id)
+			.map((entry) => entry.variant);
+		const all = new Set<CardVariant>([...card.variants, ...recorded]);
 		return all.size ? [...all] : (['normal'] as CardVariant[]);
 	});
 
-	let pending = $state<CardVariant | null>(null);
-
-	async function adjust(variant: CardVariant, delta: number) {
+	function adjust(variant: CardVariant, delta: number) {
 		if (!card) return;
-		const next = Math.max(0, (quantities[variant] ?? 0) + delta);
-
-		pending = variant;
 		try {
-			await setCollectionQuantity(card.id, variant, next);
-			dirty = true;
-			onchange?.(card.id, variant, next);
-		} catch (e) {
-			toast.error((e as Error).message);
-		} finally {
-			pending = null;
+			store.setOwned(card.id, variant, store.ownedOf(card.id, variant) + delta);
+		} catch (error) {
+			toast.error((error as Error).message);
 		}
 	}
 </script>
@@ -81,19 +42,18 @@
 			<Sheet.Header>
 				<Sheet.Title>{card.name}</Sheet.Title>
 				<Sheet.Description>
-					{card.set?.name ?? card.set_id} · #{card.local_id}
+					{card.set.name} · #{card.localId}
 					{#if card.rarity}· {card.rarity}{/if}
 				</Sheet.Description>
 			</Sheet.Header>
 
 			<div class="flex flex-col gap-5 p-4">
-				{#if card.image_url}
-					<img
-						src={cardImage(card.image_url, 'high')}
-						alt={card.name}
-						class="mx-auto w-56 max-w-full rounded-xl shadow-lg"
-					/>
-				{/if}
+				<CardImage
+					{card}
+					quality="high"
+					eager
+					class="mx-auto aspect-[63/88] w-56 max-w-full rounded-xl shadow-lg"
+				/>
 
 				<div class="flex flex-wrap gap-1.5">
 					<Badge variant="secondary">{card.supertype}</Badge>
@@ -103,12 +63,12 @@
 					{#each card.types as type (type)}
 						<Badge variant="outline">{type}</Badge>
 					{/each}
-					{#if card.regulation_mark}
-						<Badge variant="outline">Reg {card.regulation_mark}</Badge>
+					{#if card.regulationMark}
+						<Badge variant="outline">Reg {card.regulationMark}</Badge>
 					{/if}
-					{#if card.set?.legal_standard}
+					{#if card.set.legalStandard}
 						<Badge>Standard</Badge>
-					{:else if card.set?.legal_expanded}
+					{:else if card.set.legalExpanded}
 						<Badge variant="secondary">Expanded</Badge>
 					{/if}
 				</div>
@@ -118,6 +78,7 @@
 				<div class="flex flex-col gap-3">
 					<h3 class="text-sm font-medium">In your collection</h3>
 					{#each variants as variant (variant)}
+						{@const owned = store.ownedOf(card.id, variant)}
 						<div class="flex items-center justify-between gap-3">
 							<span class="text-sm">{VARIANT_LABELS[variant]}</span>
 							<div class="flex items-center gap-1">
@@ -125,20 +86,17 @@
 									variant="outline"
 									size="icon"
 									class="size-8"
-									disabled={pending === variant || (quantities[variant] ?? 0) === 0}
+									disabled={owned === 0}
 									onclick={() => adjust(variant, -1)}
 									aria-label={`Remove one ${VARIANT_LABELS[variant]}`}
 								>
 									<Minus class="size-3.5" />
 								</Button>
-								<span class="w-8 text-center text-sm font-semibold tabular-nums">
-									{quantities[variant] ?? 0}
-								</span>
+								<span class="w-8 text-center text-sm font-semibold tabular-nums">{owned}</span>
 								<Button
 									variant="outline"
 									size="icon"
 									class="size-8"
-									disabled={pending === variant}
 									onclick={() => adjust(variant, 1)}
 									aria-label={`Add one ${VARIANT_LABELS[variant]}`}
 								>

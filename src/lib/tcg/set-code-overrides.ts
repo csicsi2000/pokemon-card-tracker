@@ -22,7 +22,16 @@ export const PTCGL_CODE_OVERRIDES: Record<string, string> = {
 };
 
 /**
- * TCGdex series that are not physical Pokémon TCG cards. Pokémon TCG Pocket is a
- * separate digital game — its ~2k cards would only add noise to a collection tracker.
+ * TCGdex set id → PTCGL code, so exports can name a promo set properly instead of
+ * writing "null" for it. Built by inverting the table above; where several codes map
+ * to one set (SVP has two), the first wins.
  */
-export const EXCLUDED_SERIES = new Set(['tcgp']);
+export const TCGDEX_ID_TO_PTCGL_CODE: Record<string, string> = Object.fromEntries(
+	Object.entries(PTCGL_CODE_OVERRIDES)
+		.reverse()
+		.map(([code, setId]) => [setId, code])
+);
+
+/** The code to print for a set in a decklist, or null when nothing sensible exists. */
+export const exportSetCode = (set: { id: string; ptcglCode: string | null }) =>
+	set.ptcglCode ?? TCGDEX_ID_TO_PTCGL_CODE[set.id] ?? null;

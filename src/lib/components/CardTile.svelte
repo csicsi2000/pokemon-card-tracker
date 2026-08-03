@@ -1,56 +1,34 @@
 <script lang="ts">
-	import type { CardWithSet } from '$lib/database.types';
-	import { cardImage } from '$lib/tcg/queries';
+	import type { Card } from '$lib/types';
+	import CardImage from './CardImage.svelte';
 	import { cn } from '$lib/utils';
-	import type { Snippet } from 'svelte';
 
 	let {
 		card,
 		owned = 0,
-		href,
 		onclick,
-		footer,
 		class: className
 	}: {
-		card: CardWithSet;
+		card: Card;
 		owned?: number;
-		href?: string;
 		onclick?: () => void;
-		footer?: Snippet;
 		class?: string;
 	} = $props();
 
-	const image = $derived(cardImage(card.image_url));
+	const shell = $derived(
+		cn(
+			'group block w-full text-left transition-transform duration-200',
+			onclick && 'hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none',
+			className
+		)
+	);
 </script>
 
-<svelte:element
-	this={href ? 'a' : 'div'}
-	{href}
-	{onclick}
-	role={onclick ? 'button' : undefined}
-	tabindex={onclick ? 0 : undefined}
-	class={cn(
-		'group relative block text-left transition-transform duration-200',
-		(href || onclick) && 'hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none',
-		className
-	)}
->
+{#snippet body()}
 	<div
-		class="bg-muted ring-border/60 group-hover:ring-primary/40 relative aspect-[63/88] overflow-hidden rounded-xl ring-1 transition-shadow group-hover:shadow-xl"
+		class="ring-border/60 group-hover:ring-primary/40 relative aspect-[63/88] overflow-hidden rounded-xl ring-1 transition-shadow group-hover:shadow-xl"
 	>
-		{#if image}
-			<img
-				src={image}
-				alt={card.name}
-				loading="lazy"
-				decoding="async"
-				class="size-full object-cover"
-			/>
-		{:else}
-			<div class="text-muted-foreground grid size-full place-items-center p-2 text-center text-xs">
-				{card.name}
-			</div>
-		{/if}
+		<CardImage {card} class="size-full" />
 
 		{#if owned > 0}
 			<span
@@ -64,9 +42,18 @@
 	<div class="mt-1.5 px-0.5">
 		<p class="truncate text-xs font-medium">{card.name}</p>
 		<p class="text-muted-foreground truncate text-[11px]">
-			{card.set?.ptcgl_code ?? card.set_id} · {card.local_id}
+			{card.set.ptcglCode ?? card.set.id} · {card.localId}
 		</p>
 	</div>
+{/snippet}
 
-	{#if footer}{@render footer()}{/if}
-</svelte:element>
+<!-- A real <button> when it does something, a plain <div> when it is just a thumbnail. -->
+{#if onclick}
+	<button type="button" {onclick} class={shell}>
+		{@render body()}
+	</button>
+{:else}
+	<div class={shell}>
+		{@render body()}
+	</div>
+{/if}

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
-	import { page } from '$app/state';
 	import { fly } from 'svelte/transition';
+	import { base } from '$app/paths';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CardTile from '$lib/components/CardTile.svelte';
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
@@ -11,40 +10,58 @@
 	import * as Select from '$lib/components/ui/select';
 	import Search from '@lucide/svelte/icons/search';
 	import Download from '@lucide/svelte/icons/download';
-	import type { CardVariant, CardWithSet } from '$lib/database.types';
+	import { normalizeName } from '$lib/tcg/normalize';
+	import { store } from '$lib/store.svelte';
+	import type { Card } from '$lib/types';
 
 	let { data } = $props();
 
-	let q = $state(data.filters.q);
-	let selected = $state<CardWithSet | null>(null);
+	let query = $state('');
+	let setId = $state('');
+	let selected = $state<Card | null>(null);
 	let sheetOpen = $state(false);
-	let variantCounts = $state<Partial<Record<CardVariant, number>>>({});
+
+	/** One row per printing, with the per-variant counts folded together. */
+	const rows = $derived.by(() => {
+		const byCard = new Map<string, { card: Card; total: number }>();
+
+		for (const entry of store.collection) {
+			const card = data.catalogue.byId.get(entry.cardId);
+			if (!card) continue; // printing vanished from the catalogue
+			const existing = byCard.get(card.id);
+			if (existing) existing.total += entry.quantity;
+			else byCard.set(card.id, { card, total: entry.quantity });
+		}
+
+		return [...byCard.values()].sort((a, b) => a.card.name.localeCompare(b.card.name));
+	});
+
+	const filtered = $derived.by(() => {
+		const needle = query.trim() ? normalizeName(query) : '';
+		return rows.filter(
+			({ card }) =>
+				(!needle || card.nameNormalized.includes(needle)) && (!setId || card.set.id === setId)
+		);
+	});
+
+	const stats = $derived({
+		totalCards: rows.reduce((sum, row) => sum + row.total, 0),
+		printings: rows.length,
+		names: new Set(rows.map((row) => row.card.nameNormalized)).size,
+		sets: new Set(rows.map((row) => row.card.set.id)).size
+	});
 
 	const setOptions = $derived([
 		{ value: '', label: 'All sets' },
-		...data.sets.map((set) => ({
+		...[...new Map(rows.map((row) => [row.card.set.id, row.card.set])).values()].map((set) => ({
 			value: set.id,
-			label: `${set.name}${set.ptcgl_code ? ` (${set.ptcgl_code})` : ''}`
+			label: `${set.name}${set.ptcglCode ? ` (${set.ptcglCode})` : ''}`
 		}))
 	]);
 
-	function navigate(changes: Record<string, string>) {
-		const params = new URLSearchParams(page.url.searchParams);
-		for (const [key, value] of Object.entries(changes)) {
-			if (value) params.set(key, value);
-			else params.delete(key);
-		}
-		goto(`?${params}`, { keepFocus: true, noScroll: true });
-	}
-
-	function openCard(card: CardWithSet, variants: Partial<Record<CardVariant, number>>) {
+	function open(card: Card) {
 		selected = card;
-		variantCounts = { ...variants };
 		sheetOpen = true;
-	}
-
-	function onQuantityChange(_cardId: string, variant: CardVariant, quantity: number) {
-		variantCounts = { ...variantCounts, [variant]: quantity };
 	}
 </script>
 
@@ -52,7 +69,7 @@
 
 <PageHeader title="Collection" subtitle="Everything you own">
 	{#snippet actions()}
-		<Button href="/import" variant="outline" size="sm">
+		<Button href="{base}/import" variant="outline" size="sm">
 			<Download class="size-4" />
 			Import / Export
 		</Button>
@@ -61,31 +78,23 @@
 
 <div class="flex flex-col gap-5 p-4 md:p-8">
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		<StatTile label="Cards owned" value={data.stats.totalCards} />
-		<StatTile label="Unique printings" value={data.stats.distinctPrintings} />
-		<StatTile label="Unique names" value={data.stats.distinctNames} />
-		<StatTile label="Sets represented" value={data.stats.setCount} />
+		<StatTile label="Cards owned" value={stats.totalCards} />
+		<StatTile label="Unique printings" value={stats.printings} />
+		<StatTile label="Unique names" value={stats.names} />
+		<StatTile label="Sets represented" value={stats.sets} />
 	</div>
 
-	<form
-		class="flex flex-wrap gap-2"
-		onsubmit={(event) => {
-			event.preventDefault();
-			navigate({ q });
-		}}
-	>
+	<div class="flex flex-wrap gap-2">
 		<div class="relative min-w-50 flex-1">
-			<Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-			<Input bind:value={q} placeholder="Search your collection…" class="pl-9" />
+			<Search
+				class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+			/>
+			<Input bind:value={query} placeholder="Search your collection…" class="pl-9" />
 		</div>
 
-		<Select.Root
-			type="single"
-			value={data.filters.setId}
-			onValueChange={(value) => navigate({ set: value ?? '' })}
-		>
+		<Select.Root type="single" value={setId} onValueChange={(v) => (setId = v ?? '')}>
 			<Select.Trigger class="w-48">
-				{setOptions.find((o) => o.value === data.filters.setId)?.label ?? 'All sets'}
+				{setOptions.find((o) => o.value === setId)?.label ?? 'All sets'}
 			</Select.Trigger>
 			<Select.Content class="max-h-80">
 				{#each setOptions as option (option.value)}
@@ -93,45 +102,29 @@
 				{/each}
 			</Select.Content>
 		</Select.Root>
+	</div>
 
-		<Button type="submit">Search</Button>
-	</form>
-
-	{#if data.rows.length === 0}
+	{#if filtered.length === 0}
 		<div class="flex flex-col items-center gap-3 py-20 text-center">
 			<p class="text-muted-foreground text-sm">
-				{data.stats.totalCards === 0
-					? 'Your collection is empty.'
-					: 'Nothing matches those filters.'}
+				{rows.length === 0 ? 'Your collection is empty.' : 'Nothing matches those filters.'}
 			</p>
-			{#if data.stats.totalCards === 0}
+			{#if rows.length === 0}
 				<div class="flex gap-2">
-					<Button href="/cards">Browse cards</Button>
-					<Button href="/import" variant="outline">Import a list</Button>
+					<Button href="{base}/cards">Browse cards</Button>
+					<Button href="{base}/import" variant="outline">Import a list</Button>
 				</div>
 			{/if}
 		</div>
 	{:else}
-		<div
-			class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8"
-		>
-			{#each data.rows as row, index (row.card.id)}
+		<div class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+			{#each filtered as row, index (row.card.id)}
 				<div in:fly|global={{ y: 8, duration: 200, delay: Math.min(index, 20) * 12 }}>
-					<CardTile
-						card={row.card}
-						owned={row.total}
-						onclick={() => openCard(row.card, row.variants)}
-					/>
+					<CardTile card={row.card} owned={row.total} onclick={() => open(row.card)} />
 				</div>
 			{/each}
 		</div>
 	{/if}
 </div>
 
-<CardDetailSheet
-	bind:card={selected}
-	bind:open={sheetOpen}
-	quantities={variantCounts}
-	onchange={onQuantityChange}
-	onclose={invalidateAll}
-/>
+<CardDetailSheet bind:card={selected} bind:open={sheetOpen} />

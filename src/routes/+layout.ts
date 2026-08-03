@@ -1,22 +1,14 @@
-import { createBrowserClient, createServerClient, isBrowser } from '@supabase/ssr';
-import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
+import { loadCatalogue } from '$lib/catalogue';
+import { store } from '$lib/store.svelte';
 import type { LayoutLoad } from './$types';
 
-export const load: LayoutLoad = async ({ data, depends, fetch }) => {
-	depends('supabase:auth');
+// Everything lives in the browser: the catalogue is a static file and user data is in
+// localStorage. Prerender the shell, render the pages on the client.
+export const ssr = false;
+export const prerender = true;
+export const trailingSlash = 'always';
 
-	const supabase = isBrowser()
-		? createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-				global: { fetch }
-			})
-		: createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-				global: { fetch },
-				cookies: { getAll: () => data.cookies }
-			});
-
-	const {
-		data: { session }
-	} = await supabase.auth.getSession();
-
-	return { supabase, session, user: data.user };
+export const load: LayoutLoad = async ({ fetch }) => {
+	store.load();
+	return { catalogue: await loadCatalogue(fetch) };
 };

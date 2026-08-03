@@ -3,21 +3,21 @@
  *
  * Requirements are per card NAME (any Charmander printing satisfies "4 Charmander"),
  * and ownership sums every printing and variant the user has. The result is the
- * shortfall, plus the cheapest printing we know of as a suggestion.
+ * shortfall, plus the printing that was asked for as a suggestion of what to look for.
  */
-import type { CardWithSet } from '$lib/database.types';
+import type { Card } from '$lib/types';
 import { normalizeName } from './normalize';
 
-export type Requirement = { card: CardWithSet; quantity: number };
-export type OwnedRow = { card_id: string; quantity: number; name: string };
+export type Requirement = { card: Card; quantity: number };
+/** Owned copies of one printing; `name` lets us aggregate across printings. */
+export type OwnedRow = { name: string; quantity: number };
 
 export type BuylistRow = {
 	name: string;
 	needed: number;
 	owned: number;
 	missing: number;
-	/** A printing to buy — the one the deck/pool referenced. */
-	suggestion: CardWithSet;
+	suggestion: Card;
 };
 
 export type Buylist = {
@@ -27,10 +27,6 @@ export type Buylist = {
 	coverage: number;
 };
 
-/**
- * @param requirements what the deck or format pool asks for
- * @param owned collection rows (any number of printings/variants per name)
- */
 export function buildBuylist(requirements: Requirement[], owned: OwnedRow[]): Buylist {
 	const ownedByName = new Map<string, number>();
 	for (const row of owned) {
@@ -38,7 +34,7 @@ export function buildBuylist(requirements: Requirement[], owned: OwnedRow[]): Bu
 		ownedByName.set(key, (ownedByName.get(key) ?? 0) + row.quantity);
 	}
 
-	const neededByName = new Map<string, { name: string; needed: number; suggestion: CardWithSet }>();
+	const neededByName = new Map<string, { name: string; needed: number; suggestion: Card }>();
 	for (const { card, quantity } of requirements) {
 		const key = normalizeName(card.name);
 		const existing = neededByName.get(key);
