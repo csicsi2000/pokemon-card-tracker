@@ -13,6 +13,7 @@ export function makeSet(overrides: Partial<CardSet> & { id: string }): CardSet {
 		cardCount: null,
 		imageBase: null,
 		symbolUrl: null,
+		logoUrl: null,
 		legalStandard: true,
 		legalExpanded: true,
 		...overrides

@@ -4,7 +4,10 @@
  * for the objects the app actually works with.
  */
 
-/** [id, name, series, ptcglCode, releaseDate, cardCount, imageBase, symbolUrl, legalStandard, legalExpanded] */
+/**
+ * [id, name, series, ptcglCode, releaseDate, cardCount, imageBase, symbolUrl, logoUrl,
+ *  legalStandard, legalExpanded]
+ */
 export type SetRow = [
 	string,
 	string,
@@ -12,6 +15,7 @@ export type SetRow = [
 	string | null,
 	string | null,
 	number | null,
+	string | null,
 	string | null,
 	string | null,
 	0 | 1,

@@ -11,7 +11,8 @@ locally with `npm run dev`, or host it free on GitHub Pages.
 - **SvelteKit 2 + Svelte 5** with Tailwind v4 and shadcn-svelte
 - **TCGdex** as the card catalogue — ~21,000 English printings in a 2 MB file
   (~330 KB gzipped over the wire), held in memory so search is instant
-- Installable PWA; card art is cached for offline browsing
+- Card art, set logos, attacks, abilities and live market prices
+- Installable PWA; card art and viewed cards are cached for offline browsing
 
 ## Getting started
 
@@ -57,9 +58,23 @@ commit the file. It is checked in so a fresh clone works without a network fetch
 
 The script reads two TCGdex surfaces because neither alone is complete: REST
 `/sets/{id}` for the PTCGL set code (`OBF`, `PR-SW`) and legality, GraphQL for every
-card of a set in one request. Card images are hotlinked to `assets.tcgdex.net`, never
-bundled — and new sets sometimes appear in the catalogue before their scans are
-published, in which case tiles show the card name instead of art.
+card of a set in one request. Card images and set logos are hotlinked to
+`assets.tcgdex.net`, never bundled — and new sets sometimes appear in the catalogue
+before their artwork is published, in which case the app falls back to showing names.
+
+### What is in the file, and what is not
+
+The catalogue holds only what browsing and deck rules need: names, sets, numbers,
+types, HP, rarity, regulation marks and available finishes. Attacks, abilities,
+weaknesses, retreat cost, illustrator and **market prices** are fetched per card from
+TCGdex when you open one — see [card-details.ts](src/lib/card-details.ts). Bundling
+card text for 21k printings would add megabytes to a file every visitor downloads, to
+show something only ever read one card at a time, and prices would be stale the moment
+the file was built. The service worker caches those responses, so a card you have
+opened stays readable offline.
+
+That module also repairs a TCGdex quirk: text for newer cards arrives as UTF-8 that
+was decoded as Latin-1, so "Pokémon" comes through as "PokÃ©mon".
 
 ## Working with AI
 
@@ -117,10 +132,11 @@ sets is still four Charmander, and any printing you own counts toward what a dec
 
 ```
 src/lib/catalogue.ts        loads static/catalogue.json, indexes it, searches it
+src/lib/card-details.ts     per-card attacks/abilities/prices, fetched on demand
 src/lib/store.svelte.ts     all user data; reactive state mirrored to localStorage
 src/lib/tcg/                parser, resolver, exporter, legality, buylist, format rules
-src/lib/components/         CardTile, CardImage, CardSearchPanel, CardDetailSheet, …
-src/routes/                 dashboard, cards, collection, decks, formats, import
+src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, EnergyPip, …
+src/routes/                 dashboard, cards, sets, collection, decks, formats, import
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json
 tests/                      unit tests for the pure logic above
 ```

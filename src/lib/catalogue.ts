@@ -41,8 +41,9 @@ function toSet(row: SetRow): CardSet {
 		cardCount: row[5],
 		imageBase: row[6],
 		symbolUrl: row[7],
-		legalStandard: row[8] === 1,
-		legalExpanded: row[9] === 1
+		logoUrl: row[8],
+		legalStandard: row[9] === 1,
+		legalExpanded: row[10] === 1
 	};
 }
 
@@ -152,3 +153,6 @@ export function searchCards(catalogue: Catalogue, filters: CardFilters, limit = 
 export function cardImage(card: { image: string | null }, quality: 'low' | 'high' = 'low') {
 	return card.image ? `${card.image}/${quality}.webp` : null;
 }
+
+/** Set logos and symbols are extension-less too, but have no size variants. */
+export const setAsset = (url: string | null) => (url ? `${url}.webp` : null);

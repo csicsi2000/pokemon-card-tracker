@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
+	import { page } from '$app/state';
+	import { base } from '$app/paths';
+	import { replaceState } from '$app/navigation';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CardTile from '$lib/components/CardTile.svelte';
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
+	import SetLogo from '$lib/components/SetLogo.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
@@ -15,8 +19,9 @@
 
 	const PAGE_SIZE = 60;
 
-	let query = $state('');
-	let setId = $state('');
+	// Seeded from the URL so /cards?set=sv03 works — that is how the Sets page links here.
+	let query = $state(page.url.searchParams.get('q') ?? '');
+	let setId = $state(page.url.searchParams.get('set') ?? '');
 	let supertype = $state<Supertype | ''>('');
 	let pageNumber = $state(1);
 	let selected = $state<Card | null>(null);
@@ -26,11 +31,19 @@
 	const lastPage = $derived(Math.max(1, Math.ceil(matches.length / PAGE_SIZE)));
 	const visible = $derived(matches.slice((pageNumber - 1) * PAGE_SIZE, pageNumber * PAGE_SIZE));
 
-	// Any filter change puts you back on page one.
+	const activeSet = $derived(setId ? data.catalogue.setsById.get(setId) : undefined);
+
+	// Any filter change puts you back on page one, and is mirrored into the URL so the
+	// view can be shared or reloaded.
 	$effect(() => {
-		void query;
-		void setId;
-		void supertype;
+		const url = new URL(page.url);
+		const sync = (key: string, value: string) =>
+			value ? url.searchParams.set(key, value) : url.searchParams.delete(key);
+
+		sync('q', query);
+		sync('set', setId);
+
+		if (url.href !== page.url.href) replaceState(url, {});
 		pageNumber = 1;
 	});
 
@@ -57,7 +70,19 @@
 
 <svelte:head><title>Cards · Cardex</title></svelte:head>
 
-<PageHeader title="Cards" subtitle={`${matches.length.toLocaleString()} printings`} />
+<PageHeader
+	title={activeSet?.name ?? 'Cards'}
+	subtitle={`${matches.length.toLocaleString()} printings`}
+	backHref={activeSet ? `${base}/sets` : undefined}
+>
+	{#snippet actions()}
+		{#if activeSet}
+			<div class="hidden h-9 items-center sm:flex">
+				<SetLogo set={activeSet} class="dark:brightness-0 dark:invert" />
+			</div>
+		{/if}
+	{/snippet}
+</PageHeader>
 
 <div class="flex flex-col gap-4 p-4 md:p-8">
 	<div class="flex flex-wrap gap-2">

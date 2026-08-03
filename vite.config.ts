@@ -77,6 +77,18 @@ export default defineConfig({
 							expiration: { maxEntries: 3000, maxAgeSeconds: 60 * 60 * 24 * 60 },
 							cacheableResponse: { statuses: [0, 200] }
 						}
+					},
+					{
+						// Per-card detail (attacks, abilities, prices). Network first, because
+						// prices move; the cached copy keeps a card readable offline once seen.
+						urlPattern: /^https:\/\/api\.tcgdex\.net\/.*/i,
+						handler: 'NetworkFirst',
+						options: {
+							cacheName: 'tcgdex-cards',
+							networkTimeoutSeconds: 5,
+							expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 14 },
+							cacheableResponse: { statuses: [0, 200] }
+						}
 					}
 				]
 			}

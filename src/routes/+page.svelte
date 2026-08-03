@@ -8,6 +8,7 @@
 	import Library from '@lucide/svelte/icons/library';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
+	import Boxes from '@lucide/svelte/icons/boxes';
 	import Import from '@lucide/svelte/icons/import';
 	import { store } from '$lib/store.svelte';
 
@@ -32,6 +33,7 @@
 
 	const shortcuts = [
 		{ href: '/collection', icon: Library, title: 'Collection', text: 'Track what you own.' },
+		{ href: '/sets', icon: Boxes, title: 'Sets', text: 'Browse art and completion.' },
 		{ href: '/decks', icon: Layers, title: 'Decks', text: 'Build and check legality.' },
 		{ href: '/formats', icon: Sparkles, title: 'Formats', text: 'Cube pools and house rules.' },
 		{ href: '/import', icon: Import, title: 'Import / export', text: 'pkmn.gg lists and AI JSON.' }
@@ -54,7 +56,7 @@
 		/>
 	</div>
 
-	<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+	<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
 		{#each shortcuts as shortcut, index (shortcut.href)}
 			{@const Icon = shortcut.icon}
 			<a href="{base}{shortcut.href}" in:fly|global={{ y: 10, duration: 220, delay: index * 40 }}>

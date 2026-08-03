@@ -23,7 +23,9 @@ export type CardSet = {
 	releaseDate: string | null;
 	cardCount: number | null;
 	imageBase: string | null;
+	/** Both are extension-less TCGdex assets; append '.png' or '.webp'. */
 	symbolUrl: string | null;
+	logoUrl: string | null;
 	legalStandard: boolean;
 	legalExpanded: boolean;
 };

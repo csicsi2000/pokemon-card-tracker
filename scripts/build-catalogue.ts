@@ -194,6 +194,7 @@ async function main() {
 			set.cardCount?.total ?? null,
 			imageBases.get(set.id) ?? null,
 			set.symbol ?? null,
+			set.logo ?? null,
 			set.legal?.standard ? 1 : 0,
 			set.legal?.expanded ? 1 : 0
 		]),
