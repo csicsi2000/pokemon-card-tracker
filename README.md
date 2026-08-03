@@ -1,5 +1,8 @@
 # Cardex — Pokémon TCG collection & deck tracker
 
+**Live at <https://csicsi2000.github.io/pokemon-card-tracker/>** — open it on any
+device and start tracking; your data stays in that browser's localStorage.
+
 A single-user PWA for tracking a physical Pokémon card collection, building decks,
 defining custom formats (Cube, house rules), and working out what still needs buying.
 Designed to hand its data to an AI and take decklists back.
