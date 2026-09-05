@@ -5,6 +5,7 @@
 	import { fly } from 'svelte/transition';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CardSearchPanel from '$lib/components/CardSearchPanel.svelte';
+	import FolderPicker from '$lib/components/FolderPicker.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
@@ -19,11 +20,13 @@
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
 	import CardImage from '$lib/components/CardImage.svelte';
+	import { folderPath } from '$lib/data/folders';
 	import { store } from '$lib/store.svelte';
 	import { parseRules } from '$lib/tcg/format-rules';
 	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
 	import { buildBuylist } from '$lib/tcg/buylist';
 	import { toPtcglText, toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
+	import { cn } from '$lib/utils';
 	import type { Card as CardType } from '$lib/types';
 
 	let { data } = $props();
@@ -50,11 +53,27 @@
 	const total = $derived(entries.reduce((sum, entry) => sum + entry.quantity, 0));
 
 	const format = $derived(deck?.formatId ? store.format(deck.formatId) : null);
+	const path = $derived(
+		deck ? folderPath(store.folders, deck.folderId).map((folder) => folder.name) : []
+	);
+	const backHref = $derived(
+		deck?.folderId ? `${base}/decks/?folder=${deck.folderId}` : `${base}/decks`
+	);
 
 	const report = $derived.by(() => {
 		if (!format) return null;
 		const poolIds = new Set(format.pool.map((card) => card.cardId));
 		return checkLegality(entries, parseRules(format.rules), poolIds);
+	});
+
+	/** Copies owned per card name, any printing or finish — how deck requirements count. */
+	const ownedByName = $derived.by(() => {
+		const totals = new Map<string, number>();
+		for (const row of store.collection) {
+			const card = data.catalogue.byId.get(row.cardId);
+			if (card) totals.set(card.nameNormalized, (totals.get(card.nameNormalized) ?? 0) + row.quantity);
+		}
+		return totals;
 	});
 
 	/** What you would still have to buy to sleeve this deck up. */
@@ -69,6 +88,9 @@
 	);
 
 	const ptcglText = $derived(toPtcglText(entries));
+	const missingText = $derived(
+		toPtcglText(buylist.rows.map((row) => ({ quantity: row.missing, card: row.suggestion })))
+	);
 	const aiPayload = $derived(
 		`${AI_PREAMBLE}\n${JSON.stringify(
 			{ deck: deck?.name, format: format?.name ?? null, cards: toAiEntries(entries) },
@@ -105,8 +127,10 @@
 {:else}
 	<PageHeader
 		title={deck.name}
-		subtitle={`${total} cards${format ? ` · ${format.name}` : ''}`}
-		backHref="{base}/decks"
+		subtitle={[`${total} cards`, format?.name, path.length ? path.join(' › ') : null]
+			.filter(Boolean)
+			.join(' · ')}
+		{backHref}
 	>
 		{#snippet actions()}
 			<Button variant="outline" size="sm" onclick={() => copy(ptcglText, 'Decklist')}>
@@ -142,6 +166,12 @@
 					</Select.Content>
 				</Select.Root>
 
+				<FolderPicker
+					value={deck.folderId ?? ''}
+					class="w-44"
+					onchange={(value) => store.moveDeck(deckId, value || null)}
+				/>
+
 				{#if report}
 					{#if report.legal}
 						<Badge class="gap-1"><Check class="size-3" /> Legal</Badge>
@@ -168,7 +198,7 @@
 				<Tabs.List>
 					<Tabs.Trigger value="list">Decklist</Tabs.Trigger>
 					<Tabs.Trigger value="buylist">
-						Buylist
+						Missing
 						{#if buylist.totalMissing > 0}
 							<Badge variant="secondary" class="ml-1.5">{buylist.totalMissing}</Badge>
 						{/if}
@@ -180,14 +210,22 @@
 						<p class="text-muted-foreground py-12 text-center text-sm">
 							Empty deck — search on the right to add cards.
 						</p>
+					{:else}
+						<p class="text-muted-foreground px-1.5 text-xs">
+							{Math.round(buylist.coverage * 100)}% owned · counts show owned / needed, any printing
+						</p>
 					{/if}
 
 					{#each entries as entry (entry.card.id)}
-						{@const owned = store.ownedTotal(entry.card.id)}
+						{@const owned = ownedByName.get(entry.card.nameNormalized) ?? 0}
+						{@const short = owned < entry.quantity}
 						<div
 							animate:flip={{ duration: 200 }}
 							in:fly|global={{ y: 6, duration: 160 }}
-							class="hover:bg-accent/50 flex items-center gap-3 rounded-lg p-1.5 transition-colors"
+							class={cn(
+								'hover:bg-accent/50 flex items-center gap-3 rounded-lg p-1.5 transition-colors',
+								short && 'bg-destructive/5'
+							)}
 						>
 							<CardImage card={entry.card} class="h-11 w-8 shrink-0 rounded" />
 
@@ -195,9 +233,16 @@
 								<p class="truncate text-sm font-medium">{entry.card.name}</p>
 								<p class="text-muted-foreground truncate text-xs">
 									{entry.card.set.ptcglCode ?? entry.card.set.id} · #{entry.card.localId}
-									{#if owned > 0}· {owned} owned{/if}
 								</p>
 							</div>
+
+							<Badge
+								variant={short ? 'destructive' : 'outline'}
+								class="shrink-0 tabular-nums"
+								title={short ? `${entry.quantity - owned} missing` : 'You own enough'}
+							>
+								{Math.min(owned, entry.quantity)}/{entry.quantity}
+							</Badge>
 
 							<div class="flex items-center gap-1">
 								<Button
@@ -235,10 +280,15 @@
 						</p>
 					{:else}
 						<div class="flex flex-col gap-2">
-							<p class="text-muted-foreground text-sm">
-								{buylist.totalMissing} card{buylist.totalMissing === 1 ? '' : 's'} to buy ·
-								{Math.round(buylist.coverage * 100)}% of the deck already owned
-							</p>
+							<div class="flex flex-wrap items-center justify-between gap-2">
+								<p class="text-muted-foreground text-sm">
+									{buylist.totalMissing} card{buylist.totalMissing === 1 ? '' : 's'} to buy ·
+									{Math.round(buylist.coverage * 100)}% of the deck already owned
+								</p>
+								<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
+									<Copy class="size-4" /> Copy missing as list
+								</Button>
+							</div>
 							{#each buylist.rows as row (row.name)}
 								<div class="flex items-center gap-3 rounded-lg border p-2">
 									<ShoppingCart class="text-muted-foreground size-4 shrink-0" />

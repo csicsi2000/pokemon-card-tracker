@@ -1,31 +1,46 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
 	import { base } from '$app/paths';
+	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CardTile from '$lib/components/CardTile.svelte';
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
+	import QuickAddBar from '$lib/components/QuickAddBar.svelte';
+	import LotPicker from '$lib/components/LotPicker.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
+	import { Label } from '$lib/components/ui/label';
+	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import Search from '@lucide/svelte/icons/search';
 	import Download from '@lucide/svelte/icons/download';
+	import Package from '@lucide/svelte/icons/package';
 	import { normalizeName } from '$lib/tcg/normalize';
+	import { pickVariant } from '$lib/tcg/quick-add';
 	import { store } from '$lib/store.svelte';
-	import type { Card } from '$lib/types';
+	import { VARIANT_LABELS, type Card as CardType, type CardVariant } from '$lib/types';
 
 	let { data } = $props();
 
 	let query = $state('');
 	let setId = $state('');
-	let selected = $state<Card | null>(null);
+	/** '*' every lot, '' Unsorted, else a lot id — see LotPicker. */
+	let lotFilter = $state('*');
+	let selected = $state<CardType | null>(null);
 	let sheetOpen = $state(false);
+
+	// Quick add target: which lot and which finish new cards are recorded under.
+	let addLot = $state('');
+	let addFinish = $state<CardVariant>('normal');
+	const addLotId = $derived(addLot === '' ? null : addLot);
 
 	/** One row per printing, with the per-variant counts folded together. */
 	const rows = $derived.by(() => {
-		const byCard = new Map<string, { card: Card; total: number }>();
+		const byCard = new Map<string, { card: CardType; total: number }>();
 
 		for (const entry of store.collection) {
+			if (lotFilter !== '*' && (entry.lotId ?? '') !== lotFilter) continue;
 			const card = data.catalogue.byId.get(entry.cardId);
 			if (!card) continue; // printing vanished from the catalogue
 			const existing = byCard.get(card.id);
@@ -59,9 +74,20 @@
 		}))
 	]);
 
-	function open(card: Card) {
+	function open(card: CardType) {
 		selected = card;
 		sheetOpen = true;
+	}
+
+	function quickAdd(card: CardType, quantity: number, variant: CardVariant | null) {
+		try {
+			const finish = pickVariant(card, variant, addFinish);
+			store.addOwned([{ cardId: card.id, variant: finish, quantity, lotId: addLotId }], 'add');
+			const lotName = addLotId ? store.lot(addLotId)?.name : 'Unsorted';
+			toast.success(`Added ${quantity}× ${card.name} (${VARIANT_LABELS[finish]}) to ${lotName}`);
+		} catch (error) {
+			toast.error((error as Error).message);
+		}
 	}
 </script>
 
@@ -69,6 +95,10 @@
 
 <PageHeader title="Collection" subtitle="Everything you own">
 	{#snippet actions()}
+		<Button href="{base}/lots" variant="outline" size="sm">
+			<Package class="size-4" />
+			Lots
+		</Button>
 		<Button href="{base}/import" variant="outline" size="sm">
 			<Download class="size-4" />
 			Import / Export
@@ -77,6 +107,36 @@
 </PageHeader>
 
 <div class="flex flex-col gap-5 p-4 md:p-8">
+	<Card.Root>
+		<Card.Content class="flex flex-col gap-3 py-4">
+			<div class="flex flex-wrap items-end gap-3">
+				<div class="flex min-w-64 flex-1 flex-col gap-2">
+					<Label>Quick add</Label>
+					<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} />
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label>Into lot</Label>
+					<LotPicker bind:value={addLot} allowCreate />
+				</div>
+				<div class="flex flex-col gap-2">
+					<Label>Finish</Label>
+					<Select.Root
+						type="single"
+						value={addFinish}
+						onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
+					>
+						<Select.Trigger class="w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
+						<Select.Content>
+							{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
+								<Select.Item {value}>{label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+			</div>
+		</Card.Content>
+	</Card.Root>
+
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 		<StatTile label="Cards owned" value={stats.totalCards} />
 		<StatTile label="Unique printings" value={stats.printings} />
@@ -91,6 +151,8 @@
 			/>
 			<Input bind:value={query} placeholder="Search your collection…" class="pl-9" />
 		</div>
+
+		<LotPicker bind:value={lotFilter} includeAll />
 
 		<Select.Root type="single" value={setId} onValueChange={(v) => (setId = v ?? '')}>
 			<Select.Trigger class="w-48">
@@ -107,9 +169,13 @@
 	{#if filtered.length === 0}
 		<div class="flex flex-col items-center gap-3 py-20 text-center">
 			<p class="text-muted-foreground text-sm">
-				{rows.length === 0 ? 'Your collection is empty.' : 'Nothing matches those filters.'}
+				{rows.length === 0
+					? lotFilter === '*'
+						? 'Your collection is empty.'
+						: 'Nothing in this lot yet.'
+					: 'Nothing matches those filters.'}
 			</p>
-			{#if rows.length === 0}
+			{#if store.collection.length === 0}
 				<div class="flex gap-2">
 					<Button href="{base}/cards">Browse cards</Button>
 					<Button href="{base}/import" variant="outline">Import a list</Button>
@@ -127,4 +193,8 @@
 	{/if}
 </div>
 
-<CardDetailSheet bind:card={selected} bind:open={sheetOpen} />
+<CardDetailSheet
+	bind:card={selected}
+	bind:open={sheetOpen}
+	lotId={lotFilter === '*' ? addLotId : lotFilter === '' ? null : lotFilter}
+/>

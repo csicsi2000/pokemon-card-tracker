@@ -89,7 +89,7 @@
 	{#snippet actions()}
 		{#if activeSet}
 			<div class="hidden h-9 items-center sm:flex">
-				<SetLogo set={activeSet} class="dark:brightness-0 dark:invert" />
+				<SetLogo set={activeSet} />
 			</div>
 		{/if}
 	{/snippet}

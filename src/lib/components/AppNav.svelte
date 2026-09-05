@@ -5,12 +5,14 @@
 	import { toggleMode, mode } from 'mode-watcher';
 	import { Button } from '$lib/components/ui/button';
 	import * as Sheet from '$lib/components/ui/sheet';
+	import SyncStatus from './SyncStatus.svelte';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import Library from '@lucide/svelte/icons/library';
 	import Search from '@lucide/svelte/icons/search';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Boxes from '@lucide/svelte/icons/boxes';
+	import Package from '@lucide/svelte/icons/package';
 	import Import from '@lucide/svelte/icons/import';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Moon from '@lucide/svelte/icons/moon';
@@ -22,6 +24,7 @@
 		{ href: '/collection', label: 'Collection', icon: Library },
 		{ href: '/cards', label: 'Cards', icon: Search },
 		{ href: '/decks', label: 'Decks', icon: Layers },
+		{ href: '/lots', label: 'Lots', icon: Package },
 		{ href: '/sets', label: 'Sets', icon: Boxes },
 		{ href: '/formats', label: 'Formats', icon: Sparkles },
 		{ href: '/import', label: 'Import / Export', icon: Import }
@@ -73,13 +76,16 @@
 		{/each}
 	</nav>
 
-	<Button variant="ghost" size="icon" onclick={toggleMode} aria-label="Toggle theme">
-		{#if mode.current === 'dark'}
-			<Sun class="size-4" />
-		{:else}
-			<Moon class="size-4" />
-		{/if}
-	</Button>
+	<div class="flex items-center justify-between">
+		<SyncStatus showLabel />
+		<Button variant="ghost" size="icon" onclick={toggleMode} aria-label="Toggle theme">
+			{#if mode.current === 'dark'}
+				<Sun class="size-4" />
+			{:else}
+				<Moon class="size-4" />
+			{/if}
+		</Button>
+	</div>
 </aside>
 
 <!-- Mobile: bottom tab bar, with the rest behind "More" -->
@@ -142,6 +148,8 @@
 					{link.label}
 				</a>
 			{/each}
+
+			<SyncStatus showLabel class="py-3" />
 
 			<button
 				type="button"

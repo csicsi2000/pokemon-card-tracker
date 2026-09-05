@@ -6,10 +6,23 @@
 	import ReloadPrompt from '$lib/components/ReloadPrompt.svelte';
 	import { pwaInfo } from 'virtual:pwa-info';
 	import { base } from '$app/paths';
+	import { onMount } from 'svelte';
+	import { store } from '$lib/store.svelte';
+	import { sync } from '$lib/sync/engine.svelte';
 
 	let { children } = $props();
 
 	const webManifest = $derived(pwaInfo?.webManifest?.linkTag ?? '');
+
+	// Optional Google Drive sync: reconnect silently if this device connected before,
+	// and push local edits a few seconds after they happen.
+	onMount(() => {
+		void sync.start();
+	});
+	$effect(() => {
+		void store.revision;
+		sync.onLocalChange();
+	});
 </script>
 
 <svelte:head>

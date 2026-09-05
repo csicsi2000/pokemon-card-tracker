@@ -63,6 +63,13 @@ export function makeCatalogue(cards: Card[]): Catalogue {
 		if (set.ptcglCode) setsByCode.set(set.ptcglCode.toUpperCase(), set);
 	}
 
+	const cardsBySet = new Map<string, Card[]>();
+	for (const card of cards) {
+		const bucket = cardsBySet.get(card.set.id);
+		if (bucket) bucket.push(card);
+		else cardsBySet.set(card.set.id, [card]);
+	}
+
 	return {
 		generatedAt: '2026-01-01',
 		cards,
@@ -70,6 +77,7 @@ export function makeCatalogue(cards: Card[]): Catalogue {
 		byId: new Map(cards.map((card) => [card.id, card])),
 		byName,
 		setsById: new Map(sets.map((set) => [set.id, set])),
-		setsByCode
+		setsByCode,
+		cardsBySet
 	};
 }

@@ -15,6 +15,11 @@ locally with `npm run dev`, or host it free on GitHub Pages.
 - **TCGdex** as the card catalogue — ~21,000 English printings in a 2 MB file
   (~330 KB gzipped over the wire), held in memory so search is instant
 - Card art, set logos, attacks, abilities and live market prices
+- **Quick add** by what is printed on the card: `MEG 21`, `3 PAL 188 rh`, or a pasted list
+- **Lots** — the purchase or batch each card came in, so "what was in the july.2 lot?" has an answer
+- **Deck folders**, nested as deep as you like (Standard › 2026 › Charizard builds)
+- Import a PTCGL / Limitless decklist and see exactly what you own and what is missing
+- Optional **Google Drive sync** — your own Drive, no Cardex server — to use it on several devices
 - Installable PWA; card art and viewed cards are cached for offline browsing
 
 ## Getting started
@@ -31,14 +36,88 @@ address it prints.
 
 ## Where your data lives
 
-Everything you enter — collection, decks, formats — is stored under the
-`cardex:data:v1` key in localStorage. That means:
+Everything you enter — collection, lots, decks, folders, formats — is stored under the
+`cardex:data:v2` key in localStorage (older builds used `cardex:data:v1`; it is migrated on
+first load and left in place). That means:
 
-- it is **per browser and per device**, and does not sync;
+- it is **per browser and per device** unless you turn on Google Drive sync;
 - clearing site data, or using a private window, loses it.
 
 So **use Import / Export → Backup** now and then. It downloads a single JSON file, and
-Restore reads it back. That file is also how you move a collection to another device.
+Restore reads it back — old v1 backup files still restore. Or connect Google Drive (below)
+and let the app keep a copy in your own Drive.
+
+## Adding cards
+
+Three ways, all ending in the same collection:
+
+- **Quick add** (Collection page, any lot page, and the deck builder's search box): type what
+  the card says — set code and collector number. `MEG 21` is Mega Evolution #021. Leading
+  zeros and case do not matter. `3 PAL 188 rh` adds three reverse holos; `x2` after the
+  number works too. Finish markers: `rh`/`r` reverse, `h` holo, `1st`, `promo`. Promo sets
+  use their PTCGL code (`PR-SW 92`); a raw TCGdex set id (`sv03 125`) is accepted as well.
+  Paste several lines and you get a review list with one "Add all" button.
+- **Browse** the Cards or Sets pages and use the +/− buttons on a card.
+- **Import** a decklist on the Import / Export page — name-less lines like `3 MEG 21` work
+  there too.
+
+## Lots
+
+A lot is a batch of cards acquired together — an eBay bulk buy, a booster box, a trade.
+Every card row belongs to exactly one lot (or to **Unsorted**), so the collection is always
+the sum of its lots and a lot page shows exactly what came in it. Add cards straight into a
+lot with quick add, move copies between lots from a lot's **List & move** tab, and filter the
+Collection page by lot. Deleting a lot asks whether its cards should go to Unsorted or be
+removed too.
+
+## Decks and folders
+
+Decks live in folders that nest arbitrarily. The Decks page shows one folder at a time with a
+breadcrumb; **New folder** and **New deck** create inside the folder you are looking at, and
+the ⋯ menu on a deck or folder offers Rename, Move to… and Delete (deleting a folder moves its
+contents up one level). A deck's own page has a folder picker next to its format.
+
+Every deck row shows **owned / needed**, counted by card name across every printing you own,
+and the **Missing** tab lists what to buy with a "Copy missing as list" button. The Import
+page shows the same have/missing summary for a pasted list *before* you save anything, and
+can import into a new deck (in a chosen folder), into your collection (into a chosen lot), or
+replace the list of an existing deck.
+
+## Google Drive sync (optional)
+
+Cardex has no server. If you want the same data on your phone and your laptop, it can keep a
+copy in **your own Google Drive** — one file, `Cardex/cardex-data.json`, visible in My Drive —
+and merge it with what each device has. Free, no card required; the Drive API's free quota is
+far beyond what one person syncing a JSON file uses.
+
+How merging works: every card row, lot, deck, folder and format carries the time it was last
+changed; the newer change wins per record, and deletions are remembered (tombstones) so a
+deleted deck does not come back from the other device. Two devices both editing the same lot
+at the exact same moment can double-count that one edit — rare, and easy to fix by hand.
+
+Google sign-ins last about an hour (the browser-only flow has no refresh tokens). When one
+runs out the cloud icon in the sidebar turns amber; tap **Reconnect** and edits made in the
+meantime are synced. Home-screen PWAs on iOS cannot complete Google's popup — connect once in
+Safari instead.
+
+### One-time setup
+
+The app needs a Google OAuth **client id** (a public identifier, not a secret):
+
+1. <https://console.cloud.google.com> → create a project (e.g. "Cardex").
+2. **APIs & Services → Library** → enable **Google Drive API**.
+3. **APIs & Services → OAuth consent screen** → External. App name "Cardex", your email as
+   support and developer contact. Add scopes `…/auth/drive.file` and `…/auth/userinfo.email`.
+   Add your own Google account as a **test user** and leave the app in Testing — no
+   verification is needed for personal use.
+4. **Credentials → Create credentials → OAuth client ID → Web application**. Authorized
+   JavaScript origins: `https://<user>.github.io` and `http://localhost:5173`. No redirect URIs.
+5. Put the client id where the build can see it:
+   - locally: copy `.env.example` to `.env` and set `PUBLIC_GOOGLE_CLIENT_ID=…`;
+   - on GitHub Pages: repo **Settings → Secrets and variables → Actions → Variables**, add
+     `GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
+
+Leave it unset and the Sync page just shows these instructions; everything else works.
 
 ## Deploying to GitHub Pages
 
@@ -91,24 +170,55 @@ TCGdex lists a set's cards as soon as it is announced, sometimes weeks before th
 exist, and some older promo sets and trainer kits have no images at all. The build
 checks a few cards per set and records the answer, so the app can sort those sets to the
 back of the card browser — otherwise a just-released set fills the opening screen with
-cards that have no art — and badge them "No art yet" on the Sets page. Currently 55 of
+cards that have no art — and badge them "No art yet" on the Sets page. Currently 56 of
 203 sets are in that state; they fall back to showing card names.
 
 ## Working with AI
 
-Two steps, both built on the PTCGL text format that pkmn.gg, PTCGL and Limitless share:
+Everything is built on the PTCGL text format that pkmn.gg, PTCGL and Limitless share, so
+any model's answer pastes straight back into **Import**. Three levels, from chat to agent:
 
-1. **Import / Export → Export → Copy for AI** copies your collection as compact JSON
-   with a preamble telling the model to answer in PTCGL decklist format.
-2. Paste its answer into **Import**, which resolves every line to a real printing and
-   shows you the matches before saving anything.
+### 1. Chat assistants (Claude, Gemini, ChatGPT)
 
-That round trip covers requests like *"build five decks from what I own that are
-balanced against each other"* or *"here is my Cube pool — what should I buy next?"*.
-A deck's or a format's own **Copy for AI** button does the same for just that list.
+- **Import / Export → Export → Copy readable** gives one Markdown document with your
+  collection by lot, every deck as a decklist plus what is missing, and your formats, using
+  card names and set codes rather than ids. Paste it into a chat together with the
+  coaching instructions in [docs/deck-coach-prompt.md](docs/deck-coach-prompt.md) (use them
+  as a Claude Project, Gemini Gem or custom GPT).
+- With Google Drive sync on, the same document is kept up to date as
+  `Cardex/cardex-readable.md` in your Drive, so an assistant with a Drive connector can read
+  it without you pasting anything.
+- Paste the model's decklist into **Import**; it resolves every line to a real printing,
+  shows what you own and what is missing, and can save it as a deck in a folder.
+- A link can pre-fill the importer: `/import/?list=<url-encoded decklist>&target=deck&name=…`.
 
-A stdio MCP server exposing `get_collection` / `get_buylist` / `create_deck` is the
-natural next step, reusing `src/lib/tcg/*` directly.
+### 2. Coding agents (Claude Code, Codex, Gemini CLI)
+
+`npm run cardex -- help` is a CLI over a data file: read the collection and decks, search
+the catalogue, create and edit decks, quick-add cards, list what to buy. The data file is
+either a backup you exported from **Import / Export → Backup**, or the live
+`Cardex/cardex-data.json` that Google Drive for Desktop mirrors to disk — in which case an
+edit made by the agent shows up in the app on its next sync. Every write goes through the
+same timestamped mutations as the app, so it merges safely.
+
+[AGENTS.md](AGENTS.md) (also read by Codex) and `CLAUDE.md` explain this to agents that
+open the repo; `.claude/skills/deck-coach` teaches Claude Code the workflow.
+
+### 3. MCP
+
+`npm run mcp` runs the same operations as an MCP server over stdio (`CARDEX_DATA` points at
+the data file). For Claude Code:
+
+```bash
+claude mcp add cardex -e CARDEX_DATA=/path/to/cardex-data.json -- npm run mcp --prefix /path/to/pokemon-card-tracker
+```
+
+Tools: `get_overview`, `get_collection`, `export_readable`, `get_decks`, `get_deck`,
+`check_legality`, `search_cards`, `resolve_card`, `quick_add`, `create_deck`,
+`replace_deck_list`, `set_deck_card`, `update_deck`, `delete_deck`, `create_lot`.
+
+For agents that browse the deployed site, [static/llms.txt](static/llms.txt) describes the
+public catalogue files, the text formats and the URLs.
 
 ## How importing works
 
@@ -142,7 +252,7 @@ sets is still four Charmander, and any printing you own counts toward what a dec
 | `npm run dev` | Dev server on :5173 |
 | `npm run build` | Static production build into `build/` |
 | `npm run preview` | Serve the production build |
-| `npm test` | Vitest — parser, resolver, exporter, legality, buylist |
+| `npm test` | Vitest — parser, resolver, quick add, exporter, legality, buylist, migration, merge, sync engine |
 | `npm run check` | `svelte-check` type checking |
 | `npm run build:catalogue` | Refresh `static/catalogue.json` from TCGdex |
 
@@ -151,15 +261,17 @@ sets is still four Charmander, and any printing you own counts toward what a dec
 ```
 src/lib/catalogue.ts        loads static/catalogue.json, indexes it, searches it
 src/lib/card-details.ts     bundled rules text per set, plus live prices per card
-src/lib/store.svelte.ts     all user data; reactive state mirrored to localStorage
-src/lib/tcg/                parser, resolver, exporter, legality, buylist, format rules
-src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, EnergyPip, …
-src/routes/                 dashboard, cards, sets, collection, decks, formats, import
+src/lib/data/               user-data model, migration, pure mutations, repair, merge
+src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts revisions
+src/lib/sync/               Google sign-in, Drive client, sync engine (optional feature)
+src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, format rules
+src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
+src/routes/                 dashboard, cards, sets, collection, lots, decks, formats, import, sync
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json
 tests/                      unit tests for the pure logic above
 ```
 
-`/decks/[id]` and `/formats/[id]` cannot be prerendered — their ids only exist in your
+`/decks/[id]`, `/lots/[id]` and `/formats/[id]` cannot be prerendered — their ids only exist in your
 own browser — so the build emits a `404.html` that GitHub Pages serves as an SPA
 fallback for them.
 

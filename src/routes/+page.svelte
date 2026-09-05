@@ -9,7 +9,9 @@
 	import Layers from '@lucide/svelte/icons/layers';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Boxes from '@lucide/svelte/icons/boxes';
+	import Package from '@lucide/svelte/icons/package';
 	import Import from '@lucide/svelte/icons/import';
+	import { folderPath } from '$lib/data/folders';
 	import { store } from '$lib/store.svelte';
 
 	let { data } = $props();
@@ -27,12 +29,27 @@
 			.slice(0, 6)
 			.map((deck) => ({
 				...deck,
-				cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0)
+				cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
+				path: folderPath(store.folders, deck.folderId)
+					.map((folder) => folder.name)
+					.join(' › ')
 			}))
 	);
 
+	const recentLots = $derived.by(() => {
+		const counts = new Map<string, number>();
+		for (const row of store.collection) {
+			if (row.lotId) counts.set(row.lotId, (counts.get(row.lotId) ?? 0) + row.quantity);
+		}
+		return [...store.lots]
+			.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+			.slice(0, 6)
+			.map((lot) => ({ ...lot, cardCount: counts.get(lot.id) ?? 0 }));
+	});
+
 	const shortcuts = [
 		{ href: '/collection', icon: Library, title: 'Collection', text: 'Track what you own.' },
+		{ href: '/lots', icon: Package, title: 'Lots', text: 'What came in each purchase.' },
 		{ href: '/sets', icon: Boxes, title: 'Sets', text: 'Browse art and completion.' },
 		{ href: '/decks', icon: Layers, title: 'Decks', text: 'Build and check legality.' },
 		{ href: '/formats', icon: Sparkles, title: 'Formats', text: 'Cube pools and house rules.' },
@@ -56,7 +73,7 @@
 		/>
 	</div>
 
-	<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+	<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
 		{#each shortcuts as shortcut, index (shortcut.href)}
 			{@const Icon = shortcut.icon}
 			<a href="{base}{shortcut.href}" in:fly|global={{ y: 10, duration: 220, delay: index * 40 }}>
@@ -80,25 +97,52 @@
 						<Card.Root class="transition-shadow hover:shadow-md">
 							<Card.Header>
 								<Card.Title class="text-base">{deck.name}</Card.Title>
-								<Card.Description>{deck.cardCount} cards</Card.Description>
+								<Card.Description>
+									{deck.cardCount} cards{#if deck.path}
+										· {deck.path}{/if}
+								</Card.Description>
 							</Card.Header>
 						</Card.Root>
 					</a>
 				{/each}
 			</div>
 		</section>
-	{:else}
+	{/if}
+
+	{#if recentLots.length}
+		<section class="flex flex-col gap-3">
+			<h2 class="text-sm font-semibold">Recent lots</h2>
+			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+				{#each recentLots as lot (lot.id)}
+					<a href="{base}/lots/{lot.id}">
+						<Card.Root class="transition-shadow hover:shadow-md">
+							<Card.Header>
+								<Card.Title class="text-base">{lot.name}</Card.Title>
+								<Card.Description>
+									{lot.cardCount} cards{#if lot.acquiredOn}
+										· {lot.acquiredOn}{/if}
+								</Card.Description>
+							</Card.Header>
+						</Card.Root>
+					</a>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	{#if !recentDecks.length && !recentLots.length}
 		<Card.Root>
 			<Card.Header>
 				<Card.Title class="text-base">Nothing here yet</Card.Title>
 				<Card.Description>
-					Import a pkmn.gg list, or browse the {stats.catalogue.toLocaleString()} card catalogue and
-					start marking what you own. Everything is stored in this browser.
+					Type a set code and number on the Collection page (like <span class="font-mono">MEG 21</span>),
+					import a pkmn.gg list, or browse the {stats.catalogue.toLocaleString()} card catalogue.
+					Everything is stored in this browser.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="flex gap-2">
-				<Button href="{base}/import">Import a list</Button>
-				<Button href="{base}/cards" variant="outline">Browse cards</Button>
+				<Button href="{base}/collection">Add cards</Button>
+				<Button href="{base}/import" variant="outline">Import a list</Button>
 			</Card.Content>
 		</Card.Root>
 	{/if}

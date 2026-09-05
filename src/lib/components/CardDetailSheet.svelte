@@ -13,14 +13,41 @@
 	import Footprints from '@lucide/svelte/icons/footprints';
 	import CardImage from './CardImage.svelte';
 	import EnergyPip from './EnergyPip.svelte';
+	import LotPicker from './LotPicker.svelte';
 	import { loadCardText, loadPrices, formatPrice, type CardText, type MarketPrice } from '$lib/card-details';
 	import { store } from '$lib/store.svelte';
 	import { VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
 
 	let {
 		card = $bindable(),
-		open = $bindable(false)
-	}: { card: Card | null; open: boolean } = $props();
+		open = $bindable(false),
+		lotId = null
+	}: {
+		card: Card | null;
+		open: boolean;
+		/** The lot the +/- buttons act on by default — the lot page passes its own. */
+		lotId?: string | null;
+	} = $props();
+
+	/** Lot the counters edit; '' is Unsorted (see LotPicker). Reset when the sheet opens. */
+	let targetLot = $state('');
+	$effect(() => {
+		if (open) targetLot = lotId ?? '';
+	});
+	const targetLotId = $derived(targetLot === '' ? null : targetLot);
+
+	/** How the copies are spread across lots, for the breakdown under the counters. */
+	const byLot = $derived.by(() => {
+		if (!card) return [];
+		const totals = new Map<string | null, number>();
+		for (const row of store.collection) {
+			if (row.cardId !== card.id) continue;
+			totals.set(row.lotId, (totals.get(row.lotId) ?? 0) + row.quantity);
+		}
+		return [...totals]
+			.map(([id, quantity]) => ({ id, name: id ? (store.lot(id)?.name ?? 'Unknown lot') : 'Unsorted', quantity }))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	});
 
 	let text = $state<CardText | null>(null);
 	let prices = $state<MarketPrice[] | null>(null);
@@ -75,7 +102,8 @@
 	function adjust(variant: CardVariant, delta: number) {
 		if (!card) return;
 		try {
-			store.setOwned(card.id, variant, store.ownedOf(card.id, variant) + delta);
+			const current = store.ownedOf(card.id, variant, targetLotId);
+			store.setOwned(card.id, variant, current + delta, targetLotId);
 		} catch (error) {
 			toast.error((error as Error).message);
 		}
@@ -236,8 +264,12 @@
 						In your collection
 						<span class="text-muted-foreground tabular-nums">{ownedTotal} total</span>
 					</h3>
+					<div class="flex items-center justify-between gap-3">
+						<span class="text-muted-foreground text-xs">Counting into</span>
+						<LotPicker bind:value={targetLot} allowCreate size="sm" class="w-40" />
+					</div>
 					{#each variants as variant (variant)}
-						{@const owned = store.ownedOf(card.id, variant)}
+						{@const owned = store.ownedOf(card.id, variant, targetLotId)}
 						<div class="flex items-center justify-between gap-3">
 							<span class="text-sm">{VARIANT_LABELS[variant]}</span>
 							<div class="flex items-center gap-1">
@@ -264,6 +296,20 @@
 							</div>
 						</div>
 					{/each}
+
+					{#if byLot.length > 1 || (byLot.length === 1 && byLot[0].id !== targetLotId)}
+						<div class="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
+							{#each byLot as lot (lot.id ?? '')}
+								<button
+									type="button"
+									class="hover:text-foreground underline-offset-2 hover:underline"
+									onclick={() => (targetLot = lot.id ?? '')}
+								>
+									{lot.name}: {lot.quantity}
+								</button>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</div>
 		{/if}

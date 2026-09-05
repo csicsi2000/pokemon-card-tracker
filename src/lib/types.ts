@@ -56,44 +56,19 @@ export type Card = {
 };
 
 // ---------------------------------------------------------------------------
-// User data (read/write, persisted to localStorage)
+// User data (read/write, persisted to localStorage and optionally synced)
 // ---------------------------------------------------------------------------
 
-export type CollectionEntry = {
-	cardId: string;
-	variant: CardVariant;
-	quantity: number;
-};
-
-export type DeckCard = { cardId: string; quantity: number };
-
-export type Deck = {
-	id: string;
-	name: string;
-	description: string | null;
-	formatId: string | null;
-	cards: DeckCard[];
-	createdAt: string;
-	updatedAt: string;
-};
-
-export type FormatPoolCard = { cardId: string; quantity: number };
-
-export type Format = {
-	id: string;
-	name: string;
-	description: string | null;
-	rules: unknown;
-	/** Explicit card pool — the Cube list. Only meaningful for pool type 'explicit'. */
-	pool: FormatPoolCard[];
-	createdAt: string;
-	updatedAt: string;
-};
-
-/** Everything the app persists. Also the shape of a backup file. */
-export type UserData = {
-	version: 1;
-	collection: CollectionEntry[];
-	decks: Deck[];
-	formats: Format[];
-};
+// The shapes live in data/model.ts next to the code that migrates and merges them;
+// re-exported here so the rest of the app keeps one import path for domain types.
+export type {
+	CollectionEntry,
+	Deck,
+	DeckCard,
+	DeckFolder,
+	Format,
+	FormatPoolCard,
+	Lot,
+	Tombstone,
+	UserData
+} from './data/model';

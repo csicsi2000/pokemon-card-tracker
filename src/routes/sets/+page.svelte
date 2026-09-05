@@ -119,11 +119,7 @@
 					class="hover:border-primary/40 group flex flex-col gap-3 rounded-xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
 				>
 					<div class="grid h-16 place-items-center">
-						<!-- Most set logos are dark artwork on transparency; invert them in dark mode. -->
-						<SetLogo
-							set={row.set}
-							class="transition-transform group-hover:scale-105 dark:brightness-0 dark:invert"
-						/>
+						<SetLogo set={row.set} class="transition-transform group-hover:scale-105" />
 					</div>
 
 					<div class="flex items-start gap-2">

@@ -36,7 +36,7 @@ const numberKey = (value: string) => value.replace(/^0+(?=\d)/, '').toLowerCase(
 const digitsOnly = (value: string) => value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
 
 /** Printings whose collector number matches, literal matches before numeric ones. */
-function findByNumber(candidates: Card[], number: string, setId?: string) {
+export function findByNumber(candidates: Card[], number: string, setId?: string) {
 	const scoped = setId ? candidates.filter((card) => card.set.id === setId) : candidates;
 	const literal = scoped.filter((card) => numberKey(card.localId) === numberKey(number));
 	const numeric = scoped.filter(
@@ -55,16 +55,53 @@ function pickCanonical(candidates: Card[]) {
 	);
 }
 
-function setForCode(catalogue: Catalogue, code: string) {
-	const direct = catalogue.setsByCode.get(code);
+/**
+ * The set a code names: a PTCGL code first, then the override table, then — because
+ * people who read the catalogue type them — a raw TCGdex set id like "sv03".
+ */
+export function setForCode(catalogue: Catalogue, code: string) {
+	const upper = code.toUpperCase();
+	const direct = catalogue.setsByCode.get(upper);
 	if (direct) return { set: direct, viaOverride: false };
 
-	const overrideId = PTCGL_CODE_OVERRIDES[code];
+	const overrideId = PTCGL_CODE_OVERRIDES[upper];
 	const override = overrideId ? catalogue.setsById.get(overrideId) : undefined;
-	return override ? { set: override, viaOverride: true } : { set: undefined, viaOverride: false };
+	if (override) return { set: override, viaOverride: true };
+
+	const byId = catalogue.setsById.get(code.toLowerCase());
+	return { set: byId, viaOverride: false };
+}
+
+/** Set code + collector number with no name — "3 MEG 21" — pins one printing or nothing. */
+function resolveByNumberOnly(catalogue: Catalogue, entry: ParsedEntry): ResolvedEntry {
+	const code = entry.setCode!.toUpperCase();
+	const { set, viaOverride } = setForCode(catalogue, code);
+	if (!set) {
+		return { entry, card: null, match: 'unresolved', alternatives: [], note: `Unknown set code ${code}` };
+	}
+
+	const card = findByNumber(catalogue.cardsBySet.get(set.id) ?? [], entry.number!)[0];
+	if (!card) {
+		return {
+			entry,
+			card: null,
+			match: 'unresolved',
+			alternatives: [],
+			note: `${set.name} has no card #${entry.number}`
+		};
+	}
+
+	return {
+		entry,
+		card,
+		match: viaOverride ? 'override' : 'exact',
+		alternatives: catalogue.byName.get(card.nameNormalized) ?? [card]
+	};
 }
 
 export function resolveEntry(catalogue: Catalogue, entry: ParsedEntry): ResolvedEntry {
+	if (!entry.name && entry.setCode && entry.number) return resolveByNumberOnly(catalogue, entry);
+
 	// `byName` buckets are already sorted newest printing first.
 	let candidates = catalogue.byName.get(normalizeName(entry.name)) ?? [];
 	let match: ResolvedEntry['match'] = 'name';

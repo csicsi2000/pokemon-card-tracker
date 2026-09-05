@@ -37,6 +37,9 @@ jobs:
         run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}
+          # Optional: enables Google Drive sync. Set it under Settings → Secrets and
+          # variables → Actions → Variables. It is a public OAuth client id, not a secret.
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
 
       - uses: actions/configure-pages@v5
 

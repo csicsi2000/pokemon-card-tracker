@@ -1,0 +1,56 @@
+# Cardex
+
+> A single-user Pokémon TCG collection and deck tracker. Static web app (SvelteKit), no server:
+> the card catalogue is public JSON on this site; the user's own data lives in their browser
+> and, optionally, in one file in their Google Drive.
+
+Live app: https://csicsi2000.github.io/pokemon-card-tracker/
+Source: https://github.com/csicsi2000/pokemon-card-tracker
+
+## What an agent can read here (public, no auth)
+
+- /catalogue.json — every English printing (~21k) as compact tuples. Schema in
+  src/lib/catalogue-format.ts. Set row: [id, name, series, ptcglCode, releaseDate, cardCount,
+  imageBase, symbolUrl, logoUrl, legalStandard, legalExpanded, artworkPublished]. Card row:
+  [id, setIndex, localId, name, supertype(P/T/E), subtypes, rarity, regulationMark, hp, types,
+  evolvesFrom, variants(n/r/h/f/w), hasImage].
+- /details/<setId>.json — attacks, abilities, weaknesses, retreat cost per card of one set.
+- Card images: <imageBase>/<localId>/low.webp (or high.webp). Set logos: <logoUrl>.webp.
+
+The user's collection is NOT on this site. It is in their browser's localStorage and, when
+they connect sync, in `Cardex/cardex-data.json` in their Google Drive alongside a
+human-readable `Cardex/cardex-readable.md`. Read the .md if you have Drive access.
+
+## Formats an agent should speak
+
+Card line (PTCGL / Limitless / pkmn.gg): `<qty> <card name> <SET CODE> <collector number>`
+Example decklist the app imports verbatim:
+
+    Pokémon: 4
+    4 Charizard ex OBF 125
+
+    Trainer: 4
+    4 Arven SVI 166
+
+    Energy: 4
+    4 Basic {R} Energy SVE 2
+
+    Total Cards: 12
+
+Quick-add line (no name needed): `MEG 21`, `3 PAL 188 rh` (rh = reverse holo, h = holo).
+Set codes are the official PTCGL abbreviations (MEG, OBF, SVI, PAL, SVE, PR-SW …).
+Deck requirements count by card NAME: any printing the user owns satisfies a line.
+
+## URLs an agent can hand to the user
+
+- /import/?list=<url-encoded decklist>  — opens the importer pre-filled for review
+- /import/?list=…&target=deck&name=<deck name>  — same, preselecting "new deck"
+- /cards/?q=<name>  — browse; /cards/?set=<setId>  — one set
+
+## Tools for coding agents (Claude Code, Codex, Gemini CLI)
+
+In a checkout of the repo:
+- `npm run cardex -- help`  — CLI over a data file (a backup export, or the Drive-mirrored
+  cardex-data.json). Read collection/decks, create and edit decks, quick-add cards, buylists.
+- `npm run mcp`  — the same operations as an MCP server over stdio (CARDEX_DATA=path).
+See AGENTS.md and docs/deck-coach-prompt.md in the repository.

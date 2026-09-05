@@ -64,7 +64,16 @@ const NAME_SUFFIXES = new Set([
 	'TAG'
 ]);
 
+/**
+ * "MEG 21" with no name at all — what someone types straight off the card. Only an
+ * upper-case code counts, so "Pikachu 25" stays a name and not a set called PIKACHU.
+ */
+const BARE_CODE_AND_NUMBER = /^([A-Z][A-Z0-9]{0,4}(?:-[A-Z0-9]{1,4})?)\s+([A-Za-z]{0,5}\d+[A-Za-z]?)$/;
+
 function splitSetAndNumber(rest: string): { name: string; setCode: string | null; number: string | null } {
+	const bare = rest.match(BARE_CODE_AND_NUMBER);
+	if (bare && !NAME_SUFFIXES.has(bare[1])) return { name: '', setCode: bare[1], number: bare[2] };
+
 	const match = rest.match(/^(.*?)\s+(null|[A-Za-z0-9][A-Za-z0-9-]{0,7})\s+([A-Za-z0-9-]+)$/);
 	if (!match) return { name: rest, setCode: null, number: null };
 

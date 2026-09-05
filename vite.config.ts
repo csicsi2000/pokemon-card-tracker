@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
+import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -14,7 +15,17 @@ const raw = process.env.BASE_PATH?.replace(/\/+$/, '') ?? '';
 const basePath: '' | `/${string}` =
 	raw === '' ? '' : raw.startsWith('/') ? (raw as `/${string}`) : `/${raw}`;
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+	define: {
+		// Optional Google Drive sync. Read from .env / the CI environment at build time and
+		// baked into the bundle; an empty string simply hides the feature. Not a secret:
+		// an OAuth client id is public by design.
+		__GOOGLE_CLIENT_ID__: JSON.stringify(
+			loadEnv(mode, process.cwd(), 'PUBLIC_').PUBLIC_GOOGLE_CLIENT_ID ??
+				process.env.PUBLIC_GOOGLE_CLIENT_ID ??
+				''
+		)
+	},
 	plugins: [
 		tailwindcss(),
 		sveltekit({
@@ -112,4 +123,4 @@ export default defineConfig({
 		include: ['tests/**/*.test.ts'],
 		environment: 'node'
 	}
-});
+}));

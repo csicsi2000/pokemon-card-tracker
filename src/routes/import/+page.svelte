@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import { page } from '$app/state';
 	import { fly, slide } from 'svelte/transition';
 	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import LotPicker from '$lib/components/LotPicker.svelte';
+	import FolderPicker from '$lib/components/FolderPicker.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -17,11 +20,14 @@
 	import Upload from '@lucide/svelte/icons/upload';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import CardImage from '$lib/components/CardImage.svelte';
+	import { folderPath } from '$lib/data/folders';
+	import { toReadableJson, toReadableMarkdown } from '$lib/agent/readable';
 	import { store } from '$lib/store.svelte';
 	import { parseDecklist } from '$lib/tcg/parser';
 	import { resolveEntries, type ResolvedEntry } from '$lib/tcg/resolver';
+	import { buildBuylist } from '$lib/tcg/buylist';
 	import { toPtcglText, toAiEntries, AI_PREAMBLE, type ExportLine } from '$lib/tcg/exporter';
-	import { VARIANT_LABELS, type CardVariant, type UserData } from '$lib/types';
+	import { VARIANT_LABELS, type CardVariant } from '$lib/types';
 
 	let { data } = $props();
 
@@ -33,13 +39,29 @@ Total Cards: 3`;
 
 	// -- import -------------------------------------------------------------
 
-	let text = $state('');
-	let target = $state<'collection' | 'deck'>('collection');
-	let deckName = $state('');
+	type Target = 'collection' | 'deck' | 'existing';
+
+	// An agent (or a link) can hand over a list: /import/?list=<encoded>&target=deck&name=…
+	const seed = page.url.searchParams;
+	const seededTarget = seed.get('target');
+	let text = $state(seed.get('list') ?? '');
+	let target = $state<Target>(
+		seededTarget === 'deck' || seededTarget === 'existing' ? seededTarget : 'collection'
+	);
+	let deckName = $state(seed.get('name') ?? '');
+	let folderTarget = $state('');
+	let existingDeckId = $state('');
+	let lotTarget = $state('');
 	let variant = $state<CardVariant>('normal');
 	let mode = $state<'add' | 'replace'>('add');
 	/** Printing overrides picked in review, keyed by the parsed line number. */
 	let overrides = $state<Record<number, string>>({});
+
+	const TARGET_LABELS: Record<Target, string> = {
+		collection: 'My collection',
+		deck: 'A new deck',
+		existing: 'An existing deck'
+	};
 
 	const parsed = $derived(text.trim() ? parseDecklist(text) : null);
 	const resolved = $derived(parsed ? resolveEntries(data.catalogue, parsed.entries) : []);
@@ -54,6 +76,40 @@ Total Cards: 3`;
 
 	const unresolvedCount = $derived(rows.filter((row) => !row.card).length);
 	const importable = $derived(rows.filter((row) => row.card));
+
+	/** Copies owned per card name — any printing satisfies a decklist line. */
+	const ownedByName = $derived.by(() => {
+		const totals = new Map<string, number>();
+		for (const row of store.collection) {
+			const card = data.catalogue.byId.get(row.cardId);
+			if (card) totals.set(card.nameNormalized, (totals.get(card.nameNormalized) ?? 0) + row.quantity);
+		}
+		return totals;
+	});
+
+	/** Have / missing for the pasted list against the whole collection. */
+	const coverage = $derived(
+		buildBuylist(
+			importable.map((row) => ({ card: row.card!, quantity: row.entry.quantity })),
+			store.collection.flatMap((entry) => {
+				const card = data.catalogue.byId.get(entry.cardId);
+				return card ? [{ name: card.name, quantity: entry.quantity }] : [];
+			})
+		)
+	);
+	const listTotal = $derived(importable.reduce((sum, row) => sum + row.entry.quantity, 0));
+	const missingText = $derived(
+		toPtcglText(coverage.rows.map((row) => ({ quantity: row.missing, card: row.suggestion })))
+	);
+
+	const deckOptions = $derived(
+		[...store.decks]
+			.sort((a, b) => a.name.localeCompare(b.name))
+			.map((deck) => ({
+				id: deck.id,
+				label: [...folderPath(store.folders, deck.folderId).map((f) => f.name), deck.name].join(' › ')
+			}))
+	);
 
 	function matchLabel(row: ResolvedEntry & { overridden: boolean }) {
 		if (row.overridden) return { text: 'chosen', variant: 'secondary' as const };
@@ -71,10 +127,20 @@ Total Cards: 3`;
 		}
 	}
 
+	function mergedDeckCards() {
+		// Merge duplicate printings so a deck never lists the same card twice.
+		const merged = new Map<string, number>();
+		for (const row of importable) {
+			merged.set(row.card!.id, (merged.get(row.card!.id) ?? 0) + row.entry.quantity);
+		}
+		return [...merged].map(([cardId, quantity]) => ({ cardId, quantity }));
+	}
+
 	function runImport() {
 		if (importable.length === 0) return;
 
 		if (target === 'collection') {
+			const lotId = lotTarget || null;
 			store.addOwned(
 				importable.map((row) => ({
 					cardId: row.card!.id,
@@ -82,25 +148,33 @@ Total Cards: 3`;
 					variant: row.card!.variants.includes(variant)
 						? variant
 						: (row.card!.variants[0] ?? 'normal'),
-					quantity: row.entry.quantity
+					quantity: row.entry.quantity,
+					lotId
 				})),
 				mode
 			);
-			toast.success(`Added ${importable.length} rows to your collection.`);
-			goto(`${base}/collection`);
+			const where = lotId ? store.lot(lotId)?.name : 'your collection';
+			toast.success(`Added ${importable.length} rows to ${where}.`);
+			goto(lotId ? `${base}/lots/${lotId}` : `${base}/collection`);
 			return;
 		}
 
-		// Merge duplicate printings so a deck never lists the same card twice.
-		const merged = new Map<string, number>();
-		for (const row of importable) {
-			merged.set(row.card!.id, (merged.get(row.card!.id) ?? 0) + row.entry.quantity);
+		if (target === 'existing') {
+			if (!existingDeckId || !store.deck(existingDeckId)) {
+				toast.error('Pick a deck to replace.');
+				return;
+			}
+			store.updateDeck(existingDeckId, { cards: mergedDeckCards() });
+			toast.success(`Replaced the list of "${store.deck(existingDeckId)!.name}".`);
+			goto(`${base}/decks/${existingDeckId}`);
+			return;
 		}
 
 		const deck = store.createDeck(
 			deckName.trim() || 'Imported deck',
 			null,
-			[...merged].map(([cardId, quantity]) => ({ cardId, quantity }))
+			mergedDeckCards(),
+			folderTarget || null
 		);
 		toast.success(`Created "${deck.name}".`);
 		goto(`${base}/decks/${deck.id}`);
@@ -121,6 +195,11 @@ Total Cards: 3`;
 	const collectionJson = $derived(
 		`${AI_PREAMBLE}\n${JSON.stringify({ collection: toAiEntries(collectionLines) }, null, 2)}`
 	);
+
+	// Everything — lots, decks with what is missing, formats — as one document a model can
+	// read without the catalogue. Built on demand; it walks the whole collection.
+	const readableMarkdown = () => toReadableMarkdown(store.export(), data.catalogue);
+	const readableJson = () => JSON.stringify(toReadableJson(store.export(), data.catalogue), null, 2);
 
 	async function copy(value: string, label: string) {
 		try {
@@ -155,9 +234,16 @@ Total Cards: 3`;
 		input.value = '';
 
 		try {
-			const payload = JSON.parse(await file.text()) as UserData;
-			const summary = `${payload.collection?.length ?? 0} collection rows, ${payload.decks?.length ?? 0} decks, ${payload.formats?.length ?? 0} formats`;
-			if (!confirm(`Replace everything in this browser with ${summary}?`)) return;
+			const payload = JSON.parse(await file.text()) as Record<string, unknown>;
+			const count = (key: string) => (Array.isArray(payload[key]) ? payload[key].length : 0);
+			const parts = [
+				`${count('collection')} collection rows`,
+				count('lots') ? `${count('lots')} lots` : null,
+				`${count('decks')} decks`,
+				count('folders') ? `${count('folders')} folders` : null,
+				`${count('formats')} formats`
+			].filter(Boolean);
+			if (!confirm(`Replace everything in this browser with ${parts.join(', ')}?`)) return;
 
 			store.import(payload);
 			toast.success('Backup restored');
@@ -185,8 +271,9 @@ Total Cards: 3`;
 				<Card.Header>
 					<Card.Title class="text-base">Paste a decklist</Card.Title>
 					<Card.Description>
-						pkmn.gg, PTCGL and Limitless all use the same text format. Nothing is saved until you
-						press Import.
+						pkmn.gg, PTCGL and Limitless all use the same text format. Lines like
+						<span class="font-mono">3 MEG 21</span> (set code + number, no name) work too. Nothing is
+						saved until you press Import.
 					</Card.Description>
 				</Card.Header>
 				<Card.Content class="flex flex-col gap-4">
@@ -222,20 +309,24 @@ Total Cards: 3`;
 							<Select.Root
 								type="single"
 								value={target}
-								onValueChange={(v) => (target = (v as 'collection' | 'deck') ?? 'collection')}
+								onValueChange={(v) => (target = (v as Target) ?? 'collection')}
 							>
-								<Select.Trigger class="w-40">
-									{target === 'collection' ? 'My collection' : 'A new deck'}
-								</Select.Trigger>
+								<Select.Trigger class="w-44">{TARGET_LABELS[target]}</Select.Trigger>
 								<Select.Content>
-									<Select.Item value="collection">My collection</Select.Item>
-									<Select.Item value="deck">A new deck</Select.Item>
+									{#each Object.entries(TARGET_LABELS) as [value, label] (value)}
+										<Select.Item {value}>{label}</Select.Item>
+									{/each}
 								</Select.Content>
 							</Select.Root>
 						</div>
 
 						{#if target === 'collection'}
 							<div class="flex flex-col gap-2" transition:slide={{ duration: 150, axis: 'x' }}>
+								<Label>Into lot</Label>
+								<LotPicker bind:value={lotTarget} allowCreate />
+							</div>
+
+							<div class="flex flex-col gap-2">
 								<Label>Finish</Label>
 								<Select.Root
 									type="single"
@@ -267,10 +358,32 @@ Total Cards: 3`;
 									</Select.Content>
 								</Select.Root>
 							</div>
-						{:else}
+						{:else if target === 'deck'}
 							<div class="flex flex-col gap-2">
 								<Label for="new-deck-name">Deck name</Label>
 								<Input id="new-deck-name" bind:value={deckName} placeholder="Imported deck" />
+							</div>
+							<div class="flex flex-col gap-2">
+								<Label>Folder</Label>
+								<FolderPicker bind:value={folderTarget} />
+							</div>
+						{:else}
+							<div class="flex flex-col gap-2">
+								<Label>Deck to replace</Label>
+								<Select.Root
+									type="single"
+									value={existingDeckId}
+									onValueChange={(v) => (existingDeckId = v ?? '')}
+								>
+									<Select.Trigger class="w-64">
+										{deckOptions.find((d) => d.id === existingDeckId)?.label ?? 'Pick a deck'}
+									</Select.Trigger>
+									<Select.Content class="max-h-72">
+										{#each deckOptions as option (option.id)}
+											<Select.Item value={option.id}>{option.label}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
 							</div>
 						{/if}
 					</div>
@@ -278,7 +391,32 @@ Total Cards: 3`;
 			</Card.Root>
 
 			{#if parsed}
-				<div in:fly={{ y: 8, duration: 200 }}>
+				<div in:fly={{ y: 8, duration: 200 }} class="flex flex-col gap-4">
+					{#if importable.length}
+						<Card.Root>
+							<Card.Content class="flex flex-wrap items-center justify-between gap-3 py-4">
+								<div>
+									<p class="text-sm font-medium">
+										You own {listTotal - coverage.totalMissing} of {listTotal} cards
+										{#if coverage.totalMissing === 0}
+											— the whole list
+										{:else}
+											· {coverage.totalMissing} missing
+										{/if}
+									</p>
+									<p class="text-muted-foreground text-xs">
+										Counted by card name, so any printing you own counts.
+									</p>
+								</div>
+								{#if coverage.totalMissing > 0}
+									<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
+										<Copy class="size-4" /> Copy missing as list
+									</Button>
+								{/if}
+							</Card.Content>
+						</Card.Root>
+					{/if}
+
 					<Card.Root>
 						<Card.Header>
 							<Card.Title class="text-base">
@@ -314,6 +452,7 @@ Total Cards: 3`;
 							<div class="flex flex-col divide-y">
 								{#each rows as row (row.entry.lineNumber)}
 									{@const label = matchLabel(row)}
+									{@const owned = row.card ? (ownedByName.get(row.card.nameNormalized) ?? 0) : 0}
 									<div class="flex items-center gap-3 py-2">
 										{#if row.card}
 											<CardImage card={row.card} class="h-11 w-8 shrink-0 rounded" />
@@ -332,12 +471,22 @@ Total Cards: 3`;
 													{row.card.set.name} · #{row.card.localId}
 												</p>
 											{:else}
-												<p class="truncate text-sm font-medium">{row.entry.name}</p>
+												<p class="truncate text-sm font-medium">{row.entry.name || row.entry.raw}</p>
 												<p class="text-muted-foreground truncate text-xs">
 													{row.note ?? 'No match'} · line {row.entry.lineNumber}
 												</p>
 											{/if}
 										</div>
+
+										{#if row.card}
+											<Badge
+												variant={owned >= row.entry.quantity ? 'outline' : 'destructive'}
+												class="shrink-0 tabular-nums"
+												title="Copies you own of this card name"
+											>
+												own {owned}
+											</Badge>
+										{/if}
 
 										{#if row.alternatives.length > 1}
 											<Select.Root
@@ -372,7 +521,11 @@ Total Cards: 3`;
 						<Card.Footer>
 							<Button disabled={importable.length === 0} onclick={runImport}>
 								Import {importable.length} card{importable.length === 1 ? '' : 's'}
-								{target === 'collection' ? 'into collection' : 'as a deck'}
+								{target === 'collection'
+									? 'into collection'
+									: target === 'existing'
+										? 'into that deck'
+										: 'as a deck'}
 							</Button>
 						</Card.Footer>
 					</Card.Root>
@@ -382,6 +535,33 @@ Total Cards: 3`;
 
 		<!-- Export -->
 		<Tabs.Content value="export" class="flex flex-col gap-4 pt-4">
+			<Card.Root>
+				<Card.Header>
+					<Card.Title class="text-base">Everything, readable</Card.Title>
+					<Card.Description>
+						Collection by lot, every deck as a decklist with what is missing, and your formats — as
+						Markdown with card names and set codes, so Claude, Gemini or ChatGPT can read it without
+						any other context. Pair it with the deck-coach prompt from the repository's
+						<span class="font-mono">docs/</span> folder. With Drive sync on, the same file is kept
+						up to date as <span class="font-mono">Cardex/cardex-readable.md</span>.
+					</Card.Description>
+				</Card.Header>
+				<Card.Footer class="flex-wrap gap-2">
+					<Button onclick={() => copy(readableMarkdown(), 'Readable export')}>
+						<Copy class="size-4" /> Copy readable
+					</Button>
+					<Button
+						variant="outline"
+						onclick={() => download('cardex-readable.md', readableMarkdown(), 'text/markdown')}
+					>
+						<Download class="size-4" /> Download .md
+					</Button>
+					<Button variant="outline" onclick={() => download('cardex-readable.json', readableJson())}>
+						<Download class="size-4" /> Download .json
+					</Button>
+				</Card.Footer>
+			</Card.Root>
+
 			<Card.Root>
 				<Card.Header>
 					<Card.Title class="text-base">Collection as a decklist</Card.Title>
@@ -438,7 +618,8 @@ Total Cards: 3`;
 					<Card.Title class="text-base">Back up your data</Card.Title>
 					<Card.Description>
 						Everything lives in this browser's storage. Clearing site data, switching browser, or
-						using a private window loses it — keep a backup file somewhere safe.
+						using a private window loses it — keep a backup file somewhere safe, or connect Google
+						Drive on the Sync page to keep a copy online.
 					</Card.Description>
 				</Card.Header>
 				<Card.Content class="flex flex-wrap gap-6">
@@ -447,8 +628,16 @@ Total Cards: 3`;
 						<p class="text-muted-foreground text-xs">collection rows</p>
 					</div>
 					<div>
+						<p class="text-2xl font-semibold tabular-nums">{store.lots.length}</p>
+						<p class="text-muted-foreground text-xs">lots</p>
+					</div>
+					<div>
 						<p class="text-2xl font-semibold tabular-nums">{store.decks.length}</p>
 						<p class="text-muted-foreground text-xs">decks</p>
+					</div>
+					<div>
+						<p class="text-2xl font-semibold tabular-nums">{store.folders.length}</p>
+						<p class="text-muted-foreground text-xs">folders</p>
 					</div>
 					<div>
 						<p class="text-2xl font-semibold tabular-nums">{store.formats.length}</p>
@@ -462,6 +651,7 @@ Total Cards: 3`;
 					<Button variant="outline" onclick={() => document.getElementById('restore')?.click()}>
 						<Upload class="size-4" /> Restore from file
 					</Button>
+					<Button href="{base}/sync" variant="ghost">Google Drive sync</Button>
 					<input
 						id="restore"
 						type="file"
