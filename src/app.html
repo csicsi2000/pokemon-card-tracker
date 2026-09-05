@@ -2,8 +2,27 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
+
+		<!--
+			The app renders client-side (ssr = false), so anything a browser needs *before*
+			hydration — to offer an install, or to draw the right icon — has to live here
+			rather than in a component's <svelte:head>. %sveltekit.assets% is the deployment
+			base path, empty in dev and /<repo> on GitHub Pages.
+		-->
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/icon-192.png" />
+		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+
+		<!-- iOS ignores most of the manifest; the home-screen name and full-screen mode
+		     come from these instead. -->
+		<meta name="application-name" content="Cardex" />
+		<meta name="apple-mobile-web-app-title" content="Cardex" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

@@ -49,17 +49,45 @@ export default defineConfig(({ mode }) => ({
 			})
 		}),
 		SvelteKitPWA({
-			registerType: 'autoUpdate',
+			// 'prompt', not 'autoUpdate': an installed copy holds the user's only copy of
+			// their data, and autoUpdate reloads the page the moment a new worker takes
+			// over — mid-edit if that is when it lands. ReloadPrompt asks first.
+			registerType: 'prompt',
+			devOptions: {
+				// `npm run dev` otherwise 404s the manifest link in app.html and never
+				// offers an install. The dev worker precaches nothing — it only makes the
+				// manifest and the install flow testable without a production build.
+				enabled: true,
+				type: 'module',
+				suppressWarnings: true
+			},
 			manifest: {
+				// The app's identity to the OS. Same value the browser would infer from
+				// start_url, spelled out so a later change to start_url cannot orphan
+				// everyone's existing install.
+				id: `${basePath}/`,
 				name: 'Cardex — Pokémon collection & decks',
 				short_name: 'Cardex',
 				description: 'Track your Pokémon TCG collection, build decks, and plan what to buy.',
+				lang: 'en',
+				dir: 'ltr',
+				categories: ['productivity', 'utilities', 'entertainment'],
 				theme_color: '#0c0a09',
 				background_color: '#0c0a09',
 				display: 'standalone',
-				orientation: 'portrait',
+				display_override: ['standalone', 'minimal-ui'],
+				// Deliberately unlocked: the layout has a real desktop/landscape mode, so an
+				// installed tablet copy should be allowed to use it.
+				orientation: 'any',
 				scope: `${basePath}/`,
 				start_url: `${basePath}/`,
+				// Long-press / right-click the installed icon. Paths need the trailing slash
+				// the app's router uses, and must sit inside the scope above.
+				shortcuts: [
+					{ name: 'Collection', short_name: 'Collection', url: `${basePath}/collection/` },
+					{ name: 'Find cards', short_name: 'Cards', url: `${basePath}/cards/` },
+					{ name: 'Decks', short_name: 'Decks', url: `${basePath}/decks/` }
+				],
 				icons: [
 					{ src: `${basePath}/icon-192.png`, sizes: '192x192', type: 'image/png' },
 					{ src: `${basePath}/icon-512.png`, sizes: '512x512', type: 'image/png' },
@@ -80,7 +108,16 @@ export default defineConfig(({ mode }) => ({
 				// avoids — they are cached at runtime instead, as each set is opened.
 				globIgnores: ['**/details/*.json'],
 				maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
-				navigateFallback: `${basePath}/404.html`,
+				// The shell to serve for a URL that is not in the precache — an offline hard
+				// refresh on /decks/<id>, or on any trailing-slash URL, which is every page
+				// the app links to. It must be a *precached* file: 404.html is written by
+				// the adapter after this worker is generated, so it never makes the
+				// precache and pointing at it leaves those navigations failing offline.
+				// The prerendered index is precached, and boots the same client router.
+				navigateFallback: `${basePath}/`,
+				// Drop precaches from older builds instead of letting them accumulate;
+				// catalogue.json alone is 2 MB a time.
+				cleanupOutdatedCaches: true,
 				runtimeCaching: [
 					{
 						// Immutable for a given build: rules text does not change once printed.

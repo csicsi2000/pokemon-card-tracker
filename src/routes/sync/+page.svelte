@@ -3,8 +3,11 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import * as Card from '$lib/components/ui/card';
 	import Cloud from '@lucide/svelte/icons/cloud';
+	import Server from '@lucide/svelte/icons/server';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import { store } from '$lib/store.svelte';
@@ -13,6 +16,7 @@
 
 	const busy = $derived(sync.status === 'connecting' || sync.status === 'syncing');
 	const standaloneIos = popupUnsupported();
+	const origin = typeof location === 'undefined' ? 'this site' : location.origin;
 
 	const statusLabel = $derived.by(() => {
 		switch (sync.status) {
@@ -25,7 +29,10 @@
 			case 'offline':
 				return { text: 'Offline — will retry', variant: 'outline' as const };
 			case 'reconnect':
-				return { text: 'Sign-in expired', variant: 'outline' as const };
+				return {
+					text: sync.provider === 'webdav' ? 'Login rejected' : 'Sign-in expired',
+					variant: 'outline' as const
+				};
 			case 'error':
 				return { text: 'Error', variant: 'destructive' as const };
 			default:
@@ -37,10 +44,32 @@
 		store.collection.length + store.decks.length + store.lots.length + store.formats.length > 0
 	);
 
-	async function connect() {
+	// WebDAV form, prefilled with the last settings used on this device.
+	let davUrl = $state(sync.webdav?.url ?? '');
+	let davUser = $state(sync.webdav?.username ?? '');
+	let davPassword = $state(sync.webdav?.password ?? '');
+	let showDavForm = $state(false);
+	/** Which Connect button was pressed last, so its card shows the outcome. */
+	let attempt = $state<'google' | 'webdav' | null>(null);
+	const needsAttention = $derived(sync.status === 'reconnect' || sync.status === 'error');
+
+	async function connectGoogle() {
+		attempt = 'google';
 		try {
-			await sync.connect();
+			await sync.connectGoogle();
 			toast.success('Connected to Google Drive');
+		} catch (error) {
+			toast.error(`Could not connect: ${(error as Error).message}`);
+		}
+	}
+
+	async function connectWebDav(event: SubmitEvent) {
+		event.preventDefault();
+		attempt = 'webdav';
+		try {
+			await sync.connectWebDav({ url: davUrl, username: davUser, password: davPassword });
+			showDavForm = false;
+			toast.success('Connected to your WebDAV server');
 		} catch (error) {
 			toast.error(`Could not connect: ${(error as Error).message}`);
 		}
@@ -49,13 +78,18 @@
 	async function syncNow() {
 		await sync.syncNow();
 		if (sync.status === 'idle') toast.success('Synced');
-		else if (sync.status === 'reconnect') toast.warning('Please reconnect to Google first.');
-		else if (sync.detail) toast.error(sync.detail);
+		else if (sync.status === 'reconnect') {
+			toast.warning(
+				sync.provider === 'webdav' ? 'Check the WebDAV login.' : 'Please reconnect to Google first.'
+			);
+		} else if (sync.detail) toast.error(sync.detail);
 	}
 
 	async function disconnect() {
-		if (!confirm('Stop syncing on this device? Your cards stay here and the Drive file is kept.')) return;
+		const where = sync.provider === 'webdav' ? 'the file on your server' : 'the Drive file';
+		if (!confirm(`Stop syncing on this device? Your cards stay here and ${where} is kept.`)) return;
 		await sync.disconnect();
+		davPassword = '';
 		toast.success('Disconnected');
 	}
 
@@ -64,116 +98,212 @@
 
 <svelte:head><title>Sync · Cardex</title></svelte:head>
 
-<PageHeader title="Google Drive sync" subtitle="Optional — keep the same collection on every device" />
+<PageHeader title="Sync" subtitle="Optional — keep the same collection on every device" />
 
 <div class="flex max-w-3xl flex-col gap-4 p-4 md:p-8">
-	{#if !sync.configured}
-		<Card.Root>
-			<Card.Header>
-				<Card.Title class="text-base">Sync is not set up for this build</Card.Title>
-				<Card.Description>
-					Cardex works entirely in your browser. To sync through your own Google Drive, the
-					build needs a Google OAuth client id — free, no card required. It takes about five
-					minutes once:
-				</Card.Description>
-			</Card.Header>
-			<Card.Content class="text-sm">
-				<ol class="text-muted-foreground list-decimal space-y-1.5 pl-5">
-					<li>Open <span class="font-mono">console.cloud.google.com</span> and create a project.</li>
-					<li>APIs &amp; Services → Library → enable the <b>Google Drive API</b>.</li>
-					<li>
-						OAuth consent screen → External, add your own Google account as a test user. Scopes:
-						<span class="font-mono">drive.file</span> and <span class="font-mono">userinfo.email</span>.
-					</li>
-					<li>
-						Credentials → Create OAuth client ID → Web application. Authorized JavaScript origins:
-						your site's origin (and <span class="font-mono">http://localhost:5173</span> for dev).
-					</li>
-					<li>
-						Put the client id in <span class="font-mono">.env</span> as
-						<span class="font-mono">PUBLIC_GOOGLE_CLIENT_ID=…</span>, or as the GitHub Actions variable
-						<span class="font-mono">GOOGLE_CLIENT_ID</span>, and rebuild.
-					</li>
-				</ol>
-			</Card.Content>
-		</Card.Root>
-	{:else}
+	{#if sync.connected}
 		<Card.Root>
 			<Card.Header>
 				<Card.Title class="flex items-center gap-2 text-base">
-					<Cloud class="size-4" />
-					{sync.status === 'connecting'
-						? 'Waiting for Google sign-in…'
-						: sync.connected
-							? 'Connected'
-							: 'Connect your Google account'}
+					{#if sync.provider === 'webdav'}
+						<Server class="size-4" /> WebDAV
+					{:else}
+						<Cloud class="size-4" /> Google Drive
+					{/if}
 					<Badge variant={statusLabel.variant} class="ml-auto">{statusLabel.text}</Badge>
 				</Card.Title>
 				<Card.Description>
-					{#if sync.connected}
-						{#if sync.email}Signed in as <b>{sync.email}</b> · {/if}last synced {format(sync.lastSyncedAt)}.
+					{#if sync.account}Connected as <b>{sync.account}</b> ·{/if} last synced {format(sync.lastSyncedAt)}.
+					{#if sync.provider === 'webdav'}
+						Your data is saved as <span class="font-mono">cardex-data.json</span> in
+						<span class="font-mono break-all">{sync.webdav?.url}</span>, and merged with whatever
+						other devices have saved there.
+					{:else}
 						Your data is saved to <span class="font-mono">Cardex/cardex-data.json</span> in your My
 						Drive, and merged with whatever other devices have saved there.
-					{:else}
-						Cardex stores a copy of your collection, lots, decks and formats as one file in your
-						own Google Drive. Nothing goes anywhere else — there is no Cardex server. Open Cardex
-						on another device, connect the same account, and the two are merged.
 					{/if}
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="flex flex-col gap-3 text-sm">
-				{#if sync.detail && (sync.status === 'error' || sync.status === 'reconnect')}
+				{#if sync.detail && needsAttention}
 					<p class="text-destructive">{sync.detail}</p>
 				{/if}
-				{#if standaloneIos}
+				{#if sync.provider === 'drive'}
 					<p class="text-muted-foreground">
-						Google sign-in cannot finish inside a home-screen app on iOS. Open Cardex in Safari
-						to connect; syncing then works here too.
+						Google sign-ins last about an hour. When one runs out the cloud icon turns amber and a
+						tap on <b>Reconnect</b> picks up where it left off; edits made in between are kept
+						locally and synced next.
 					</p>
 				{/if}
-				{#if !sync.connected && hasLocalData}
-					<p class="text-muted-foreground">
-						What is in this browser and what is already on Drive (if anything) will be merged —
-						nothing is thrown away.
-					</p>
+				{#if sync.provider === 'webdav' && (showDavForm || sync.status === 'reconnect')}
+					<form class="flex flex-col gap-3" onsubmit={connectWebDav}>
+						{@render davFields()}
+						<div class="flex gap-2">
+							<Button type="submit" disabled={busy}><Server class="size-4" /> Save and reconnect</Button>
+							<Button type="button" variant="ghost" onclick={() => (showDavForm = false)}>Cancel</Button>
+						</div>
+					</form>
 				{/if}
-				<p class="text-muted-foreground">
-					Google sign-ins last about an hour. When one runs out the cloud icon turns amber and a
-					tap on <b>Reconnect</b> picks up where it left off; edits made in between are kept locally
-					and synced next.
-				</p>
 			</Card.Content>
 			<Card.Footer class="flex-wrap gap-2">
-				{#if !sync.connected}
-					<Button onclick={connect} disabled={busy || standaloneIos}>
-						<Cloud class="size-4" /> Connect Google Drive
-					</Button>
-				{:else}
-					{#if sync.status === 'reconnect' || sync.status === 'error'}
-						<Button onclick={connect} disabled={busy}>
-							<Cloud class="size-4" /> Reconnect
-						</Button>
-					{/if}
-					<Button variant="outline" onclick={syncNow} disabled={busy}>
-						<RefreshCw class="size-4 {busy ? 'animate-spin' : ''}" /> Sync now
-					</Button>
-					<Button variant="ghost" onclick={disconnect} disabled={busy}>
-						<LogOut class="size-4" /> Disconnect
+				{#if sync.provider === 'drive' && needsAttention}
+					<Button onclick={connectGoogle} disabled={busy}><Cloud class="size-4" /> Reconnect</Button>
+				{/if}
+				<Button variant="outline" onclick={syncNow} disabled={busy}>
+					<RefreshCw class="size-4 {busy ? 'animate-spin' : ''}" /> Sync now
+				</Button>
+				{#if sync.provider === 'webdav' && !showDavForm}
+					<Button variant="outline" onclick={() => (showDavForm = true)} disabled={busy}>
+						Change login
 					</Button>
 				{/if}
+				<Button variant="ghost" onclick={disconnect} disabled={busy}>
+					<LogOut class="size-4" /> Disconnect
+				</Button>
 			</Card.Footer>
+		</Card.Root>
+	{:else}
+		<p class="text-muted-foreground text-sm">
+			Cardex stores a copy of your collection, lots, decks and formats as one file in storage
+			<i>you</i> control. Nothing goes anywhere else — there is no Cardex server. Open Cardex on
+			another device, connect the same place, and the two are merged.
+			{#if hasLocalData}
+				What is in this browser and what is already there (if anything) will be merged — nothing
+				is thrown away.
+			{/if}
+		</p>
+
+		<Card.Root>
+			<Card.Header>
+				<Card.Title class="flex items-center gap-2 text-base">
+					<Cloud class="size-4" /> Google Drive
+					{#if sync.status === 'connecting' && attempt === 'google'}
+						<Badge variant="secondary" class="ml-auto">Waiting for Google sign-in…</Badge>
+					{/if}
+				</Card.Title>
+				<Card.Description>
+					{#if sync.googleConfigured}
+						One file, <span class="font-mono">Cardex/cardex-data.json</span>, visible in your My
+						Drive. Free, no card required.
+					{:else}
+						Not available in this build: it needs a Google OAuth client id, which the person
+						hosting Cardex adds once (free, about five minutes).
+					{/if}
+				</Card.Description>
+			</Card.Header>
+			{#if sync.googleConfigured}
+				<Card.Content class="text-sm">
+					{#if sync.detail && attempt === 'google'}
+						<p class="text-destructive">{sync.detail}</p>
+					{/if}
+					{#if standaloneIos}
+						<p class="text-muted-foreground">
+							Google sign-in cannot finish inside a home-screen app on iOS. Open Cardex in Safari
+							to connect; syncing then works here too.
+						</p>
+					{/if}
+				</Card.Content>
+				<Card.Footer>
+					<Button onclick={connectGoogle} disabled={busy || standaloneIos}>
+						<Cloud class="size-4" /> Connect Google Drive
+					</Button>
+				</Card.Footer>
+			{:else}
+				<Card.Content class="text-sm">
+					<ol class="text-muted-foreground list-decimal space-y-1.5 pl-5">
+						<li>Open <span class="font-mono">console.cloud.google.com</span> and create a project.</li>
+						<li>APIs &amp; Services → Library → enable the <b>Google Drive API</b>.</li>
+						<li>
+							OAuth consent screen → External, add your own Google account as a test user. Scopes:
+							<span class="font-mono">drive.file</span> and <span class="font-mono">userinfo.email</span>.
+						</li>
+						<li>
+							Credentials → Create OAuth client ID → Web application. Authorized JavaScript origins:
+							your site's origin (and <span class="font-mono">http://localhost:5173</span> for dev).
+						</li>
+						<li>
+							Put the client id in <span class="font-mono">.env</span> as
+							<span class="font-mono">PUBLIC_GOOGLE_CLIENT_ID=…</span>, or as the GitHub Actions
+							variable <span class="font-mono">GOOGLE_CLIENT_ID</span>, and rebuild.
+						</li>
+					</ol>
+				</Card.Content>
+			{/if}
 		</Card.Root>
 
 		<Card.Root>
 			<Card.Header>
-				<Card.Title class="text-base">How conflicts are handled</Card.Title>
+				<Card.Title class="flex items-center gap-2 text-base">
+					<Server class="size-4" /> WebDAV server
+				</Card.Title>
 				<Card.Description>
-					Every card row, lot, deck, folder and format carries the time it was last changed. When two
-					devices disagree, the newer change wins for that record only, and deletions are remembered
-					so a deleted deck does not come back. Two devices that both edit the same lot at the same
-					moment can double-count that one edit — rare, and easy to fix by hand.
+					Any folder on a WebDAV server you run or rent: Nextcloud, ownCloud, a Synology or QNAP
+					NAS, Hetzner Storage Box, <span class="font-mono">rclone serve webdav</span>, and the
+					like. Cardex writes <span class="font-mono">cardex-data.json</span> and a readable
+					<span class="font-mono">cardex-readable.md</span> into it.
 				</Card.Description>
 			</Card.Header>
+			<form onsubmit={connectWebDav}>
+				<Card.Content class="flex flex-col gap-3 text-sm">
+					{#if sync.detail && attempt === 'webdav'}
+						<p class="text-destructive">{sync.detail}</p>
+					{/if}
+					{@render davFields()}
+					<p class="text-muted-foreground">
+						The login is stored in this browser only and sent straight to your server. Prefer an
+						app password if your server offers them. Because Cardex runs in the browser, the
+						server must allow cross-origin (CORS) requests from
+						<span class="font-mono break-all">{origin}</span>: methods HEAD, GET, PUT and MKCOL,
+						header Authorization, and ideally expose ETag — see the README for a recipe.
+					</p>
+				</Card.Content>
+				<Card.Footer>
+					<Button type="submit" disabled={busy || !davUrl.trim()}>
+						{#if busy && attempt === 'webdav'}
+							<RefreshCw class="size-4 animate-spin" />
+						{:else}
+							<Server class="size-4" />
+						{/if}
+						Connect WebDAV
+					</Button>
+				</Card.Footer>
+			</form>
 		</Card.Root>
 	{/if}
+
+	<Card.Root>
+		<Card.Header>
+			<Card.Title class="text-base">How conflicts are handled</Card.Title>
+			<Card.Description>
+				Every card row, lot, deck, folder and format carries the time it was last changed. When two
+				devices disagree, the newer change wins for that record only, and deletions are remembered
+				so a deleted deck does not come back. Two devices that both edit the same lot at the same
+				moment can double-count that one edit — rare, and easy to fix by hand.
+			</Card.Description>
+		</Card.Header>
+	</Card.Root>
 </div>
+
+{#snippet davFields()}
+	<div class="grid gap-1.5">
+		<Label for="dav-url">Folder URL</Label>
+		<Input
+			id="dav-url"
+			type="url"
+			bind:value={davUrl}
+			placeholder="https://cloud.example.com/remote.php/dav/files/you/Cardex/"
+			autocomplete="url"
+			spellcheck={false}
+		/>
+	</div>
+	<div class="grid gap-3 sm:grid-cols-2">
+		<div class="grid gap-1.5">
+			<Label for="dav-user">Username</Label>
+			<Input id="dav-user" bind:value={davUser} autocomplete="username" spellcheck={false} />
+		</div>
+		<div class="grid gap-1.5">
+			<Label for="dav-password">Password</Label>
+			<Input id="dav-password" type="password" bind:value={davPassword} autocomplete="current-password" />
+		</div>
+	</div>
+{/snippet}

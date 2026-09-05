@@ -15,37 +15,9 @@ const FILE_NAME = 'cardex-data.json';
 const FOLDER_NAME = 'Cardex';
 const META_FIELDS = 'id,version,modifiedTime';
 
-export type DriveFileMeta = { id: string; version: number; modifiedTime: string };
+import { SyncAuthError, SyncMissingError, type RemoteFileMeta, type SyncBackend } from './backend';
 
-export type DriveClient = {
-	/** The oldest tagged data file, or null when the account has none yet. */
-	findFile(): Promise<DriveFileMeta | null>;
-	createFile(json: string): Promise<DriveFileMeta>;
-	getMeta(fileId: string): Promise<DriveFileMeta | null>;
-	download(fileId: string): Promise<string>;
-	upload(fileId: string, json: string): Promise<DriveFileMeta>;
-	/**
-	 * Write a secondary, tagged file next to the data file — the human/agent-readable
-	 * Markdown export. Found by tag and created on first use; never read back.
-	 */
-	putCompanion(tag: string, name: string, mimeType: string, body: string): Promise<void>;
-};
-
-/** 401/403 from Drive: the token is gone or was revoked. */
-export class DriveAuthError extends Error {
-	constructor(message = 'Google Drive rejected the sign-in') {
-		super(message);
-		this.name = 'DriveAuthError';
-	}
-}
-
-/** The file we were syncing to no longer exists (trashed or deleted by hand). */
-export class DriveMissingError extends Error {
-	constructor(message = 'The Drive file is gone') {
-		super(message);
-		this.name = 'DriveMissingError';
-	}
-}
+export type DriveFileMeta = RemoteFileMeta & { version: number };
 
 type RawMeta = { id: string; version: string | number; modifiedTime: string };
 
@@ -58,15 +30,17 @@ const toMeta = (raw: RawMeta): DriveFileMeta => ({
 export function createDriveClient(
 	getToken: () => Promise<string>,
 	fetchImpl: typeof fetch = fetch
-): DriveClient {
+): SyncBackend {
 	async function call(url: string, init: RequestInit = {}): Promise<Response> {
 		const token = await getToken();
 		const response = await fetchImpl(url, {
 			...init,
 			headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` }
 		});
-		if (response.status === 401 || response.status === 403) throw new DriveAuthError();
-		if (response.status === 404) throw new DriveMissingError();
+		if (response.status === 401 || response.status === 403) {
+			throw new SyncAuthError('Google Drive rejected the sign-in');
+		}
+		if (response.status === 404) throw new SyncMissingError('The Drive file is gone');
 		if (!response.ok) {
 			throw new Error(`Google Drive returned ${response.status} ${response.statusText}`);
 		}
@@ -151,7 +125,7 @@ export function createDriveClient(
 				const raw = (await response.json()) as RawMeta & { trashed?: boolean };
 				return raw.trashed ? null : toMeta(raw);
 			} catch (error) {
-				if (error instanceof DriveMissingError) return null;
+				if (error instanceof SyncMissingError) return null;
 				throw error;
 			}
 		},
@@ -177,7 +151,7 @@ export function createDriveClient(
 				if (id) await uploadBody(id, mimeType, body);
 				else id = (await createTagged(tag, name, mimeType, body)).id;
 			} catch (error) {
-				if (!(error instanceof DriveMissingError)) throw error;
+				if (!(error instanceof SyncMissingError)) throw error;
 				id = (await createTagged(tag, name, mimeType, body)).id; // was deleted by hand
 			}
 			companionIds.set(tag, id);

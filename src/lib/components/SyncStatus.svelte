@@ -31,19 +31,17 @@
 	const Icon = $derived(view.icon);
 </script>
 
-{#if sync.configured}
-	<a
-		href="{base}/sync"
-		class={cn(
-			'hover:bg-accent/60 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-			className
-		)}
-		title={sync.detail ?? view.label}
-		aria-label={view.label}
-	>
-		<Icon class={cn('size-4 shrink-0', view.tone)} />
-		{#if showLabel}
-			<span class="text-muted-foreground">{view.label}</span>
-		{/if}
-	</a>
-{/if}
+<a
+	href="{base}/sync"
+	class={cn(
+		'hover:bg-accent/60 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+		className
+	)}
+	title={sync.detail ?? view.label}
+	aria-label={view.label}
+>
+	<Icon class={cn('size-4 shrink-0', view.tone)} />
+	{#if showLabel}
+		<span class="text-muted-foreground">{view.label}</span>
+	{/if}
+</a>

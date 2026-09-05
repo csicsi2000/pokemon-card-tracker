@@ -6,6 +6,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import SyncStatus from './SyncStatus.svelte';
+	import InstallButton from './InstallButton.svelte';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import Library from '@lucide/svelte/icons/library';
 	import Search from '@lucide/svelte/icons/search';
@@ -75,6 +76,8 @@
 			</a>
 		{/each}
 	</nav>
+
+	<InstallButton class="text-muted-foreground mb-1" />
 
 	<div class="flex items-center justify-between">
 		<SyncStatus showLabel />
@@ -148,6 +151,8 @@
 					{link.label}
 				</a>
 			{/each}
+
+			<InstallButton class="py-3" />
 
 			<SyncStatus showLabel class="py-3" />
 

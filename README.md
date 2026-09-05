@@ -19,7 +19,8 @@ locally with `npm run dev`, or host it free on GitHub Pages.
 - **Lots** — the purchase or batch each card came in, so "what was in the july.2 lot?" has an answer
 - **Deck folders**, nested as deep as you like (Standard › 2026 › Charizard builds)
 - Import a PTCGL / Limitless decklist and see exactly what you own and what is missing
-- Optional **Google Drive sync** — your own Drive, no Cardex server — to use it on several devices
+- Optional **sync** through your own Google Drive or any WebDAV server (Nextcloud, a NAS, …) —
+  no Cardex server — to use it on several devices
 - Installable PWA; card art and viewed cards are cached for offline browsing
 
 ## Getting started
@@ -34,18 +35,41 @@ That's it — no accounts, no keys, no database. Open <http://localhost:5173>.
 To use it on your phone over the LAN, run `npm run dev -- --host` and open the network
 address it prints.
 
+## Install it as an app
+
+Cardex is a PWA, so it can be installed instead of visited: its own icon, no browser
+chrome, and it opens without a connection.
+
+- **Chrome / Edge, desktop or Android** — **Install app** at the bottom of the sidebar
+  (behind **More** on a phone), or the install icon in the address bar.
+- **iPhone / iPad** — iOS installs only from the share sheet: Share → *Add to Home
+  Screen*. Tapping **Install app** shows the steps for the browser you are in.
+- **Safari on Mac** — File → *Add to Dock*.
+- **Firefox on the desktop** cannot install web apps. It still caches and works offline
+  in a normal tab.
+
+Offline you keep the whole app: your collection, lots, decks and formats, the 21,000-card
+catalogue and the bundled rules text, plus every card image already seen. Live market
+prices, art you have never opened and sync need the network and pick up again by
+themselves. Deep links work offline too — reopening the installed app on `/decks/<id>`
+serves the cached shell rather than a browser error page.
+
+When a new version is deployed the app says so and waits for you to press **Reload**,
+rather than refreshing mid-edit. Your data is local either way, so an update never
+touches it.
+
 ## Where your data lives
 
 Everything you enter — collection, lots, decks, folders, formats — is stored under the
 `cardex:data:v2` key in localStorage (older builds used `cardex:data:v1`; it is migrated on
 first load and left in place). That means:
 
-- it is **per browser and per device** unless you turn on Google Drive sync;
+- it is **per browser and per device** unless you turn on sync;
 - clearing site data, or using a private window, loses it.
 
 So **use Import / Export → Backup** now and then. It downloads a single JSON file, and
-Restore reads it back — old v1 backup files still restore. Or connect Google Drive (below)
-and let the app keep a copy in your own Drive.
+Restore reads it back — old v1 backup files still restore. Or turn on sync (below) and let
+the app keep a copy in your own Google Drive or on your WebDAV server.
 
 ## Adding cards
 
@@ -83,26 +107,32 @@ page shows the same have/missing summary for a pasted list *before* you save any
 can import into a new deck (in a chosen folder), into your collection (into a chosen lot), or
 replace the list of an existing deck.
 
-## Google Drive sync (optional)
+## Sync (optional)
 
 Cardex has no server. If you want the same data on your phone and your laptop, it can keep a
-copy in **your own Google Drive** — one file, `Cardex/cardex-data.json`, visible in My Drive —
-and merge it with what each device has. Free, no card required; the Drive API's free quota is
-far beyond what one person syncing a JSON file uses.
+copy in storage **you** control and merge it with what each device has. Two kinds of storage
+are supported, chosen on the Sync page:
+
+- **Google Drive** — one file, `Cardex/cardex-data.json`, visible in My Drive. Free, no card
+  required; the Drive API's free quota is far beyond what one person syncing a JSON file uses.
+  Needs a one-time setup by whoever hosts the app (below).
+- **WebDAV** — a folder on any WebDAV server: Nextcloud, ownCloud, a Synology or QNAP NAS, a
+  Hetzner Storage Box, `rclone serve webdav`, Apache/nginx with the DAV module. Needs no
+  setup in the build; you type the folder URL, username and password on the Sync page.
 
 How merging works: every card row, lot, deck, folder and format carries the time it was last
 changed; the newer change wins per record, and deletions are remembered (tombstones) so a
 deleted deck does not come back from the other device. Two devices both editing the same lot
 at the exact same moment can double-count that one edit — rare, and easy to fix by hand.
 
+### Google Drive
+
 Google sign-ins last about an hour (the browser-only flow has no refresh tokens). When one
 runs out the cloud icon in the sidebar turns amber; tap **Reconnect** and edits made in the
 meantime are synced. Home-screen PWAs on iOS cannot complete Google's popup — connect once in
 Safari instead.
 
-### One-time setup
-
-The app needs a Google OAuth **client id** (a public identifier, not a secret):
+One-time setup: the app needs a Google OAuth **client id** (a public identifier, not a secret):
 
 1. <https://console.cloud.google.com> → create a project (e.g. "Cardex").
 2. **APIs & Services → Library** → enable **Google Drive API**.
@@ -117,7 +147,48 @@ The app needs a Google OAuth **client id** (a public identifier, not a secret):
    - on GitHub Pages: repo **Settings → Secrets and variables → Actions → Variables**, add
      `GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
 
-Leave it unset and the Sync page just shows these instructions; everything else works.
+Leave it unset and the Sync page just shows these instructions; WebDAV and everything else
+still work.
+
+### WebDAV
+
+Cardex writes two plain files into the folder you give it: `cardex-data.json` (the data) and
+`cardex-readable.md` (the Markdown export, for you or an AI assistant to read). The login is
+kept in that browser's localStorage only and sent straight to your server with HTTP Basic
+auth, so use HTTPS and, where the server offers them, an **app password** rather than your
+main one. Change detection uses the server's ETag, falling back to `Last-Modified` and then
+to hashing the file when the server exposes neither.
+
+Because Cardex runs in the browser on a different origin than your server, the server has to
+answer **CORS** requests from the site Cardex is served from (for the public build,
+`https://<user>.github.io`; for development, `http://localhost:5173`). Most WebDAV servers do
+not do this out of the box — Nextcloud and ownCloud, for instance, need a reverse proxy in
+front of them. What has to be allowed:
+
+- methods `OPTIONS, HEAD, GET, PUT, MKCOL`;
+- request headers `Authorization, Content-Type`;
+- exposed response headers `ETag, Last-Modified` (optional, but saves a download per check).
+
+An nginx snippet for the WebDAV location, with the origin filled in:
+
+```nginx
+location /remote.php/dav/ {
+    if ($request_method = OPTIONS) {
+        add_header Access-Control-Allow-Origin  "https://<user>.github.io";
+        add_header Access-Control-Allow-Methods "OPTIONS, HEAD, GET, PUT, MKCOL";
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type";
+        add_header Access-Control-Max-Age 86400;
+        return 204;
+    }
+    add_header Access-Control-Allow-Origin   "https://<user>.github.io" always;
+    add_header Access-Control-Expose-Headers "ETag, Last-Modified" always;
+    proxy_pass http://nextcloud;
+}
+```
+
+`rclone serve webdav` and Caddy (`header` directive) can add the same headers directly. A
+wrong URL or missing CORS header shows up as "Could not reach …" when you press Connect; a
+wrong password as "Login rejected".
 
 ## Deploying to GitHub Pages
 
@@ -185,9 +256,9 @@ any model's answer pastes straight back into **Import**. Three levels, from chat
   card names and set codes rather than ids. Paste it into a chat together with the
   coaching instructions in [docs/deck-coach-prompt.md](docs/deck-coach-prompt.md) (use them
   as a Claude Project, Gemini Gem or custom GPT).
-- With Google Drive sync on, the same document is kept up to date as
-  `Cardex/cardex-readable.md` in your Drive, so an assistant with a Drive connector can read
-  it without you pasting anything.
+- With sync on, the same document is kept up to date as `cardex-readable.md` next to the data
+  file (in `Cardex/` on Drive, or in your WebDAV folder), so an assistant with a Drive or
+  file connector can read it without you pasting anything.
 - Paste the model's decklist into **Import**; it resolves every line to a real printing,
   shows what you own and what is missing, and can save it as a deck in a folder.
 - A link can pre-fill the importer: `/import/?list=<url-encoded decklist>&target=deck&name=…`.
@@ -197,8 +268,8 @@ any model's answer pastes straight back into **Import**. Three levels, from chat
 `npm run cardex -- help` is a CLI over a data file: read the collection and decks, search
 the catalogue, create and edit decks, quick-add cards, list what to buy. The data file is
 either a backup you exported from **Import / Export → Backup**, or the live
-`Cardex/cardex-data.json` that Google Drive for Desktop mirrors to disk — in which case an
-edit made by the agent shows up in the app on its next sync. Every write goes through the
+`cardex-data.json` that Google Drive for Desktop or a synced WebDAV folder mirrors to disk —
+in which case an edit made by the agent shows up in the app on its next sync. Every write goes through the
 same timestamped mutations as the app, so it merges safely.
 
 [AGENTS.md](AGENTS.md) (also read by Codex) and `CLAUDE.md` explain this to agents that
@@ -263,7 +334,7 @@ src/lib/catalogue.ts        loads static/catalogue.json, indexes it, searches it
 src/lib/card-details.ts     bundled rules text per set, plus live prices per card
 src/lib/data/               user-data model, migration, pure mutations, repair, merge
 src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts revisions
-src/lib/sync/               Google sign-in, Drive client, sync engine (optional feature)
+src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (optional)
 src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, format rules
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
 src/routes/                 dashboard, cards, sets, collection, lots, decks, formats, import, sync

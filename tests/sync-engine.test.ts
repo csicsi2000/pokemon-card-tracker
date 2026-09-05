@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UserData } from '../src/lib/data/model';
 import * as mutate from '../src/lib/data/mutations';
-import type { DriveClient, DriveFileMeta } from '../src/lib/sync/drive';
-import { DriveAuthError } from '../src/lib/sync/drive';
+import { SyncAuthError, type RemoteFileMeta, type SyncBackend } from '../src/lib/sync/backend';
 import { SyncEngine, type SyncState } from '../src/lib/sync/engine';
 import { fixedClock, makeDeck, makeUserData } from './data-helpers';
 
@@ -10,12 +9,12 @@ import { fixedClock, makeDeck, makeUserData } from './data-helpers';
 function fakeDrive() {
 	let file: { id: string; version: number; body: string } | null = null;
 	let failAuth = false;
-	const meta = (): DriveFileMeta => ({ id: file!.id, version: file!.version, modifiedTime: 'now' });
+	const meta = (): RemoteFileMeta => ({ id: file!.id, version: file!.version, modifiedTime: 'now' });
 	const guard = () => {
-		if (failAuth) throw new DriveAuthError();
+		if (failAuth) throw new SyncAuthError();
 	};
 
-	const client: DriveClient = {
+	const client: SyncBackend = {
 		async findFile() {
 			guard();
 			return file ? meta() : null;
@@ -61,13 +60,13 @@ function fakeDrive() {
 }
 
 /** A device: its own local data, sync state and engine sharing one fake Drive. */
-function device(drive: DriveClient, initial: UserData, renderReadable?: (data: UserData) => string) {
+function device(drive: SyncBackend, initial: UserData, renderReadable?: (data: UserData) => string) {
 	let local = initial;
 	let state: SyncState | null = null;
 	const statuses: string[] = [];
 	const clock = fixedClock('2026-03-01T00:00:00.000Z');
 	const engine = new SyncEngine({
-		drive,
+		backend: drive,
 		loadLocal: () => local,
 		saveLocal: (data) => (local = data),
 		loadState: () => state,
@@ -139,7 +138,7 @@ describe('SyncEngine', () => {
 	it('does not download again when the remote version is unchanged', async () => {
 		const drive = fakeDrive();
 		let downloads = 0;
-		const counting: DriveClient = {
+		const counting: SyncBackend = {
 			...drive.client,
 			download: (id) => {
 				downloads += 1;

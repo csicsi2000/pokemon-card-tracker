@@ -2,7 +2,8 @@
 
 Cardex is a SvelteKit 2 / Svelte 5 static app (TypeScript, Tailwind, vitest). No server.
 The user's data is a single JSON document (`UserData`, see `src/lib/data/model.ts`) kept
-in the browser and optionally synced to Google Drive as `Cardex/cardex-data.json`.
+in the browser and optionally synced to Google Drive as `Cardex/cardex-data.json` or to a
+folder on the user's WebDAV server as `cardex-data.json`.
 
 ## If the user wants deck-building help
 
@@ -14,7 +15,9 @@ The data file is chosen by `--file PATH`, the `CARDEX_DATA` env var, or `./carde
 
 - a backup the user exported (Import / Export → Backup → Download backup), or
 - the live file mirrored to disk by Google Drive for Desktop
-  (`G:\My Drive\Cardex\cardex-data.json` or similar) — edits then reach every device.
+  (`G:\My Drive\Cardex\cardex-data.json` or similar) or by a mounted / synced WebDAV folder
+  (Nextcloud desktop client, a mapped network drive, `rclone mount`) — edits then reach every
+  device on its next sync.
 
 ```bash
 npm run cardex -- help
@@ -49,3 +52,9 @@ Card facts: `static/catalogue.json` (schema in `src/lib/catalogue-format.ts`) an
   Add new writes as reducers first.
 - Keep `updatedAt` stamping and tombstones intact in any new mutation, or sync breaks.
 - Do not edit `static/catalogue.json` by hand; `npm run build:catalogue` regenerates it.
+- PWA: the manifest, worker and caching rules are the `SvelteKitPWA` block in
+  `vite.config.ts`; install detection is `src/lib/pwa/`. Two traps: the app renders
+  client-side (`ssr = false`), so anything a browser must see before hydration — manifest
+  link, icons, Apple meta — belongs in `src/app.html`, not a `<svelte:head>`; and
+  `navigateFallback` must name a *precached* file, which `404.html` is not (the adapter
+  writes it after the worker is generated), or every offline deep link fails.
