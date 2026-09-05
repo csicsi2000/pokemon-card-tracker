@@ -334,42 +334,36 @@
 									{VARIANT_LABELS[entry.row.variant]}
 								</p>
 							</div>
-							{#if editing}
-								<div class="flex items-center gap-1">
-									<Button
-										variant="outline"
-										size="icon"
-										class="size-7"
-										aria-label="Remove one"
-										onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, -1)}
-									>
-										<Minus class="size-3" />
-									</Button>
-									<span class="w-6 text-center text-sm font-semibold tabular-nums">
-										{entry.row.quantity}
-									</span>
-									<Button
-										variant="outline"
-										size="icon"
-										class="size-7"
-										aria-label="Add one"
-										onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, 1)}
-									>
-										<Plus class="size-3" />
-									</Button>
-								</div>
-								<LotPicker
-									value={lotId ?? ''}
-									allowCreate
-									size="sm"
-									class="w-full sm:w-36"
-									onchange={(target) => move(entry.key, entry.row.quantity, target)}
-								/>
-							{:else}
-								<span class="w-10 text-right text-sm font-semibold tabular-nums">
-									×{entry.row.quantity}
+							<div class="flex items-center gap-1">
+								<Button
+									variant="outline"
+									size="icon"
+									class="size-7"
+									aria-label="Remove one"
+									onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, -1)}
+								>
+									<Minus class="size-3" />
+								</Button>
+								<span class="w-6 text-center text-sm font-semibold tabular-nums">
+									{entry.row.quantity}
 								</span>
-							{/if}
+								<Button
+									variant="outline"
+									size="icon"
+									class="size-7"
+									aria-label="Add one"
+									onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, 1)}
+								>
+									<Plus class="size-3" />
+								</Button>
+							</div>
+							<LotPicker
+								value={lotId ?? ''}
+								allowCreate
+								size="sm"
+								class="w-full sm:w-36"
+								onchange={(target) => move(entry.key, entry.row.quantity, target)}
+							/>
 						</div>
 					{/each}
 				</Tabs.Content>
