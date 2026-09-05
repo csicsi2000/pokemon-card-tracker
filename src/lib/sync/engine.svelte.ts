@@ -17,7 +17,13 @@ import {
 	syncConfigured
 } from './google-auth';
 import { createDriveClient } from './drive';
-import { createWebDavClient, describeWebDav, normalizeWebDavUrl, type WebDavConfig } from './webdav';
+import {
+	createWebDavClient,
+	describeWebDav,
+	normalizeWebDavUrl,
+	webdavEnabled,
+	type WebDavConfig
+} from './webdav';
 import { SyncAuthError, type SyncBackend, type SyncProvider } from './backend';
 import { emptySyncState, SyncEngine, type SyncState, type SyncStatus } from './engine';
 
@@ -73,8 +79,13 @@ class SyncController {
 	/** Last WebDAV settings used on this device, so the form can be prefilled. */
 	webdav = $state<WebDavConfig | null>(null);
 
-	/** Google Drive needs a client id baked into the build; WebDAV needs nothing. */
+	/** Google Drive needs a client id baked into the build. */
 	readonly googleConfigured = syncConfigured();
+	/**
+	 * Whether Settings offers WebDAV as a new connection. A device already connected that
+	 * way keeps working and can still be managed either way — this only hides the entry.
+	 */
+	readonly webdavOffered = webdavEnabled();
 
 	#backend: SyncBackend | null = null;
 

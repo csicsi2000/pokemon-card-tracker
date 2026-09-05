@@ -1,3 +1,5 @@
+import type { WantPriority } from './data/model';
+
 export type Supertype = 'Pokemon' | 'Trainer' | 'Energy';
 export type CardVariant = 'normal' | 'reverse' | 'holo' | 'firstEdition' | 'promo';
 
@@ -9,6 +11,12 @@ export const VARIANT_LABELS: Record<CardVariant, string> = {
 	holo: 'Holo',
 	firstEdition: '1st edition',
 	promo: 'Promo'
+};
+
+export const WANT_PRIORITY_LABELS: Record<WantPriority, string> = {
+	high: 'High',
+	normal: 'Normal',
+	low: 'Low'
 };
 
 // ---------------------------------------------------------------------------
@@ -66,9 +74,14 @@ export type {
 	Deck,
 	DeckCard,
 	DeckFolder,
+	Folder,
 	Format,
 	FormatPoolCard,
 	Lot,
+	LotFolder,
 	Tombstone,
-	UserData
+	UserData,
+	WantEntry,
+	WantList,
+	WantPriority
 } from './data/model';

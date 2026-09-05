@@ -17,10 +17,12 @@ locally with `npm run dev`, or host it free on GitHub Pages.
 - Card art, set logos, attacks, abilities and live market prices
 - **Quick add** by what is printed on the card: `MEG 21`, `3 PAL 188 rh`, or a pasted list
 - **Lots** — the purchase or batch each card came in, so "what was in the july.2 lot?" has an answer
-- **Deck folders**, nested as deep as you like (Standard › 2026 › Charizard builds)
+- **Wants** — the cards you are still hunting for, in as many lists as you like, with
+  priority, notes and one tap to file them into a lot when they turn up
+- **Folders** for decks and for lots, nested as deep as you like (2026 › eBay › july.2 lot)
 - Import a PTCGL / Limitless decklist and see exactly what you own and what is missing
-- Optional **sync** through your own Google Drive or any WebDAV server (Nextcloud, a NAS, …) —
-  no Cardex server — to use it on several devices
+- Optional **sync** through your own Google Drive — no Cardex server — to use it on several
+  devices (a WebDAV backend exists too, off by default; see Sync below)
 - Installable PWA; card art and viewed cards are cached for offline browsing
 
 ## Getting started
@@ -48,7 +50,7 @@ chrome, and it opens without a connection.
 - **Firefox on the desktop** cannot install web apps. It still caches and works offline
   in a normal tab.
 
-Offline you keep the whole app: your collection, lots, decks and formats, the 21,000-card
+Offline you keep the whole app: your collection, wants, lots, decks and formats, the 21,000-card
 catalogue and the bundled rules text, plus every card image already seen. Live market
 prices, art you have never opened and sync need the network and pick up again by
 themselves. Deep links work offline too — reopening the installed app on `/decks/<id>`
@@ -60,7 +62,7 @@ touches it.
 
 ## Where your data lives
 
-Everything you enter — collection, lots, decks, folders, formats — is stored under the
+Everything you enter — collection, wants, lots, decks, folders, formats — is stored under the
 `cardex:data:v2` key in localStorage (older builds used `cardex:data:v1`; it is migrated on
 first load and left in place). That means:
 
@@ -69,7 +71,7 @@ first load and left in place). That means:
 
 So **use Import / Export → Backup** now and then. It downloads a single JSON file, and
 Restore reads it back — old v1 backup files still restore. Or turn on sync (below) and let
-the app keep a copy in your own Google Drive or on your WebDAV server.
+the app keep a copy in your own Google Drive.
 
 ## Adding cards
 
@@ -94,6 +96,42 @@ lot with quick add, move copies between lots from a lot's **List & move** tab, a
 Collection page by lot. Deleting a lot asks whether its cards should go to Unsorted or be
 removed too.
 
+Lots live in folders of their own, nested as deep as you like and separate from the deck
+folders. The Lots page shows one folder at a time with a breadcrumb; **New folder** and
+**New lot** create inside the folder you are looking at, a folder card counts the lots and
+cards anywhere beneath it, and the ⋯ menu offers Rename, Move to… and Delete (deleting a
+folder moves its lots and sub-folders up a level — no lot is ever lost with it). A lot's own
+page has a **Folder** picker, so it can be filed while you are looking at what is in it.
+
+## Wants
+
+The **Wants** page is the other half of the collection: cards you do not own yet. A want is
+one printing in one finish plus how many copies you are after, a priority (high / normal /
+low) and a free note — where to look, the price you will pay. The heart on any card's detail
+sheet puts one on the list without leaving the page you are on.
+
+Each row shows how many of that finish you already own, so `2/4` means two still to find;
+the counters and the **Cards to find** tile always count the gap rather than the wish. When
+the cards arrive, **Got it** adds exactly the missing copies to the lot chosen in the panel
+on the right and clears the want. **Copy list** puts everything still missing on the
+clipboard as a decklist, ready to paste into a shop's mass-entry box or a trade thread.
+
+**Several lists.** Wants that name no list sit on the **Main list**; make as many more as
+you like — one per deck you are building, one for a trade night, one for a binder you are
+completing. The picker at the top switches between them (and **All lists** shows the lot),
+filters the stats and the Copy list button with it, and decides where new wants land. The
+`⋯` on any row moves it to another list. Deleting a list keeps its wants, folding them back
+onto the Main list. The same card can sit on two lists at once with a different count on
+each — one hunt does not disturb the other.
+
+**Three views**, switched top right and remembered per browser:
+
+- **Cards** — the art in a grid, with what is still missing on the corner of each card. For
+  recognising cards you have only ever seen in a binder.
+- **Detailed** — a row each with notes, priority, counters and the lot to file them into.
+  This is where you edit.
+- **Compact** — one line per card, no art. What you want open on your phone at a shop.
+
 ## Decks and folders
 
 Decks live in folders that nest arbitrarily. The Decks page shows one folder at a time with a
@@ -111,14 +149,15 @@ replace the list of an existing deck.
 
 Cardex has no server. If you want the same data on your phone and your laptop, it can keep a
 copy in storage **you** control and merge it with what each device has. Two kinds of storage
-are supported, chosen on the Sync page:
+are supported, chosen on the Settings page:
 
 - **Google Drive** — one file, `Cardex/cardex-data.json`, visible in My Drive. Free, no card
   required; the Drive API's free quota is far beyond what one person syncing a JSON file uses.
   Needs a one-time setup by whoever hosts the app (below).
-- **WebDAV** — a folder on any WebDAV server: Nextcloud, ownCloud, a Synology or QNAP NAS, a
-  Hetzner Storage Box, `rclone serve webdav`, Apache/nginx with the DAV module. Needs no
-  setup in the build; you type the folder URL, username and password on the Sync page.
+- **WebDAV** — a folder on a WebDAV server you run: Nextcloud, ownCloud, a Synology or QNAP
+  NAS, a Hetzner Storage Box, `rclone serve webdav`, Apache/nginx with the DAV module. You
+  type the folder URL, username and password on the Settings page. **Hidden by default**, and
+  only usable against a server you can configure — see below.
 
 How merging works: every card row, lot, deck, folder and format carries the time it was last
 changed; the newer change wins per record, and deletions are remembered (tombstones) so a
@@ -147,10 +186,21 @@ One-time setup: the app needs a Google OAuth **client id** (a public identifier,
    - on GitHub Pages: repo **Settings → Secrets and variables → Actions → Variables**, add
      `GOOGLE_CLIENT_ID`. The deploy workflow passes it to the build.
 
-Leave it unset and the Sync page just shows these instructions; WebDAV and everything else
-still work.
+Leave it unset and the Settings page just shows these instructions; everything else still
+works.
 
 ### WebDAV
+
+**Off by default.** Set `PUBLIC_ENABLE_WEBDAV=true` (in `.env`, or as the GitHub Actions
+variable used by the deploy workflow) to make the option appear on the Settings page.
+
+It is hidden because of the CORS requirement below: a **hosted** service that speaks WebDAV —
+Koofr, pCloud, Box, 4shared, Fastmail — sends no `Access-Control-Allow-Origin` header and
+gives you no way to add one. Those endpoints are built for desktop clients, which have no CORS
+rules; from a browser the preflight is blocked and the request never leaves the machine. No
+change in Cardex can work around that. So WebDAV here is for a server you control, and turning
+the flag on without one only produces a confusing failure. If your storage is hosted, use
+Google Drive instead.
 
 Cardex writes two plain files into the folder you give it: `cardex-data.json` (the data) and
 `cardex-readable.md` (the Markdown export, for you or an AI assistant to read). The login is
@@ -334,10 +384,10 @@ src/lib/catalogue.ts        loads static/catalogue.json, indexes it, searches it
 src/lib/card-details.ts     bundled rules text per set, plus live prices per card
 src/lib/data/               user-data model, migration, pure mutations, repair, merge
 src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts revisions
-src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (optional)
+src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (flagged off)
 src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, format rules
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
-src/routes/                 dashboard, cards, sets, collection, lots, decks, formats, import, sync
+src/routes/                 dashboard, cards, sets, collection, wants, lots, decks, formats, import, settings
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json
 tests/                      unit tests for the pure logic above
 ```

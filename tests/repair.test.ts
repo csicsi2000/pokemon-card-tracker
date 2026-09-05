@@ -41,6 +41,20 @@ describe('repair', () => {
 		expect(result.decks[0]).toMatchObject({ folderId: null, formatId: null });
 	});
 
+	it('re-roots a lot whose folder is gone and untangles the lot tree', () => {
+		const result = repair(
+			makeUserData({
+				lotFolders: [makeFolder({ id: 'orphan', parentId: 'missing' })],
+				lots: [makeLot({ id: 'lot1', folderId: 'missing' }), makeLot({ id: 'lot2', folderId: 'orphan' })]
+			}),
+			{ now: NOW }
+		);
+
+		expect(result.lotFolders[0].parentId).toBeNull();
+		expect(result.lots.find((lot) => lot.id === 'lot1')?.folderId).toBeNull();
+		expect(result.lots.find((lot) => lot.id === 'lot2')?.folderId).toBe('orphan');
+	});
+
 	it('breaks a folder cycle by detaching the least recently edited folder', () => {
 		const result = repair(
 			makeUserData({

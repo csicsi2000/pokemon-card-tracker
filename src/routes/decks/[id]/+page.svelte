@@ -168,6 +168,8 @@
 
 				<FolderPicker
 					value={deck.folderId ?? ''}
+					folders={store.folders}
+					rootLabel="Decks"
 					class="w-44"
 					onchange={(value) => store.moveDeck(deckId, value || null)}
 				/>
@@ -208,7 +210,7 @@
 				<Tabs.Content value="list" class="flex flex-col gap-1.5 pt-3">
 					{#if entries.length === 0}
 						<p class="text-muted-foreground py-12 text-center text-sm">
-							Empty deck — search on the right to add cards.
+							Empty deck — search under “Add cards” to fill it.
 						</p>
 					{:else}
 						<p class="text-muted-foreground px-1.5 text-xs">
@@ -309,7 +311,9 @@
 			</Tabs.Root>
 		</div>
 
-		<aside class="lg:sticky lg:top-24 lg:h-[calc(100svh-8rem)]">
+		<!-- Below lg the search panel comes first: on a phone the list can run to sixty rows,
+		     and nobody should scroll past all of them to add a card. -->
+		<aside class="order-first lg:order-none lg:sticky lg:top-24 lg:h-[calc(100svh-8rem)]">
 			<Card.Root class="flex h-full flex-col">
 				<Card.Header>
 					<Card.Title class="text-base">Add cards</Card.Title>

@@ -11,10 +11,12 @@
 	import Library from '@lucide/svelte/icons/library';
 	import Search from '@lucide/svelte/icons/search';
 	import Layers from '@lucide/svelte/icons/layers';
+	import Heart from '@lucide/svelte/icons/heart';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Boxes from '@lucide/svelte/icons/boxes';
 	import Package from '@lucide/svelte/icons/package';
 	import Import from '@lucide/svelte/icons/import';
+	import Settings from '@lucide/svelte/icons/settings';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Moon from '@lucide/svelte/icons/moon';
 	import Sun from '@lucide/svelte/icons/sun';
@@ -25,10 +27,12 @@
 		{ href: '/collection', label: 'Collection', icon: Library },
 		{ href: '/cards', label: 'Cards', icon: Search },
 		{ href: '/decks', label: 'Decks', icon: Layers },
+		{ href: '/wants', label: 'Wants', icon: Heart },
 		{ href: '/lots', label: 'Lots', icon: Package },
 		{ href: '/sets', label: 'Sets', icon: Boxes },
 		{ href: '/formats', label: 'Formats', icon: Sparkles },
-		{ href: '/import', label: 'Import / Export', icon: Import }
+		{ href: '/import', label: 'Import / Export', icon: Import },
+		{ href: '/settings', label: 'Settings', icon: Settings }
 	];
 
 	const primary = links.slice(0, 4);
@@ -58,14 +62,14 @@
 	</a>
 
 	<nav class="flex flex-1 flex-col gap-1">
-		{#each links as link, index (link.href)}
+		{#each links as link (link.href)}
 			{@const Icon = link.icon}
 			<a
 				href="{base}{link.href}"
 				class={cn(
 					'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-					// Import / Export is a tool rather than a place; set it apart.
-					index === links.length - 1 && 'mt-4',
+					// Import / Export and Settings are tools rather than places; set them apart.
+					link.href === '/import' && 'mt-4',
 					isActive(link.href)
 						? 'bg-sidebar-accent text-sidebar-accent-foreground'
 						: 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'

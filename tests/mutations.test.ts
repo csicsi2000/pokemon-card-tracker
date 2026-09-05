@@ -101,6 +101,68 @@ describe('lot mutations', () => {
 	});
 });
 
+describe('lot folder mutations', () => {
+	it('createLot files the lot in the folder it was given', () => {
+		const clock = fixedClock();
+		const { data, folder } = mutate.createLotFolder(makeUserData(), clock, '2026', null);
+		const created = mutate.createLot(data, clock, { name: 'july.2 lot', folderId: folder.id });
+
+		expect(created.lot.folderId).toBe(folder.id);
+	});
+
+	it('updateLot moves a lot between folders and stamps it', () => {
+		const clock = fixedClock();
+		const start = makeUserData({
+			lots: [makeLot({ id: 'lot1' })],
+			lotFolders: [makeFolder({ id: 'ebay' })]
+		});
+
+		const moved = mutate.updateLot(start, clock, 'lot1', { folderId: 'ebay' });
+
+		expect(moved.lots[0].folderId).toBe('ebay');
+		expect(moved.lots[0].updatedAt > '2026-01-01T00:00:00.000Z').toBe(true);
+	});
+
+	it('deleteLotFolder moves sub-folders and lots up to the parent', () => {
+		const clock = fixedClock();
+		const start = makeUserData({
+			lotFolders: [
+				makeFolder({ id: 'root' }),
+				makeFolder({ id: 'mid', parentId: 'root' }),
+				makeFolder({ id: 'leaf', parentId: 'mid' })
+			],
+			lots: [makeLot({ id: 'lot1', folderId: 'mid' }), makeLot({ id: 'lot2', folderId: 'root' })]
+		});
+
+		const result = mutate.deleteLotFolder(start, clock, 'mid');
+
+		expect(result.lotFolders.map((f) => f.id).sort()).toEqual(['leaf', 'root']);
+		expect(result.lotFolders.find((f) => f.id === 'leaf')?.parentId).toBe('root');
+		expect(result.lots.find((lot) => lot.id === 'lot1')?.folderId).toBe('root');
+		expect(result.lots.find((lot) => lot.id === 'lot2')?.folderId).toBe('root');
+		expect(tombstone(result, 'lotFolder', 'mid')).toBeDefined();
+	});
+
+	it('a lot folder cannot be moved into itself or a descendant', () => {
+		const clock = fixedClock();
+		const start = makeUserData({
+			lotFolders: [makeFolder({ id: 'a' }), makeFolder({ id: 'b', parentId: 'a' })]
+		});
+
+		expect(mutate.updateLotFolder(start, clock, 'a', { parentId: 'b' })).toBe(start);
+		expect(mutate.updateLotFolder(start, clock, 'a', { parentId: 'a' })).toBe(start);
+		expect(mutate.updateLotFolder(start, clock, 'b', { parentId: null }).lotFolders[1].parentId).toBeNull();
+	});
+
+	it('the deck tree and the lot tree are separate', () => {
+		const clock = fixedClock();
+		const { data } = mutate.createLotFolder(makeUserData(), clock, 'eBay', null);
+
+		expect(data.folders).toEqual([]);
+		expect(data.lotFolders).toHaveLength(1);
+	});
+});
+
 describe('folder and deck mutations', () => {
 	it('deleteFolder moves children and decks to the parent', () => {
 		const clock = fixedClock();

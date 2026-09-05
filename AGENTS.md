@@ -3,7 +3,9 @@
 Cardex is a SvelteKit 2 / Svelte 5 static app (TypeScript, Tailwind, vitest). No server.
 The user's data is a single JSON document (`UserData`, see `src/lib/data/model.ts`) kept
 in the browser and optionally synced to Google Drive as `Cardex/cardex-data.json` or to a
-folder on the user's WebDAV server as `cardex-data.json`.
+folder on the user's WebDAV server as `cardex-data.json`. The WebDAV option is hidden unless
+the build sets `PUBLIC_ENABLE_WEBDAV=true`; it only works against a server whose CORS headers
+the user controls, so in practice Drive is the sync backend in use.
 
 ## If the user wants deck-building help
 
@@ -28,6 +30,8 @@ npm run cardex -- buylist "Zard test"
 npm run cardex -- deck create "Lost Box" --from list.txt --folder Standard/2026
 npm run cardex -- deck set "Lost Box" "SVI 166" 4
 npm run cardex -- add "3 MEG 21 rh" --lot "july.2 lot" --create-lot
+npm run cardex -- lot create "august box" --folder 2026/eBay
+npm run cardex -- lot move "july.2 lot" --folder 2026
 ```
 
 `list.txt` is a PTCGL decklist: `4 Charizard ex OBF 125` per line, optional
@@ -45,9 +49,11 @@ Card facts: `static/catalogue.json` (schema in `src/lib/catalogue-format.ts`) an
 - `npm test` (vitest), `npm run check` (svelte-check), `npm run build` (static build). CI runs
   test + build on push to `master` and deploys to GitHub Pages.
 - Pure logic lives in `src/lib/data` (model, migrate, mutations, repair, merge),
-  `src/lib/tcg` (parser, resolver, quick-add, buylist, legality, exporter) and
+  `src/lib/tcg` (parser, resolver, quick-add, card-query, buylist, legality, exporter) and
   `src/lib/agent` (readable export, agent API). Test those with plain vitest; Svelte
   components are not unit-tested.
+- Display choices that describe the browser rather than the collection (which shell a card
+  opens in, say) go in `src/lib/prefs.svelte.ts` — its own localStorage key, never synced.
 - The store (`src/lib/store.svelte.ts`) is a thin wrapper: call a reducer, then persist.
   Add new writes as reducers first.
 - Keep `updatedAt` stamping and tombstones intact in any new mutation, or sync breaks.

@@ -24,11 +24,49 @@ export type Lot = {
 	note: string | null;
 	/** YYYY-MM-DD, or null when unknown. */
 	acquiredOn: string | null;
+	/** Which lot folder it is filed in. `null` sits at the top level. */
+	folderId: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
 
-export type DeckFolder = {
+/** How badly the user wants a card; drives the order of the wants list. */
+export type WantPriority = 'low' | 'normal' | 'high';
+
+export const WANT_PRIORITIES: WantPriority[] = ['high', 'normal', 'low'];
+
+/** A named wants list — "Trade targets", "Charizard binder", "Christmas". */
+export type WantList = {
+	id: string;
+	name: string;
+	note: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+/**
+ * A card the user is hunting for. Keyed like a collection row, with the list standing in
+ * for the lot: one printing, one finish, on one list. Where the copies end up once found
+ * is decided then, not now.
+ */
+export type WantEntry = {
+	cardId: string;
+	variant: CardVariant;
+	/** How many copies the user wants to end up owning. */
+	quantity: number;
+	/** Which list it sits on. `null` is the default "Main list". */
+	listId: string | null;
+	priority: WantPriority;
+	note: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+/**
+ * A node in a folder tree. Decks and lots each have their own tree — a deck never lands
+ * in a lot folder — but the shape and the helpers in folders.ts are shared.
+ */
+export type Folder = {
 	id: string;
 	name: string;
 	/** `null` at the root. Folders nest arbitrarily. */
@@ -36,6 +74,12 @@ export type DeckFolder = {
 	createdAt: string;
 	updatedAt: string;
 };
+
+/** A folder in the deck tree (`data.folders`). */
+export type DeckFolder = Folder;
+
+/** A folder in the lot tree (`data.lotFolders`). */
+export type LotFolder = Folder;
 
 export type DeckCard = { cardId: string; quantity: number };
 
@@ -63,7 +107,15 @@ export type Format = {
 	updatedAt: string;
 };
 
-export type TombstoneKind = 'collection' | 'lot' | 'folder' | 'deck' | 'format';
+export type TombstoneKind =
+	| 'collection'
+	| 'want'
+	| 'wantList'
+	| 'lot'
+	| 'lotFolder'
+	| 'folder'
+	| 'deck'
+	| 'format';
 
 /** A record that was deleted; lets a merge tell "deleted here" from "never seen there". */
 export type Tombstone = { kind: TombstoneKind; key: string; deletedAt: string };
@@ -71,7 +123,12 @@ export type Tombstone = { kind: TombstoneKind; key: string; deletedAt: string };
 export type UserData = {
 	version: 2;
 	collection: CollectionEntry[];
+	/** The wishlist. Absent from files written before wants existed; migrate defaults it. */
+	wants: WantEntry[];
+	wantLists: WantList[];
 	lots: Lot[];
+	/** The lot tree. Absent from files written before lot folders existed; migrate defaults it. */
+	lotFolders: LotFolder[];
 	folders: DeckFolder[];
 	decks: Deck[];
 	formats: Format[];
@@ -96,10 +153,17 @@ export const SENTINEL = '1970-01-01T00:00:00.000Z';
 export const rowKey = (entry: { cardId: string; variant: string; lotId: string | null }) =>
 	`${entry.cardId}|${entry.variant}|${entry.lotId ?? ''}`;
 
+/** Identity of a want: one printing, one finish, one list. */
+export const wantKey = (entry: { cardId: string; variant: string; listId: string | null }) =>
+	`${entry.cardId}|${entry.variant}|${entry.listId ?? ''}`;
+
 export const emptyData = (): UserData => ({
 	version: 2,
 	collection: [],
+	wants: [],
+	wantLists: [],
 	lots: [],
+	lotFolders: [],
 	folders: [],
 	decks: [],
 	formats: [],

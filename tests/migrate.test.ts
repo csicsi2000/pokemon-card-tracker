@@ -28,6 +28,8 @@ describe('migrate', () => {
 		expect(result.decks[0]).toMatchObject({ id: 'd1', folderId: null, updatedAt: '2025-06-01T00:00:00.000Z' });
 		expect(result.lots).toEqual([]);
 		expect(result.folders).toEqual([]);
+		// Files written before lot folders existed have no tree at all.
+		expect(result.lotFolders).toEqual([]);
 		expect(result.tombstones).toEqual([]);
 	});
 
@@ -37,14 +39,16 @@ describe('migrate', () => {
 			collection: [
 				{ cardId: 'me01-021', variant: 'normal', quantity: 1, lotId: 'lot1', updatedAt: '2026-02-01T00:00:00.000Z' }
 			],
-			lots: [{ id: 'lot1', name: 'july.2 lot' }],
+			lots: [{ id: 'lot1', name: 'july.2 lot', folderId: 'lf1' }],
+			lotFolders: [{ id: 'lf1', name: 'eBay' }],
 			folders: [{ id: 'f1', name: 'Standard', parentId: null }],
 			decks: [],
 			tombstones: [{ kind: 'deck', key: 'd9', deletedAt: '2026-02-02T00:00:00.000Z' }]
 		});
 
 		expect(result.collection[0].lotId).toBe('lot1');
-		expect(result.lots[0]).toMatchObject({ id: 'lot1', name: 'july.2 lot', note: null, acquiredOn: null });
+		expect(result.lots[0]).toMatchObject({ id: 'lot1', name: 'july.2 lot', note: null, acquiredOn: null, folderId: 'lf1' });
+		expect(result.lotFolders[0]).toMatchObject({ id: 'lf1', name: 'eBay', parentId: null });
 		expect(result.folders[0].parentId).toBeNull();
 		expect(result.formats).toEqual([]);
 		expect(result.tombstones).toHaveLength(1);

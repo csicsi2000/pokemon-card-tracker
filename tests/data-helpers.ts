@@ -3,9 +3,11 @@ import {
 	emptyData,
 	type CollectionEntry,
 	type Deck,
-	type DeckFolder,
+	type Folder,
 	type Lot,
-	type UserData
+	type UserData,
+	type WantEntry,
+	type WantList
 } from '../src/lib/data/model';
 
 /** A clock that starts at a fixed instant and ticks one millisecond per call. */
@@ -26,18 +28,42 @@ export function makeRow(overrides: Partial<CollectionEntry> & { cardId: string }
 	};
 }
 
-export function makeLot(overrides: Partial<Lot> & { id: string }): Lot {
+export function makeWant(overrides: Partial<WantEntry> & { cardId: string }): WantEntry {
 	return {
-		name: overrides.id,
+		variant: 'normal',
+		quantity: 1,
+		listId: null,
+		priority: 'normal',
 		note: null,
-		acquiredOn: null,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides
 	};
 }
 
-export function makeFolder(overrides: Partial<DeckFolder> & { id: string }): DeckFolder {
+export function makeWantList(overrides: Partial<WantList> & { id: string }): WantList {
+	return {
+		name: overrides.id,
+		note: null,
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+		...overrides
+	};
+}
+
+export function makeLot(overrides: Partial<Lot> & { id: string }): Lot {
+	return {
+		name: overrides.id,
+		note: null,
+		acquiredOn: null,
+		folderId: null,
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+		...overrides
+	};
+}
+
+export function makeFolder(overrides: Partial<Folder> & { id: string }): Folder {
 	return {
 		name: overrides.id,
 		parentId: null,

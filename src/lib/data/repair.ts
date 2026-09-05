@@ -10,8 +10,8 @@
  * Repair never stamps `updatedAt`: it is a projection, not an edit, so repairing twice
  * is the same as repairing once.
  */
-import { dedupeRows } from './migrate';
-import type { Tombstone, UserData } from './model';
+import { dedupeRows, dedupeWants } from './migrate';
+import type { Folder, Tombstone, UserData } from './model';
 
 const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
@@ -39,15 +39,15 @@ function pruneTombstones(tombstones: Tombstone[], options: RepairOptions): Tombs
 	});
 }
 
-export function repair(data: UserData, options: RepairOptions): UserData {
-	const lotIds = new Set(data.lots.map((lot) => lot.id));
-	const formatIds = new Set(data.formats.map((format) => format.id));
-
-	// Folders: dangling parents go to the root, then cycles are broken by detaching the
-	// folder in the loop that was edited longest ago (ties by id, so both sides agree).
-	const folderIds = new Set(data.folders.map((folder) => folder.id));
-	const folders = data.folders.map((folder) =>
-		folder.parentId && !folderIds.has(folder.parentId) ? { ...folder, parentId: null } : folder
+/**
+ * One folder tree made sane: dangling parents go to the root, then cycles are broken by
+ * detaching the folder in the loop that was edited longest ago (ties by id, so both
+ * sides agree). Runs over the deck tree and the lot tree alike.
+ */
+function untangle<T extends Folder>(tree: T[]): T[] {
+	const ids = new Set(tree.map((folder) => folder.id));
+	const folders = tree.map((folder) =>
+		folder.parentId && !ids.has(folder.parentId) ? { ...folder, parentId: null } : folder
 	);
 	const byId = new Map(folders.map((folder) => [folder.id, folder]));
 	for (const start of [...folders].sort((a, b) => a.id.localeCompare(b.id))) {
@@ -66,7 +66,19 @@ export function repair(data: UserData, options: RepairOptions): UserData {
 		);
 		byId.set(oldest.id, { ...oldest, parentId: null });
 	}
-	const repairedFolders = folders.map((folder) => byId.get(folder.id)!);
+	return folders.map((folder) => byId.get(folder.id)!);
+}
+
+export function repair(data: UserData, options: RepairOptions): UserData {
+	const lotIds = new Set(data.lots.map((lot) => lot.id));
+	const wantListIds = new Set(data.wantLists.map((list) => list.id));
+	const formatIds = new Set(data.formats.map((format) => format.id));
+
+	const folderIds = new Set(data.folders.map((folder) => folder.id));
+	const repairedFolders = untangle(data.folders);
+
+	const lotFolderIds = new Set(data.lotFolders.map((folder) => folder.id));
+	const repairedLotFolders = untangle(data.lotFolders);
 
 	return {
 		version: 2,
@@ -76,7 +88,19 @@ export function repair(data: UserData, options: RepairOptions): UserData {
 				.filter((row) => row.quantity > 0)
 				.map((row) => (row.lotId && !lotIds.has(row.lotId) ? { ...row, lotId: null } : row))
 		),
-		lots: data.lots,
+		// A want stays even once the cards are owned; only the user decides it is done.
+		// Wants on a list the other device deleted fall back to the default list.
+		wants: dedupeWants(
+			data.wants
+				.filter((want) => want.quantity > 0)
+				.map((want) => (want.listId && !wantListIds.has(want.listId) ? { ...want, listId: null } : want))
+		),
+		wantLists: data.wantLists,
+		// A lot whose folder the other device deleted goes back to the top level.
+		lots: data.lots.map((lot) =>
+			lot.folderId && !lotFolderIds.has(lot.folderId) ? { ...lot, folderId: null } : lot
+		),
+		lotFolders: repairedLotFolders,
 		folders: repairedFolders,
 		decks: data.decks.map((deck) => {
 			const folderId = deck.folderId && folderIds.has(deck.folderId) ? deck.folderId : null;

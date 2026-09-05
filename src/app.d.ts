@@ -7,6 +7,9 @@ declare global {
 
 	/** Google OAuth client id, injected by vite.config.ts; '' when sync is not configured. */
 	const __GOOGLE_CLIENT_ID__: string;
+
+	/** Whether the WebDAV sync option is offered, injected by vite.config.ts. */
+	const __WEBDAV_ENABLED__: boolean;
 }
 
 export {};

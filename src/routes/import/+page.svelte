@@ -238,6 +238,7 @@ Total Cards: 3`;
 			const count = (key: string) => (Array.isArray(payload[key]) ? payload[key].length : 0);
 			const parts = [
 				`${count('collection')} collection rows`,
+				count('wants') ? `${count('wants')} wants` : null,
 				count('lots') ? `${count('lots')} lots` : null,
 				`${count('decks')} decks`,
 				count('folders') ? `${count('folders')} folders` : null,
@@ -365,7 +366,7 @@ Total Cards: 3`;
 							</div>
 							<div class="flex flex-col gap-2">
 								<Label>Folder</Label>
-								<FolderPicker bind:value={folderTarget} />
+								<FolderPicker bind:value={folderTarget} folders={store.folders} rootLabel="Decks" />
 							</div>
 						{:else}
 							<div class="flex flex-col gap-2">
@@ -453,7 +454,8 @@ Total Cards: 3`;
 								{#each rows as row (row.entry.lineNumber)}
 									{@const label = matchLabel(row)}
 									{@const owned = row.card ? (ownedByName.get(row.card.nameNormalized) ?? 0) : 0}
-									<div class="flex items-center gap-3 py-2">
+									<!-- The printing picker drops to its own line on a phone. -->
+									<div class="flex flex-wrap items-center gap-3 py-2">
 										{#if row.card}
 											<CardImage card={row.card} class="h-11 w-8 shrink-0 rounded" />
 										{:else}
@@ -496,7 +498,7 @@ Total Cards: 3`;
 													if (value) overrides[row.entry.lineNumber] = value;
 												}}
 											>
-												<Select.Trigger class="h-8 w-44 text-xs">
+												<Select.Trigger class="h-8 w-full text-xs sm:w-44">
 													{row.card
 														? `${row.card.set.ptcglCode ?? row.card.set.id} · #${row.card.localId}`
 														: 'Pick printing'}
@@ -628,6 +630,10 @@ Total Cards: 3`;
 						<p class="text-muted-foreground text-xs">collection rows</p>
 					</div>
 					<div>
+						<p class="text-2xl font-semibold tabular-nums">{store.wants.length}</p>
+						<p class="text-muted-foreground text-xs">wants</p>
+					</div>
+					<div>
 						<p class="text-2xl font-semibold tabular-nums">{store.lots.length}</p>
 						<p class="text-muted-foreground text-xs">lots</p>
 					</div>
@@ -651,7 +657,7 @@ Total Cards: 3`;
 					<Button variant="outline" onclick={() => document.getElementById('restore')?.click()}>
 						<Upload class="size-4" /> Restore from file
 					</Button>
-					<Button href="{base}/sync" variant="ghost">Google Drive sync</Button>
+					<Button href="{base}/settings" variant="ghost">Sync settings</Button>
 					<input
 						id="restore"
 						type="file"

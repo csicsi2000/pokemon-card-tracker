@@ -9,6 +9,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Select from '$lib/components/ui/select';
 	import Search from '@lucide/svelte/icons/search';
+	import Boxes from '@lucide/svelte/icons/boxes';
 	import { setAsset } from '$lib/catalogue';
 	import { store } from '$lib/store.svelte';
 	import { normalizeName } from '$lib/tcg/normalize';
@@ -80,7 +81,7 @@
 		<StatTile label="Sets" value={totals.sets} />
 		<StatTile label="Started" value={totals.started} />
 		<StatTile label="Completed" value={totals.complete} />
-		<StatTile label="Distinct printings owned" value={totals.owned} />
+		<StatTile label="Printings owned" value={totals.owned} />
 	</div>
 
 	<div class="flex flex-wrap gap-2">
@@ -96,7 +97,7 @@
 			value={seriesFilter}
 			onValueChange={(v) => (seriesFilter = v ?? '')}
 		>
-			<Select.Trigger class="w-56">
+			<Select.Trigger class="w-full sm:w-56">
 				{seriesOptions.find((o) => o.value === seriesFilter)?.label ?? 'All series'}
 			</Select.Trigger>
 			<Select.Content class="max-h-80">
@@ -110,44 +111,68 @@
 	{#if filtered.length === 0}
 		<p class="text-muted-foreground py-16 text-center text-sm">No sets match that.</p>
 	{:else}
-		<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+		<!-- A phone gets one column, so each set is a compact row: logo on the left, text
+		     and progress beside it. From sm up the card stands upright with the logo on top. -->
+		<div class="grid gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 			{#each filtered as row, index (row.set.id)}
 				{@const symbol = setAsset(row.set.symbolUrl)}
 				<a
 					href="{base}/cards?set={row.set.id}"
 					in:fly|global={{ y: 10, duration: 200, delay: Math.min(index, 16) * 25 }}
-					class="hover:border-primary/40 group flex flex-col gap-3 rounded-xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
+					class="hover:border-primary/40 group flex min-w-0 items-center gap-3 rounded-xl border p-3 transition-all hover:-translate-y-0.5 hover:shadow-md sm:flex-col sm:items-stretch sm:p-4"
 				>
-					<div class="grid h-16 place-items-center">
-						<SetLogo set={row.set} class="transition-transform group-hover:scale-105" />
+					<!-- Fixed box so the artwork can never grow past it, whatever its aspect ratio. -->
+					<div
+						class="flex h-12 w-24 shrink-0 items-center justify-center overflow-hidden sm:h-16 sm:w-auto"
+					>
+						<SetLogo set={row.set}>
+							{#snippet fallback()}
+								{#if symbol}
+									<img src={symbol} alt="" loading="lazy" class="size-8 object-contain opacity-70" />
+								{:else}
+									<Boxes class="text-muted-foreground/60 size-6" />
+								{/if}
+							{/snippet}
+						</SetLogo>
 					</div>
 
-					<div class="flex items-start gap-2">
-						{#if symbol}
-							<img src={symbol} alt="" loading="lazy" class="mt-0.5 size-4 object-contain" />
-						{/if}
-						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm font-medium">{row.set.name}</p>
-							<p class="text-muted-foreground truncate text-xs">
-								{row.set.releaseDate ?? 'Unknown date'}
-								{#if row.set.ptcglCode}· {row.set.ptcglCode}{/if}
+					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:gap-3">
+						<div class="flex items-start gap-2">
+							{#if symbol}
+								<img
+									src={symbol}
+									alt=""
+									loading="lazy"
+									class="mt-0.5 hidden size-4 object-contain sm:block"
+								/>
+							{/if}
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium">{row.set.name}</p>
+								<p class="text-muted-foreground truncate text-xs">
+									{row.set.releaseDate ?? 'Unknown date'}
+									{#if row.set.ptcglCode}· {row.set.ptcglCode}{/if}
+								</p>
+							</div>
+							{#if row.total > 0 && row.owned === row.total}
+								<Badge class="shrink-0">Complete</Badge>
+							{:else if !row.set.artworkPublished}
+								<Badge
+									variant="outline"
+									class="shrink-0"
+									title="TCGdex has not scanned this set yet"
+								>
+									No art yet
+								</Badge>
+							{/if}
+						</div>
+
+						<div class="flex flex-col gap-1.5">
+							<Progress value={row.percent} class="h-1.5" />
+							<p class="text-muted-foreground flex justify-between text-xs tabular-nums">
+								<span>{row.owned} / {row.total}</span>
+								<span>{row.percent}%</span>
 							</p>
 						</div>
-						{#if row.total > 0 && row.owned === row.total}
-							<Badge class="shrink-0">Complete</Badge>
-						{:else if !row.set.artworkPublished}
-							<Badge variant="outline" class="shrink-0" title="TCGdex has not scanned this set yet">
-								No art yet
-							</Badge>
-						{/if}
-					</div>
-
-					<div class="flex flex-col gap-1.5">
-						<Progress value={row.percent} class="h-1.5" />
-						<p class="text-muted-foreground flex justify-between text-xs tabular-nums">
-							<span>{row.owned} / {row.total}</span>
-							<span>{row.percent}%</span>
-						</p>
 					</div>
 				</a>
 			{/each}

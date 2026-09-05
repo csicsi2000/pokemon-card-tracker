@@ -11,8 +11,21 @@
  * Because the app runs in the browser on a different origin, the server must answer CORS
  * preflights for this origin: methods HEAD, GET, PUT, MKCOL; headers Authorization and
  * Content-Type; ideally `Access-Control-Expose-Headers: ETag, Last-Modified`.
+ *
+ * That requirement is why the option is hidden by default — see `webdavEnabled` below.
  */
 import { SyncAuthError, SyncMissingError, type RemoteFileMeta, type SyncBackend } from './backend';
+
+/**
+ * Whether Settings offers WebDAV as a place to sync to. Off unless the build sets
+ * PUBLIC_ENABLE_WEBDAV, because the CORS requirement above rules out every hosted service
+ * that speaks WebDAV — Koofr, pCloud, Box and the like send no `Access-Control-Allow-Origin`
+ * and have no setting for it, so the browser blocks the preflight and the connection can
+ * never succeed. Only a server the user runs and configures can work, and offering the form
+ * to everyone else just produces a confusing failure. The backend below stays built and
+ * tested either way; flip the flag when there is a server to point it at.
+ */
+export const webdavEnabled = (): boolean => __WEBDAV_ENABLED__;
 
 export type WebDavConfig = {
 	/** Folder URL, e.g. `https://cloud.example.com/remote.php/dav/files/anna/Cardex/`. */

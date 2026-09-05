@@ -24,6 +24,8 @@
 	)}
 	{...restProps}
 >
-	{@render children?.()}
+	<!-- The label truncates instead of pushing the chevron out when the trigger is narrower
+	     than its text, which happens once triggers share a row on a phone. -->
+	<span data-slot="select-value" class="min-w-0 truncate">{@render children?.()}</span>
 	<ChevronDownIcon class="size-4 text-muted-foreground pointer-events-none" />
 </SelectPrimitive.Trigger>

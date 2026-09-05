@@ -16,6 +16,7 @@
  */
 import { readFileSync } from 'node:fs';
 import * as api from '../src/lib/agent/api';
+import { folderPath } from '../src/lib/data/folders';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
 import { VARIANT_LABELS, type CardVariant } from '../src/lib/types';
 import { loadCatalogueFromDisk, openData, resolveDataPath, saveData } from './agent-io';
@@ -51,7 +52,7 @@ Usage: npm run cardex -- <command> [options]
 Reading
   overview                         counts of everything
   collection [--lot NAME]          what you own (all lots, or one; "unsorted" for no lot)
-  lots                             the lots and their sizes
+  lots                             the lots, their folder and their sizes
   decks                            every deck with its folder path and owned %
   deck show <deck>                 one deck: list with owned/needed, missing cards
   buylist <deck>                   what to buy to complete a deck
@@ -63,7 +64,8 @@ Reading
 Writing (every write is timestamped and merges cleanly into the app on next sync)
   add <lines> [--lot NAME] [--create-lot] [--finish normal|reverse|holo]
                                    quick add: "MEG 21", "3 PAL 188 rh" — several lines OK
-  lot create <name> [--date YYYY-MM-DD] [--note TEXT]
+  lot create <name> [--date YYYY-MM-DD] [--note TEXT] [--folder A/B]
+  lot move <lot> --folder A/B      file a lot (folders created as needed; "" = top level)
   deck create <name> [--from FILE|-] [--folder A/B] [--format NAME]
                                    FILE is a PTCGL decklist; "-" reads stdin
   deck replace <deck> --from FILE|-   replace a deck's list
@@ -128,6 +130,7 @@ async function main(argv: string[]) {
 				file: path,
 				cards: rows.reduce((sum, row) => sum + row.quantity, 0),
 				printings: new Set(rows.map((row) => row.card.id)).size,
+				wants: ctx.data.wants.length,
 				lots: ctx.data.lots.length,
 				decks: ctx.data.decks.length,
 				folders: ctx.data.folders.length,
@@ -170,11 +173,15 @@ async function main(argv: string[]) {
 			const counts = new Map<string | null, number>();
 			for (const row of ctx.data.collection) counts.set(row.lotId, (counts.get(row.lotId) ?? 0) + row.quantity);
 			const lots = [
-				{ id: null as string | null, name: 'Unsorted', acquiredOn: null as string | null, note: null as string | null },
+				{ id: null as string | null, name: 'Unsorted', acquiredOn: null as string | null, note: null as string | null, folderId: null as string | null },
 				...ctx.data.lots
-			].map((lot) => ({ ...lot, cards: counts.get(lot.id) ?? 0 }));
+			].map((lot) => ({
+				...lot,
+				cards: counts.get(lot.id) ?? 0,
+				folder: folderPath(ctx.data.lotFolders, lot.folderId).map((f) => f.name).join('/')
+			}));
 			return emit(args, lots, () =>
-				lots.map((lot) => `${pad(lot.cards + ' cards', 12)}${pad(lot.name, 28)}${lot.acquiredOn ?? ''}${lot.note ? `  ${lot.note}` : ''}`).join('\n')
+				lots.map((lot) => `${pad(lot.cards + ' cards', 12)}${pad(lot.name, 28)}${pad(lot.folder, 20)}${lot.acquiredOn ?? ''}${lot.note ? `  ${lot.note}` : ''}`).join('\n')
 			);
 		}
 
@@ -271,10 +278,18 @@ async function main(argv: string[]) {
 		}
 
 		case 'lot': {
-			if (sub !== 'create' || !rest[0]) throw new api.AgentError('Usage: lot create <name> [--date YYYY-MM-DD] [--note TEXT]');
-			const { data, lot } = api.createLot(ctx, { name: rest.join(' '), acquiredOn: flagString(args, 'date') ?? null, note: flagString(args, 'note') ?? null });
-			commit(data);
-			return emit(args, lot, () => `Created lot "${lot.name}" (${lot.id})`);
+			if (sub === 'create' && rest[0]) {
+				const { data, lot } = api.createLot(ctx, { name: rest.join(' '), acquiredOn: flagString(args, 'date') ?? null, note: flagString(args, 'note') ?? null, folder: flagString(args, 'folder') ?? null });
+				commit(data);
+				return emit(args, lot, () => `Created lot "${lot.name}" (${lot.id})`);
+			}
+			if (sub === 'move' && rest[0]) {
+				const { data, lot, folder } = api.moveLot(ctx, rest.join(' '), flagString(args, 'folder') ?? null);
+				commit(data);
+				const where = folder ? folderPath(data.lotFolders, folder.id).map((f) => f.name).join('/') : 'the top level';
+				return emit(args, { id: lot.id, name: lot.name, folder: where }, () => `Moved "${lot.name}" to ${where}`);
+			}
+			throw new api.AgentError('Usage: lot create <name> [--date YYYY-MM-DD] [--note TEXT] [--folder A/B]  |  lot move <lot> --folder A/B');
 		}
 
 		case 'deck': {

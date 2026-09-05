@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as api from '../src/lib/agent/api';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
+import { folderPath } from '../src/lib/data/folders';
 import { parseDecklist } from '../src/lib/tcg/parser';
 import { fixedClock, makeUserData } from './data-helpers';
 import { makeCard, makeCatalogue, makeSet } from './helpers';
@@ -51,6 +52,30 @@ describe('quickAdd', () => {
 
 	it('refuses an unknown lot unless asked to create it', () => {
 		expect(() => api.quickAdd(ctx(), 'MEG 21', { lot: 'nope' })).toThrow(/No lot matches/);
+	});
+});
+
+describe('lot folders', () => {
+	it('creates a lot under a folder path, making the folders on the way', () => {
+		const { data, lot } = api.createLot(ctx(), { name: 'july.2 lot', folder: '2026/eBay' });
+
+		const path = folderPath(data.lotFolders, lot.folderId).map((f) => f.name);
+		expect(path).toEqual(['2026', 'eBay']);
+		// The deck tree is untouched: the two trees are separate.
+		expect(data.folders).toEqual([]);
+	});
+
+	it('moves a lot between folders, and back to the top level', () => {
+		const created = api.createLot(ctx(), { name: 'july.2 lot', folder: '2026/eBay' });
+
+		const moved = api.moveLot(ctx(created.data), 'july.2 lot', '2026/Local store');
+		expect(folderPath(moved.data.lotFolders, moved.data.lots[0].folderId).map((f) => f.name)).toEqual([
+			'2026',
+			'Local store'
+		]);
+
+		const home = api.moveLot(ctx(moved.data), 'july.2 lot', null);
+		expect(home.data.lots[0].folderId).toBeNull();
 	});
 });
 

@@ -4,6 +4,7 @@
 	import CardImage from './CardImage.svelte';
 	import { searchCards, type Catalogue } from '$lib/catalogue';
 	import { parseQuickAddLine, resolveQuickAdd } from '$lib/tcg/quick-add';
+	import { lookupCardCode } from '$lib/tcg/card-query';
 	import Search from '@lucide/svelte/icons/search';
 	import Plus from '@lucide/svelte/icons/plus';
 	import type { Card } from '$lib/types';
@@ -18,9 +19,21 @@
 
 	// "MEG 21" is a set code and number, not a name: resolve it to the exact printing and
 	// show it first. Name search still runs underneath in case it was a name after all.
+	// The quick-add grammar goes first because it also reads "3 MEG 21 rh"; the looser
+	// query lookup then catches the shorthand it rejects, above all "meg21" with no space.
 	const quick = $derived.by(() => {
 		const entry = parseQuickAddLine(query);
-		return entry ? resolveQuickAdd(catalogue, entry) : null;
+		if (entry) {
+			const resolved = resolveQuickAdd(catalogue, entry);
+			return { card: resolved.card, note: resolved.note };
+		}
+
+		const code = lookupCardCode(catalogue, query);
+		if (!code) return null;
+		return {
+			card: code.cards[0] ?? null,
+			note: `${code.set.name} has no card #${code.number}`
+		};
 	});
 
 	// The catalogue is in memory, so searching on every keystroke is cheap.
@@ -49,7 +62,9 @@
 		<Input bind:value={query} {onkeydown} {placeholder} class="pl-9" />
 	</div>
 
-	<div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+	<!-- Below lg the panel sits in the page flow above the list it feeds, so the results
+	     scroll inside a capped box instead of pushing that list off the bottom of a phone. -->
+	<div class="flex max-h-[60svh] min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:max-h-none">
 		{#if quick}
 			{#if quick.card}
 				<button

@@ -5,6 +5,7 @@
 	 * is a lot id. Use `lotIdOf()` to turn it back into a `string | null`.
 	 */
 	import * as Select from '$lib/components/ui/select';
+	import LotDialog from './LotDialog.svelte';
 	import { store } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
 
@@ -33,14 +34,14 @@
 		return store.lot(value)?.name ?? 'Unsorted';
 	});
 
+	let dialogOpen = $state(false);
+
 	function onValueChange(next: string) {
 		if (next === '+') {
-			const name = prompt('Name for the new lot (e.g. "july.2 lot")')?.trim();
-			if (!name) return;
-			value = store.createLot({ name }).id;
-		} else {
-			value = next ?? '';
+			dialogOpen = true;
+			return;
 		}
+		value = next ?? '';
 		onchange?.(value);
 	}
 </script>
@@ -60,3 +61,13 @@
 		{/if}
 	</Select.Content>
 </Select.Root>
+
+{#if allowCreate}
+	<LotDialog
+		bind:open={dialogOpen}
+		oncreate={(lot) => {
+			value = lot.id;
+			onchange?.(value);
+		}}
+	/>
+{/if}

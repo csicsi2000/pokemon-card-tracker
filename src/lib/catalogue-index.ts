@@ -5,6 +5,7 @@
  * same indexes from `static/catalogue.json` straight off the file system.
  */
 import type { CatalogueFile, CardRow, SetRow } from './catalogue-format';
+import { cardQuery } from './tcg/card-query';
 import { normalizeName } from './tcg/normalize';
 import type { Card, CardSet, CardVariant, Supertype } from './types';
 
@@ -118,13 +119,25 @@ export type CardFilters = {
 };
 
 export function searchCards(catalogue: Catalogue, filters: CardFilters, limit = Infinity) {
-	const needle = filters.query ? normalizeName(filters.query) : '';
+	const { matches, code } = cardQuery(catalogue, filters.query ?? '');
+	const passesFilters = (card: Card) =>
+		(!filters.setId || card.set.id === filters.setId) &&
+		(!filters.supertype || card.supertype === filters.supertype);
+
+	// A "MEG 21" query names one printing; show it before the name matches.
 	const results: Card[] = [];
+	const pinned = new Set<string>();
+	for (const card of code?.cards ?? []) {
+		if (!passesFilters(card)) continue;
+		pinned.add(card.id);
+		results.push(card);
+		if (results.length >= limit) return results;
+	}
 
 	for (const card of catalogue.cards) {
-		if (filters.setId && card.set.id !== filters.setId) continue;
-		if (filters.supertype && card.supertype !== filters.supertype) continue;
-		if (needle && !card.nameNormalized.includes(needle)) continue;
+		if (pinned.has(card.id)) continue;
+		if (!passesFilters(card)) continue;
+		if (!matches(card)) continue;
 
 		results.push(card);
 		if (results.length >= limit) break;

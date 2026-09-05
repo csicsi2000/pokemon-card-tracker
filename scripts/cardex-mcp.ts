@@ -278,12 +278,23 @@ server.registerTool(
 
 server.registerTool(
 	'create_lot',
-	{ title: 'Create a lot', description: 'A lot is a batch of cards acquired together; cards can then be quick-added into it.', inputSchema: { name: z.string(), acquiredOn: z.string().optional().describe('YYYY-MM-DD'), note: z.string().optional() } },
-	guarded(({ name, acquiredOn, note }) => {
+	{ title: 'Create a lot', description: 'A lot is a batch of cards acquired together; cards can then be quick-added into it.', inputSchema: { name: z.string(), acquiredOn: z.string().optional().describe('YYYY-MM-DD'), note: z.string().optional(), folder: z.string().optional().describe('Lot folder path like "2026/eBay"; missing folders are created') } },
+	guarded(({ name, acquiredOn, note, folder }) => {
 		const ctx = context();
-		const { data, lot } = api.createLot(ctx, { name, acquiredOn: acquiredOn ?? null, note: note ?? null });
+		const { data, lot } = api.createLot(ctx, { name, acquiredOn: acquiredOn ?? null, note: note ?? null, folder: folder ?? null });
 		saveData(dataPath, api.finalize(data));
 		return lot;
+	})
+);
+
+server.registerTool(
+	'move_lot',
+	{ title: 'Move a lot', description: 'File a lot under a lot folder path like "2026/eBay"; missing folders are created. An empty path puts it at the top level. Lot folders are separate from deck folders.', inputSchema: { lot: z.string(), folder: z.string().describe('Path like "2026/eBay", or "" for the top level') } },
+	guarded(({ lot, folder }) => {
+		const ctx = context();
+		const result = api.moveLot(ctx, lot, folder);
+		saveData(dataPath, api.finalize(result.data));
+		return { lot: result.lot.name, folder: result.folder?.name ?? null };
 	})
 );
 

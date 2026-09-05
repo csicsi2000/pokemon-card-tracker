@@ -383,7 +383,7 @@
 
 					{#if poolCards.length === 0}
 						<p class="text-muted-foreground py-10 text-center text-sm">
-							Pool is empty — search on the right, or pull in your collection.
+							Pool is empty — search under “Add to pool”, or pull in your collection.
 						</p>
 					{:else}
 						<div class="flex flex-col gap-1.5">
@@ -461,7 +461,9 @@
 			</Tabs.Root>
 		</div>
 
-		<aside class="lg:sticky lg:top-24 lg:h-[calc(100svh-8rem)]">
+		<!-- Below lg the search panel comes first, so adding to the pool never means
+		     scrolling past the whole pool on a phone. -->
+		<aside class="order-first lg:order-none lg:sticky lg:top-24 lg:h-[calc(100svh-8rem)]">
 			<Card.Root class="flex h-full flex-col">
 				<Card.Header>
 					<Card.Title class="text-base">Add to pool</Card.Title>

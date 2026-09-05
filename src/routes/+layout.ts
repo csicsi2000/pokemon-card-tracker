@@ -1,4 +1,5 @@
 import { loadCatalogue } from '$lib/catalogue';
+import { prefs } from '$lib/prefs.svelte';
 import { store } from '$lib/store.svelte';
 import type { LayoutLoad } from './$types';
 
@@ -10,5 +11,6 @@ export const trailingSlash = 'always';
 
 export const load: LayoutLoad = async ({ fetch }) => {
 	store.load();
+	prefs.load();
 	return { catalogue: await loadCatalogue(fetch) };
 };

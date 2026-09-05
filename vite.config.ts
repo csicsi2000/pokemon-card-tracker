@@ -24,6 +24,18 @@ export default defineConfig(({ mode }) => ({
 			loadEnv(mode, process.cwd(), 'PUBLIC_').PUBLIC_GOOGLE_CLIENT_ID ??
 				process.env.PUBLIC_GOOGLE_CLIENT_ID ??
 				''
+		),
+		// WebDAV sync, hidden unless switched on at build time. The backend works, but only
+		// against a server that answers CORS preflights for this origin — which the hosted
+		// "we speak WebDAV" services (Koofr, pCloud, Box, …) do not, and offer no way to
+		// change. Set PUBLIC_ENABLE_WEBDAV=true when pointing Cardex at a server you run and
+		// have configured yourself (see README → Sync → WebDAV).
+		__WEBDAV_ENABLED__: JSON.stringify(
+			/^(1|true|yes)$/i.test(
+				loadEnv(mode, process.cwd(), 'PUBLIC_').PUBLIC_ENABLE_WEBDAV ??
+					process.env.PUBLIC_ENABLE_WEBDAV ??
+					''
+			)
 		)
 	},
 	plugins: [

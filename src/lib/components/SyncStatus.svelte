@@ -1,5 +1,5 @@
 <script lang="ts">
-	/** A cloud icon that says how sync is doing; clicking it opens the Sync page. */
+	/** A cloud icon that says how sync is doing; clicking it opens the Settings page. */
 	import { base } from '$app/paths';
 	import { cn } from '$lib/utils';
 	import { sync } from '$lib/sync/engine.svelte';
@@ -32,7 +32,7 @@
 </script>
 
 <a
-	href="{base}/sync"
+	href="{base}/settings"
 	class={cn(
 		'hover:bg-accent/60 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
 		className

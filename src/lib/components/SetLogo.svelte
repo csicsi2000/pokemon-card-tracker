@@ -1,18 +1,29 @@
 <script lang="ts">
 	/**
-	 * A set's logo, falling back to its name. Like card art, TCGdex publishes set
-	 * metadata before the logo asset exists for freshly released sets.
+	 * A set's logo, falling back to its name (or to the `fallback` snippet). Like card
+	 * art, TCGdex publishes set metadata before the logo asset exists for freshly
+	 * released sets.
 	 *
 	 * Logos are full-colour artwork on transparency, so they are never recoloured: a
 	 * faint light glow in dark mode keeps the few dark-outlined ones legible. When the
 	 * catalogue has no logo URL but the set's art is published, the conventional
 	 * `<imageBase>/logo` path is tried before giving up on an image.
+	 *
+	 * The image takes its height from the box it sits in and derives its width from the
+	 * aspect ratio. Percentage max-height alone is not enough: mobile Safari ignores it
+	 * on a flex item while the image is still loading, and the logo then paints at its
+	 * natural size over whatever is below.
 	 */
+	import type { Snippet } from 'svelte';
 	import { setAsset } from '$lib/catalogue';
 	import { cn } from '$lib/utils';
 	import type { CardSet } from '$lib/types';
 
-	let { set, class: className }: { set: CardSet; class?: string } = $props();
+	let {
+		set,
+		class: className,
+		fallback
+	}: { set: CardSet; class?: string; fallback?: Snippet } = $props();
 
 	const candidates = $derived(
 		[
@@ -37,10 +48,12 @@
 		loading="lazy"
 		onerror={() => (attempt += 1)}
 		class={cn(
-			'max-h-full max-w-full object-contain dark:drop-shadow-[0_0_3px_rgba(255,255,255,0.55)]',
+			'h-full w-auto max-w-full object-contain dark:drop-shadow-[0_0_3px_rgba(255,255,255,0.55)]',
 			className
 		)}
 	/>
+{:else if fallback}
+	{@render fallback()}
 {:else}
 	<span class="text-center text-sm leading-tight font-semibold">{set.name}</span>
 {/if}

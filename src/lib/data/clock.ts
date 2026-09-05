@@ -32,7 +32,10 @@ export function createClock(now: () => number = Date.now): Clock {
 		observeTime,
 		observe(data) {
 			for (const row of data.collection) observeTime(row.updatedAt);
+			for (const want of data.wants) observeTime(want.updatedAt);
+			for (const list of data.wantLists) observeTime(list.updatedAt);
 			for (const lot of data.lots) observeTime(lot.updatedAt);
+			for (const folder of data.lotFolders) observeTime(folder.updatedAt);
 			for (const folder of data.folders) observeTime(folder.updatedAt);
 			for (const deck of data.decks) observeTime(deck.updatedAt);
 			for (const format of data.formats) observeTime(format.updatedAt);

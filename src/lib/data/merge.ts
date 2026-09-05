@@ -10,7 +10,14 @@
  * The result may still contain dangling references (a deck in a folder the other side
  * deleted) — callers run repair() on it.
  */
-import { rowKey, SENTINEL, type CollectionEntry, type Tombstone, type UserData } from './model';
+import {
+	rowKey,
+	SENTINEL,
+	wantKey,
+	type CollectionEntry,
+	type Tombstone,
+	type UserData
+} from './model';
 
 /** JSON with sorted keys, so equal records stringify equally whatever their key order. */
 function stable(value: unknown): string {
@@ -82,7 +89,10 @@ export function merge(left: UserData, right: UserData): UserData {
 			'collection',
 			mergeRecords(left.collection, right.collection, rowKey, pickRow)
 		),
+		wants: alive('want', mergeRecords(left.wants, right.wants, wantKey)),
+		wantLists: alive('wantList', mergeRecords(left.wantLists, right.wantLists, id)),
 		lots: alive('lot', mergeRecords(left.lots, right.lots, id)),
+		lotFolders: alive('lotFolder', mergeRecords(left.lotFolders, right.lotFolders, id)),
 		folders: alive('folder', mergeRecords(left.folders, right.folders, id)),
 		decks: alive('deck', mergeRecords(left.decks, right.decks, id)),
 		formats: alive('format', mergeRecords(left.formats, right.formats, id)),
@@ -100,7 +110,10 @@ function canonical(data: UserData) {
 	const id = <T extends { id: string }>(item: T) => item.id;
 	return {
 		collection: byKey(data.collection, rowKey),
+		wants: byKey(data.wants, wantKey),
+		wantLists: byKey(data.wantLists, id),
 		lots: byKey(data.lots, id),
+		lotFolders: byKey(data.lotFolders, id),
 		folders: byKey(data.folders, id),
 		decks: byKey(data.decks, id),
 		formats: byKey(data.formats, id),

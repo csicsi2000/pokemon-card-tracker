@@ -10,7 +10,19 @@ import { browser } from '$app/environment';
 import type { CardVariant } from './types';
 import { createClock } from './data/clock';
 import { migrate } from './data/migrate';
-import { emptyData, rowKey, type Deck, type DeckFolder, type Format, type Lot, type UserData } from './data/model';
+import {
+	emptyData,
+	rowKey,
+	wantKey,
+	type Deck,
+	type DeckFolder,
+	type Format,
+	type Lot,
+	type LotFolder,
+	type UserData,
+	type WantEntry,
+	type WantList
+} from './data/model';
 import * as mutate from './data/mutations';
 import { repair } from './data/repair';
 import { DEFAULT_RULES } from './tcg/format-rules';
@@ -30,8 +42,17 @@ class Store {
 	get collection() {
 		return this.#data.collection;
 	}
+	get wants() {
+		return this.#data.wants;
+	}
+	get wantLists() {
+		return this.#data.wantLists;
+	}
 	get lots() {
 		return this.#data.lots;
+	}
+	get lotFolders() {
+		return this.#data.lotFolders;
 	}
 	get folders() {
 		return this.#data.folders;
@@ -109,6 +130,70 @@ class Store {
 		this.#commit(mutate.moveOwned(this.#data, this.clock, fromKey, toLotId, quantity));
 	}
 
+	// -- wants --------------------------------------------------------------
+
+	/** The want for one printing and finish on one list, if it is being hunted for. */
+	want(ref: mutate.WantRef): WantEntry | undefined {
+		const key = wantKey({ ...ref, listId: ref.listId ?? null });
+		return this.#data.wants.find((want) => wantKey(want) === key);
+	}
+
+	/** Wants on one list (`null` for the default list), or on every list. */
+	wantsIn(listId: string | null | undefined) {
+		return listId === undefined
+			? this.#data.wants
+			: this.#data.wants.filter((want) => want.listId === listId);
+	}
+
+	/** Copies wanted of one printing across every finish and list. */
+	wantedTotal(cardId: string) {
+		return this.#data.wants
+			.filter((want) => want.cardId === cardId)
+			.reduce((sum, want) => sum + want.quantity, 0);
+	}
+
+	/** Absolute wanted quantity; 0 drops the want. Omitted fields keep their value. */
+	setWant(input: mutate.WantInput) {
+		this.#commit(mutate.setWant(this.#data, this.clock, input));
+	}
+
+	updateWant(
+		ref: mutate.WantRef,
+		changes: Partial<Pick<WantEntry, 'quantity' | 'priority' | 'note'>>
+	) {
+		this.#commit(mutate.updateWant(this.#data, this.clock, ref, changes));
+	}
+
+	removeWant(ref: mutate.WantRef) {
+		this.#commit(mutate.removeWant(this.#data, this.clock, ref));
+	}
+
+	moveWant(ref: mutate.WantRef, toListId: string | null) {
+		this.#commit(mutate.moveWant(this.#data, this.clock, ref, toListId));
+	}
+
+	// -- wants lists --------------------------------------------------------
+
+	wantList(id: string) {
+		return this.#data.wantLists.find((list) => list.id === id);
+	}
+
+	createWantList(input: { name: string; note?: string | null }): WantList {
+		const { data, list } = mutate.createWantList(this.#data, this.clock, input);
+		this.#commit(data);
+		return list;
+	}
+
+	updateWantList(id: string, changes: Partial<Pick<WantList, 'name' | 'note'>>) {
+		this.#commit(mutate.updateWantList(this.#data, this.clock, id, changes));
+	}
+
+	/** `wants: 'default'` keeps the cards and folds them into the default list. */
+	deleteWantList(id: string, wants: 'default' | 'remove') {
+		const next = mutate.deleteWantList(this.#data, this.clock, id, wants);
+		this.#commit(repair(next, { now: new Date().toISOString() }));
+	}
+
 	// -- lots ---------------------------------------------------------------
 
 	lot(id: string) {
@@ -120,7 +205,12 @@ class Store {
 		return this.#data.collection.filter((row) => row.lotId === lotId);
 	}
 
-	createLot(input: { name: string; note?: string | null; acquiredOn?: string | null }): Lot {
+	createLot(input: {
+		name: string;
+		note?: string | null;
+		acquiredOn?: string | null;
+		folderId?: string | null;
+	}): Lot {
 		const { data, lot } = mutate.createLot(this.#data, this.clock, input);
 		this.#commit(data);
 		return lot;
@@ -130,9 +220,33 @@ class Store {
 		this.#commit(mutate.updateLot(this.#data, this.clock, id, changes));
 	}
 
+	moveLot(id: string, folderId: string | null) {
+		this.updateLot(id, { folderId });
+	}
+
 	deleteLot(id: string, cards: 'unsorted' | 'remove') {
 		const next = mutate.deleteLot(this.#data, this.clock, id, cards);
 		this.#commit(repair(next, { now: new Date().toISOString() }));
+	}
+
+	// -- lot folders --------------------------------------------------------
+
+	lotFolder(id: string) {
+		return this.#data.lotFolders.find((folder) => folder.id === id);
+	}
+
+	createLotFolder(name: string, parentId: string | null = null): LotFolder {
+		const { data, folder } = mutate.createLotFolder(this.#data, this.clock, name, parentId);
+		this.#commit(data);
+		return folder;
+	}
+
+	updateLotFolder(id: string, changes: Partial<Pick<LotFolder, 'name' | 'parentId'>>) {
+		this.#commit(mutate.updateLotFolder(this.#data, this.clock, id, changes));
+	}
+
+	deleteLotFolder(id: string) {
+		this.#commit(mutate.deleteLotFolder(this.#data, this.clock, id));
 	}
 
 	// -- folders ------------------------------------------------------------
@@ -253,4 +367,4 @@ class Store {
 }
 
 export const store = new Store();
-export { rowKey };
+export { rowKey, wantKey };

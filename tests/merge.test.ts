@@ -101,6 +101,21 @@ describe('merge', () => {
 		expect(parents).toEqual({ f1: null, f2: 'f1' });
 	});
 
+	it('a lot folder deleted on A wins over an untouched copy on B', () => {
+		const a = makeUserData({
+			lots: [makeLot({ id: 'lot1', folderId: null, updatedAt: T3 })],
+			tombstones: [{ kind: 'lotFolder', key: 'f1', deletedAt: T3 }]
+		});
+		const b = makeUserData({
+			lotFolders: [makeFolder({ id: 'f1', updatedAt: T1 })],
+			lots: [makeLot({ id: 'lot1', folderId: 'f1', updatedAt: T1 })]
+		});
+
+		const merged = repair(merge(a, b), { now: '2026-03-01T00:00:00.000Z' });
+		expect(merged.lotFolders).toEqual([]);
+		expect(merged.lots[0].folderId).toBeNull();
+	});
+
 	it('restore on one device removes records on the other after merge', () => {
 		const clock = fixedClock('2026-02-01T00:00:00.000Z');
 		const shared = makeUserData({

@@ -13,7 +13,7 @@ import type { Clock } from '$lib/data/clock';
 import { folderPath } from '$lib/data/folders';
 import * as mutate from '$lib/data/mutations';
 import { repair } from '$lib/data/repair';
-import type { Card, CardVariant, Deck, DeckFolder, Lot, UserData } from '$lib/types';
+import type { Card, CardVariant, Deck, DeckFolder, Folder, Lot, LotFolder, UserData } from '$lib/types';
 import { buildBuylist, type Buylist } from '$lib/tcg/buylist';
 import { parseRules } from '$lib/tcg/format-rules';
 import { checkLegality, type LegalityReport } from '$lib/tcg/legality';
@@ -61,12 +61,26 @@ export function findLotId(data: UserData, ref: string | null | undefined): strin
 	return byIdOrName(data.lots, ref, 'lot').id;
 }
 
-/** "Standard/2026" → the folder, or null for the top level. Missing segments can be created. */
-export function findFolder(
+/** Decks and lots have separate folder trees; both are addressed by path the same way. */
+type Tree = {
+	of: (data: UserData) => Folder[];
+	create: (
+		data: UserData,
+		clock: Clock,
+		name: string,
+		parentId: string | null
+	) => { data: UserData; folder: Folder };
+};
+
+const DECK_TREE: Tree = { of: (data) => data.folders, create: mutate.createFolder };
+const LOT_TREE: Tree = { of: (data) => data.lotFolders, create: mutate.createLotFolder };
+
+function resolvePath(
 	ctx: AgentContext,
 	path: string | null | undefined,
-	options: { create?: boolean } = {}
-): { data: UserData; folder: DeckFolder | null } {
+	tree: Tree,
+	options: { create?: boolean }
+): { data: UserData; folder: Folder | null } {
 	if (!path || !path.trim()) return { data: ctx.data, folder: null };
 	const segments = path
 		.split(/[/›>]/)
@@ -74,15 +88,20 @@ export function findFolder(
 		.filter(Boolean);
 
 	let data = ctx.data;
-	let parent: DeckFolder | null = null;
+	let parent: Folder | null = null;
 	for (const segment of segments) {
 		const needle = normalizeName(segment);
-		let next = data.folders.find(
-			(folder) => folder.parentId === (parent?.id ?? null) && normalizeName(folder.name) === needle
-		);
+		let next = tree
+			.of(data)
+			.find(
+				(folder) =>
+					folder.parentId === (parent?.id ?? null) && normalizeName(folder.name) === needle
+			);
 		if (!next) {
-			if (!options.create) throw new AgentError(`No folder "${path}". Known: ${describeFolders(data)}`);
-			const created = mutate.createFolder(data, ctx.clock, segment, parent?.id ?? null);
+			if (!options.create) {
+				throw new AgentError(`No folder "${path}". Known: ${describeTree(tree.of(data))}`);
+			}
+			const created = tree.create(data, ctx.clock, segment, parent?.id ?? null);
 			data = created.data;
 			next = created.folder;
 		}
@@ -91,10 +110,26 @@ export function findFolder(
 	return { data, folder: parent };
 }
 
-export const describeFolders = (data: UserData) =>
-	data.folders.length
-		? data.folders.map((f) => folderPath(data.folders, f.id).map((p) => p.name).join('/')).join(', ')
+/** "Standard/2026" → the deck folder, or null for the top level. Missing segments can be created. */
+export const findFolder = (
+	ctx: AgentContext,
+	path: string | null | undefined,
+	options: { create?: boolean } = {}
+): { data: UserData; folder: DeckFolder | null } => resolvePath(ctx, path, DECK_TREE, options);
+
+/** The same, for the lot tree: "2026/eBay" → the lot folder, or null for the top level. */
+export const findLotFolder = (
+	ctx: AgentContext,
+	path: string | null | undefined,
+	options: { create?: boolean } = {}
+): { data: UserData; folder: LotFolder | null } => resolvePath(ctx, path, LOT_TREE, options);
+
+const describeTree = (folders: Folder[]) =>
+	folders.length
+		? folders.map((f) => folderPath(folders, f.id).map((p) => p.name).join('/')).join(', ')
 		: '(none)';
+
+export const describeFolders = (data: UserData) => describeTree(data.folders);
 
 // -- cards ------------------------------------------------------------------
 
@@ -347,8 +382,23 @@ export function quickAdd(
 	return { data, added, failed, warnings: parsed.warnings };
 }
 
-export function createLot(ctx: AgentContext, input: { name: string; acquiredOn?: string | null; note?: string | null }) {
-	return mutate.createLot(ctx.data, ctx.clock, input);
+export function createLot(
+	ctx: AgentContext,
+	input: { name: string; acquiredOn?: string | null; note?: string | null; folder?: string | null }
+) {
+	const { data, folder } = findLotFolder(ctx, input.folder, { create: true });
+	return mutate.createLot(data, ctx.clock, { ...input, folderId: folder?.id ?? null });
+}
+
+/** File an existing lot under a folder path; "" or null puts it back at the top level. */
+export function moveLot(ctx: AgentContext, ref: string, path: string | null) {
+	const lot = byIdOrName(ctx.data.lots, ref, 'lot');
+	const { data, folder } = findLotFolder(ctx, path, { create: true });
+	return {
+		data: mutate.updateLot(data, ctx.clock, lot.id, { folderId: folder?.id ?? null }),
+		lot,
+		folder
+	};
 }
 
 /** Every write ends here so the file on disk is always consistent. */

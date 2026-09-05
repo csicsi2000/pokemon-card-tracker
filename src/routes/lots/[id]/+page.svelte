@@ -10,6 +10,7 @@
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
 	import QuickAddBar from '$lib/components/QuickAddBar.svelte';
 	import LotPicker from '$lib/components/LotPicker.svelte';
+	import FolderPicker from '$lib/components/FolderPicker.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -22,6 +23,8 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Check from '@lucide/svelte/icons/check';
 	import { rowKey, store } from '$lib/store.svelte';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { toPtcglText } from '$lib/tcg/exporter';
@@ -39,6 +42,8 @@
 	let selected = $state<CardType | null>(null);
 	let sheetOpen = $state(false);
 	let deleteOpen = $state(false);
+	// Quantity controls stay out of the way until the lot is put into edit mode.
+	let editing = $state(false);
 
 	/** Rows in this lot joined to the catalogue — one per printing and finish. */
 	const entries = $derived(
@@ -54,13 +59,23 @@
 			)
 	);
 
+	type Tile = { card: CardType; total: number; rows: { variant: CardVariant; quantity: number }[] };
+
 	/** Grid view folds finishes together, like the collection page. */
 	const tiles = $derived.by(() => {
-		const byCard = new Map<string, { card: CardType; total: number }>();
+		const byCard = new Map<string, Tile>();
 		for (const { row, card } of entries) {
 			const existing = byCard.get(card.id);
-			if (existing) existing.total += row.quantity;
-			else byCard.set(card.id, { card, total: row.quantity });
+			if (existing) {
+				existing.total += row.quantity;
+				existing.rows.push({ variant: row.variant, quantity: row.quantity });
+			} else {
+				byCard.set(card.id, {
+					card,
+					total: row.quantity,
+					rows: [{ variant: row.variant, quantity: row.quantity }]
+				});
+			}
 		}
 		return [...byCard.values()];
 	});
@@ -98,6 +113,20 @@
 		}
 	}
 
+	/**
+	 * Grid tiles fold finishes together, so a step lands on the finish with the most
+	 * copies — and says which one it was when the tile covers more than one.
+	 */
+	function adjustTile(tile: Tile, delta: number) {
+		const target = [...tile.rows].sort((a, b) => b.quantity - a.quantity)[0];
+		adjust(tile.card.id, target.variant, target.quantity, delta);
+		if (tile.rows.length > 1) {
+			toast.success(
+				`${delta > 0 ? 'Added' : 'Removed'} one ${tile.card.name} (${VARIANT_LABELS[target.variant]})`
+			);
+		}
+	}
+
 	function move(key: string, quantity: number, target: string) {
 		store.moveOwned(key, target === '' ? null : target, quantity);
 		toast.success(`Moved to ${target === '' ? 'Unsorted' : store.lot(target)?.name}`);
@@ -132,9 +161,22 @@
 	<PageHeader
 		{title}
 		subtitle={`${stats.cards} cards${lot?.acquiredOn ? ` · acquired ${lot.acquiredOn}` : ''}`}
-		backHref="{base}/lots"
+		backHref={`${base}/lots${lot?.folderId ? `?folder=${lot.folderId}` : ''}`}
 	>
 		{#snippet actions()}
+			<Button
+				variant={editing ? 'default' : 'outline'}
+				size="sm"
+				onclick={() => (editing = !editing)}
+				disabled={entries.length === 0 && !editing}
+			>
+				<!-- Icon only on a phone: three labelled buttons crowd the lot name out. -->
+				{#if editing}
+					<Check class="size-4" /> <span class="sr-only sm:not-sr-only">Done</span>
+				{:else}
+					<Pencil class="size-4" /> <span class="sr-only sm:not-sr-only">Edit</span>
+				{/if}
+			</Button>
 			<Button variant="outline" size="sm" onclick={copy} disabled={entries.length === 0}>
 				<Copy class="size-4" /> Copy list
 			</Button>
@@ -175,6 +217,16 @@
 							store.updateLot(lot.id, { acquiredOn: event.currentTarget.value || null })}
 					/>
 				</div>
+				<div class="flex flex-col gap-2">
+					<Label>Folder</Label>
+					<FolderPicker
+						value={lot.folderId ?? ''}
+						folders={store.lotFolders}
+						rootLabel="Lots"
+						class="h-9 w-44"
+						onchange={(target) => store.moveLot(lot.id, target || null)}
+					/>
+				</div>
 				<div class="flex min-w-64 flex-[2] flex-col gap-2">
 					<Label for="lot-note">Note</Label>
 					<Input
@@ -195,14 +247,15 @@
 					<Label>Add to this lot</Label>
 					<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} />
 				</div>
-				<div class="flex flex-col gap-2">
+				<!-- On a phone the finish picker drops under the quick add box. -->
+				<div class="flex basis-full flex-col gap-2 sm:basis-auto">
 					<Label>Finish</Label>
 					<Select.Root
 						type="single"
 						value={addFinish}
 						onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
 					>
-						<Select.Trigger class="w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
+						<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
 						<Select.Content>
 							{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
 								<Select.Item {value}>{label}</Select.Item>
@@ -235,6 +288,31 @@
 						{#each tiles as tile, index (tile.card.id)}
 							<div in:fly|global={{ y: 8, duration: 200, delay: Math.min(index, 20) * 12 }}>
 								<CardTile card={tile.card} owned={tile.total} onclick={() => open(tile.card)} />
+								{#if editing}
+									<div class="mt-1.5 flex items-center justify-center gap-1">
+										<Button
+											variant="outline"
+											size="icon"
+											class="size-7"
+											aria-label="Remove one {tile.card.name}"
+											onclick={() => adjustTile(tile, -1)}
+										>
+											<Minus class="size-3" />
+										</Button>
+										<span class="w-6 text-center text-sm font-semibold tabular-nums">
+											{tile.total}
+										</span>
+										<Button
+											variant="outline"
+											size="icon"
+											class="size-7"
+											aria-label="Add one {tile.card.name}"
+											onclick={() => adjustTile(tile, 1)}
+										>
+											<Plus class="size-3" />
+										</Button>
+									</div>
+								{/if}
 							</div>
 						{/each}
 					</div>
@@ -242,7 +320,10 @@
 
 				<Tabs.Content value="list" class="flex flex-col gap-1.5 pt-3">
 					{#each entries as entry (entry.key)}
-						<div class="hover:bg-accent/50 flex items-center gap-3 rounded-lg p-1.5 transition-colors">
+						<!-- The lot picker drops to its own line on a phone rather than squeezing the name. -->
+						<div
+							class="hover:bg-accent/50 flex flex-wrap items-center gap-3 rounded-lg p-1.5 transition-colors"
+						>
 							<button type="button" onclick={() => open(entry.card)} class="shrink-0">
 								<CardImage card={entry.card} class="h-11 w-8 rounded" />
 							</button>
@@ -253,36 +334,42 @@
 									{VARIANT_LABELS[entry.row.variant]}
 								</p>
 							</div>
-							<div class="flex items-center gap-1">
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-7"
-									aria-label="Remove one"
-									onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, -1)}
-								>
-									<Minus class="size-3" />
-								</Button>
-								<span class="w-6 text-center text-sm font-semibold tabular-nums">
-									{entry.row.quantity}
+							{#if editing}
+								<div class="flex items-center gap-1">
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-7"
+										aria-label="Remove one"
+										onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, -1)}
+									>
+										<Minus class="size-3" />
+									</Button>
+									<span class="w-6 text-center text-sm font-semibold tabular-nums">
+										{entry.row.quantity}
+									</span>
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-7"
+										aria-label="Add one"
+										onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, 1)}
+									>
+										<Plus class="size-3" />
+									</Button>
+								</div>
+								<LotPicker
+									value={lotId ?? ''}
+									allowCreate
+									size="sm"
+									class="w-full sm:w-36"
+									onchange={(target) => move(entry.key, entry.row.quantity, target)}
+								/>
+							{:else}
+								<span class="w-10 text-right text-sm font-semibold tabular-nums">
+									×{entry.row.quantity}
 								</span>
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-7"
-									aria-label="Add one"
-									onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, 1)}
-								>
-									<Plus class="size-3" />
-								</Button>
-							</div>
-							<LotPicker
-								value={lotId ?? ''}
-								allowCreate
-								size="sm"
-								class="w-36"
-								onchange={(target) => move(entry.key, entry.row.quantity, target)}
-							/>
+							{/if}
 						</div>
 					{/each}
 				</Tabs.Content>

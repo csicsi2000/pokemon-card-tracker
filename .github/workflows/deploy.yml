@@ -40,6 +40,10 @@ jobs:
           # Optional: enables Google Drive sync. Set it under Settings → Secrets and
           # variables → Actions → Variables. It is a public OAuth client id, not a secret.
           PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          # Optional: set the ENABLE_WEBDAV variable to `true` to offer WebDAV sync. Only
+          # worth doing with a WebDAV server you control and have set CORS headers on —
+          # hosted services that speak WebDAV send none and cannot work. See the README.
+          PUBLIC_ENABLE_WEBDAV: ${{ vars.ENABLE_WEBDAV }}
 
       - uses: actions/configure-pages@v5
 

@@ -11,19 +11,24 @@
 import type { CardVariant } from '$lib/types';
 import type { Clock } from './clock';
 import { isDescendant } from './folders';
-import { dedupeRows } from './migrate';
+import { dedupeRows, dedupeWants } from './migrate';
 import {
 	emptyData,
 	newId,
 	rowKey,
+	wantKey,
 	type CollectionEntry,
 	type Deck,
 	type DeckFolder,
 	type Format,
 	type FormatPoolCard,
 	type Lot,
+	type LotFolder,
 	type Tombstone,
-	type UserData
+	type UserData,
+	type WantEntry,
+	type WantList,
+	type WantPriority
 } from './model';
 
 type Kind = Tombstone['kind'];
@@ -134,12 +139,177 @@ export function moveOwned(
 	);
 }
 
+// -- wants ------------------------------------------------------------------
+
+export type WantInput = {
+	cardId: string;
+	variant: CardVariant;
+	quantity: number;
+	/** `null`, or left out, is the default list. */
+	listId?: string | null;
+	priority?: WantPriority;
+	note?: string | null;
+};
+
+/** The full identity of a want; `listId` defaults to the default list. */
+export type WantRef = { cardId: string; variant: CardVariant; listId?: string | null };
+
+const keyOfRef = (ref: WantRef) => wantKey({ ...ref, listId: ref.listId ?? null });
+
+/**
+ * Absolute wanted quantity for one printing, finish and list; 0 removes the want. Fields
+ * left out keep what the want already had, so bumping a quantity never drops its note.
+ */
+export function setWant(data: UserData, clock: Clock, input: WantInput): UserData {
+	const next = clampQuantity(input.quantity);
+	const listId = input.listId ?? null;
+	const key = wantKey({ ...input, listId });
+	const existing = data.wants.find((want) => wantKey(want) === key);
+	const now = clock.next();
+
+	if (next === 0) {
+		if (!existing) return data;
+		return {
+			...data,
+			wants: data.wants.filter((want) => wantKey(want) !== key),
+			tombstones: bury(data, 'want', key, now)
+		};
+	}
+
+	const want: WantEntry = {
+		cardId: input.cardId,
+		variant: input.variant,
+		quantity: next,
+		listId,
+		priority: input.priority ?? existing?.priority ?? 'normal',
+		note: input.note !== undefined ? input.note : (existing?.note ?? null),
+		createdAt: existing?.createdAt ?? now,
+		updatedAt: now
+	};
+
+	return {
+		...data,
+		wants: [...data.wants.filter((item) => wantKey(item) !== key), want],
+		// A want added back after deletion must outrank its old tombstone.
+		tombstones: data.tombstones.filter((t) => !(t.kind === 'want' && t.key === key))
+	};
+}
+
+/** Edit an existing want. Unknown wants are ignored — nothing is created here. */
+export function updateWant(
+	data: UserData,
+	clock: Clock,
+	ref: WantRef,
+	changes: Partial<Pick<WantEntry, 'quantity' | 'priority' | 'note'>>
+): UserData {
+	const existing = data.wants.find((want) => wantKey(want) === keyOfRef(ref));
+	if (!existing) return data;
+	return setWant(data, clock, { ...existing, ...changes });
+}
+
+export const removeWant = (data: UserData, clock: Clock, ref: WantRef) =>
+	setWant(data, clock, { ...ref, quantity: 0 });
+
+/**
+ * Put a want on another list. That re-keys it, so it is a removal plus an insert; where
+ * the target list already wants that printing, the larger of the two quantities stands.
+ */
+export function moveWant(
+	data: UserData,
+	clock: Clock,
+	ref: WantRef,
+	toListId: string | null
+): UserData {
+	const source = data.wants.find((want) => wantKey(want) === keyOfRef(ref));
+	if (!source || source.listId === toListId) return data;
+
+	const target = data.wants.find(
+		(want) => wantKey(want) === wantKey({ ...source, listId: toListId })
+	);
+	const afterRemoval = removeWant(data, clock, source);
+
+	return setWant(afterRemoval, clock, {
+		cardId: source.cardId,
+		variant: source.variant,
+		quantity: Math.max(source.quantity, target?.quantity ?? 0),
+		listId: toListId,
+		priority: source.priority,
+		note: source.note ?? target?.note ?? null
+	});
+}
+
+// -- wants lists ------------------------------------------------------------
+
+export function createWantList(
+	data: UserData,
+	clock: Clock,
+	input: { name: string; note?: string | null }
+): { data: UserData; list: WantList } {
+	const now = clock.next();
+	const list: WantList = {
+		id: newId(),
+		name: input.name,
+		note: input.note ?? null,
+		createdAt: now,
+		updatedAt: now
+	};
+	return { data: { ...data, wantLists: [...data.wantLists, list] }, list };
+}
+
+export function updateWantList(
+	data: UserData,
+	clock: Clock,
+	id: string,
+	changes: Partial<Pick<WantList, 'name' | 'note'>>
+): UserData {
+	return {
+		...data,
+		wantLists: data.wantLists.map((list) =>
+			list.id === id ? { ...list, ...changes, updatedAt: clock.next() } : list
+		)
+	};
+}
+
+/**
+ * Remove a list. With `wants: 'default'` its wants are left in place and fold into the
+ * default list during repair() — deliberately, so a device that merges this deletion
+ * later folds them the same way. With `wants: 'remove'` they go too.
+ */
+export function deleteWantList(
+	data: UserData,
+	clock: Clock,
+	id: string,
+	wants: 'default' | 'remove'
+): UserData {
+	if (!data.wantLists.some((list) => list.id === id)) return data;
+	const now = clock.next();
+	let next: UserData = {
+		...data,
+		wantLists: data.wantLists.filter((list) => list.id !== id),
+		tombstones: bury(data, 'wantList', id, now)
+	};
+
+	if (wants === 'remove') {
+		const doomed = next.wants.filter((want) => want.listId === id);
+		let tombstones = next.tombstones;
+		for (const want of doomed) tombstones = bury({ ...next, tombstones }, 'want', wantKey(want), now);
+		next = { ...next, wants: next.wants.filter((want) => want.listId !== id), tombstones };
+	}
+
+	return next;
+}
+
 // -- lots -------------------------------------------------------------------
 
 export function createLot(
 	data: UserData,
 	clock: Clock,
-	input: { name: string; note?: string | null; acquiredOn?: string | null }
+	input: {
+		name: string;
+		note?: string | null;
+		acquiredOn?: string | null;
+		folderId?: string | null;
+	}
 ): { data: UserData; lot: Lot } {
 	const now = clock.next();
 	const lot: Lot = {
@@ -147,6 +317,7 @@ export function createLot(
 		name: input.name,
 		note: input.note ?? null,
 		acquiredOn: input.acquiredOn ?? null,
+		folderId: input.folderId ?? null,
 		createdAt: now,
 		updatedAt: now
 	};
@@ -194,6 +365,57 @@ export function deleteLot(
 	}
 
 	return next;
+}
+
+// -- lot folders ------------------------------------------------------------
+
+export function createLotFolder(
+	data: UserData,
+	clock: Clock,
+	name: string,
+	parentId: string | null
+): { data: UserData; folder: LotFolder } {
+	const now = clock.next();
+	const folder: LotFolder = { id: newId(), name, parentId, createdAt: now, updatedAt: now };
+	return { data: { ...data, lotFolders: [...data.lotFolders, folder] }, folder };
+}
+
+/** Rename or move a lot folder. Moving one into itself or a descendant is ignored. */
+export function updateLotFolder(
+	data: UserData,
+	clock: Clock,
+	id: string,
+	changes: Partial<Pick<LotFolder, 'name' | 'parentId'>>
+): UserData {
+	if (changes.parentId !== undefined && changes.parentId !== null) {
+		if (isDescendant(data.lotFolders, changes.parentId, id)) return data;
+	}
+	return {
+		...data,
+		lotFolders: data.lotFolders.map((folder) =>
+			folder.id === id ? { ...folder, ...changes, updatedAt: clock.next() } : folder
+		)
+	};
+}
+
+/** Delete a lot folder; its sub-folders and lots move up to its parent. */
+export function deleteLotFolder(data: UserData, clock: Clock, id: string): UserData {
+	const folder = data.lotFolders.find((item) => item.id === id);
+	if (!folder) return data;
+	const now = clock.next();
+
+	return {
+		...data,
+		lotFolders: data.lotFolders
+			.filter((item) => item.id !== id)
+			.map((item) =>
+				item.parentId === id ? { ...item, parentId: folder.parentId, updatedAt: now } : item
+			),
+		lots: data.lots.map((lot) =>
+			lot.folderId === id ? { ...lot, folderId: folder.parentId, updatedAt: now } : lot
+		),
+		tombstones: bury(data, 'lotFolder', id, now)
+	};
 }
 
 // -- folders ----------------------------------------------------------------
@@ -413,7 +635,10 @@ export function restore(data: UserData, clock: Clock, incoming: UserData): UserD
 		...data.tombstones,
 		...incoming.tombstones,
 		...missing(data.collection, incoming.collection, rowKey, 'collection'),
+		...missing(data.wants, incoming.wants, wantKey, 'want'),
+		...missing(data.wantLists, incoming.wantLists, id, 'wantList'),
 		...missing(data.lots, incoming.lots, id, 'lot'),
+		...missing(data.lotFolders, incoming.lotFolders, id, 'lotFolder'),
 		...missing(data.folders, incoming.folders, id, 'folder'),
 		...missing(data.decks, incoming.decks, id, 'deck'),
 		...missing(data.formats, incoming.formats, id, 'format')
@@ -422,7 +647,10 @@ export function restore(data: UserData, clock: Clock, incoming: UserData): UserD
 	return {
 		version: 2,
 		collection: stampAll(dedupeRows(incoming.collection)),
+		wants: stampAll(dedupeWants(incoming.wants)),
+		wantLists: stampAll(incoming.wantLists),
 		lots: stampAll(incoming.lots),
+		lotFolders: stampAll(incoming.lotFolders),
 		folders: stampAll(incoming.folders),
 		decks: stampAll(incoming.decks),
 		formats: stampAll(incoming.formats),

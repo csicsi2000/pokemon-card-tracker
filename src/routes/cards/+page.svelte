@@ -96,16 +96,17 @@
 </PageHeader>
 
 <div class="flex flex-col gap-4 p-4 md:p-8">
+	<!-- On a phone the search box takes the first line and the two pickers share the next. -->
 	<div class="flex flex-wrap gap-2">
-		<div class="relative min-w-50 flex-1">
+		<div class="relative min-w-50 flex-1 max-sm:basis-full">
 			<Search
 				class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
 			/>
-			<Input bind:value={query} placeholder="Search card names…" class="pl-9" />
+			<Input bind:value={query} placeholder="Search cards, or type MEG 21…" class="pl-9" />
 		</div>
 
 		<Select.Root type="single" value={setId} onValueChange={(v) => (setId = v ?? '')}>
-			<Select.Trigger class="w-48">
+			<Select.Trigger class="min-w-0 flex-1 sm:w-48 sm:flex-none">
 				{setOptions.find((o) => o.value === setId)?.label ?? 'All sets'}
 			</Select.Trigger>
 			<Select.Content class="max-h-80">
@@ -120,7 +121,7 @@
 			value={supertype}
 			onValueChange={(v) => (supertype = (v ?? '') as Supertype | '')}
 		>
-			<Select.Trigger class="w-36">
+			<Select.Trigger class="min-w-0 flex-1 sm:w-36 sm:flex-none">
 				{typeOptions.find((o) => o.value === supertype)?.label ?? 'All types'}
 			</Select.Trigger>
 			<Select.Content>

@@ -5,7 +5,7 @@
  * lines back and the importer will accept them.
  */
 import type { Catalogue } from '$lib/catalogue-index';
-import type { Card, CardVariant, Deck, UserData } from '$lib/types';
+import type { Card, CardVariant, Deck, UserData, WantPriority } from '$lib/types';
 import { folderPath } from '$lib/data/folders';
 import { buildBuylist } from '$lib/tcg/buylist';
 import { exportSetCode } from '$lib/tcg/set-code-overrides';
@@ -63,6 +63,35 @@ function deckLines(deck: Deck, catalogue: Catalogue): string[] {
 	return lines;
 }
 
+const WANT_RANK: Record<WantPriority, number> = { high: 0, normal: 1, low: 2 };
+
+/** Every wants list, the unnamed default one first — the same order the app shows. */
+const wantLists = (data: UserData) => [
+	{ id: null as string | null, name: 'Main list', note: null as string | null },
+	...[...data.wantLists].sort((a, b) => a.name.localeCompare(b.name))
+];
+
+/**
+ * The wants list, joined to the catalogue and to what is already owned. A want is for
+ * one finish, so only copies in that finish count towards it.
+ */
+function wantRows(data: UserData, catalogue: Catalogue) {
+	return data.wants
+		.flatMap((want) => {
+			const card = catalogue.byId.get(want.cardId);
+			if (!card) return [];
+			const owned = data.collection
+				.filter((row) => row.cardId === want.cardId && row.variant === want.variant)
+				.reduce((sum, row) => sum + row.quantity, 0);
+			return [{ want, card, owned, missing: Math.max(0, want.quantity - owned) }];
+		})
+		.sort(
+			(a, b) =>
+				WANT_RANK[a.want.priority] - WANT_RANK[b.want.priority] ||
+				a.card.name.localeCompare(b.card.name)
+		);
+}
+
 /** Owned copies by card name — any printing counts towards a deck. */
 function ownedRows(data: UserData, catalogue: Catalogue) {
 	return data.collection.flatMap((row) => {
@@ -85,7 +114,8 @@ export function toReadableMarkdown(
 	out.push(
 		`Generated ${options.generatedAt ?? new Date().toISOString()}. ` +
 			`${totalCards} cards, ${new Set(rows.map((r) => r.card.id)).size} printings, ` +
-			`${data.lots.length} lots, ${data.decks.length} decks, ${data.formats.length} formats.`
+			`${data.lots.length} lots, ${data.decks.length} decks, ${data.formats.length} formats, ` +
+			`${data.wants.length} wants.`
 	);
 	out.push('');
 	out.push(
@@ -100,7 +130,13 @@ export function toReadableMarkdown(
 	out.push('## Collection');
 	out.push('');
 	const lots = [
-		{ id: null as string | null, name: 'Unsorted', note: null as string | null, acquiredOn: null as string | null },
+		{
+			id: null as string | null,
+			name: 'Unsorted',
+			note: null as string | null,
+			acquiredOn: null as string | null,
+			folderId: null as string | null
+		},
 		...[...data.lots].sort((a, b) =>
 			(b.acquiredOn ?? b.createdAt).localeCompare(a.acquiredOn ?? a.createdAt)
 		)
@@ -119,11 +155,40 @@ export function toReadableMarkdown(
 		const count = inLot.reduce((sum, { row }) => sum + row.quantity, 0);
 		out.push(`### Lot: ${lot.name}${lot.acquiredOn ? ` (${lot.acquiredOn})` : ''} — ${count} cards`);
 		out.push('');
+		const where = folderPath(data.lotFolders, lot.folderId).map((f) => f.name);
+		if (where.length) out.push(`Folder: ${where.join(' / ')}`), out.push('');
 		if (lot.note) out.push(lot.note), out.push('');
 		out.push('```');
 		for (const { row, card } of inLot) out.push(cardLine(row.quantity, card, row.variant));
 		out.push('```');
 		out.push('');
+	}
+
+	// -- wants, by list ------------------------------------------------------
+	const wants = wantRows(data, catalogue);
+	if (wants.length) {
+		out.push('## Wants');
+		out.push('');
+		out.push(
+			'Cards the owner is hunting for, grouped by wants list. The quantity is how many they ' +
+				'want to end up with; "still N" is what is missing after counting the copies already ' +
+				'owned in that finish.'
+		);
+		out.push('');
+		for (const list of wantLists(data)) {
+			const inList = wants.filter(({ want }) => want.listId === list.id);
+			if (!inList.length) continue;
+			out.push(`### Wants list: ${list.name}`);
+			out.push('');
+			if (list.note) out.push(list.note), out.push('');
+			for (const { want, card, missing } of inList) {
+				out.push(
+					`- ${cardLine(want.quantity, card, want.variant)} — ${want.priority} priority, still ${missing}` +
+						(want.note ? ` — ${want.note}` : '')
+				);
+			}
+			out.push('');
+		}
 	}
 
 	// -- decks by folder -----------------------------------------------------
@@ -210,13 +275,35 @@ export function toReadableJson(data: UserData, catalogue: Catalogue) {
 	return {
 		generatedAt: new Date().toISOString(),
 		lots: [
-			{ id: null, name: 'Unsorted', acquiredOn: null, note: null },
-			...data.lots.map((lot) => ({ id: lot.id, name: lot.name, acquiredOn: lot.acquiredOn, note: lot.note }))
+			{ id: null, name: 'Unsorted', acquiredOn: null, note: null, folder: [] as string[] },
+			...data.lots.map((lot) => ({
+				id: lot.id,
+				name: lot.name,
+				acquiredOn: lot.acquiredOn,
+				note: lot.note,
+				folder: folderPath(data.lotFolders, lot.folderId).map((f) => f.name)
+			}))
 		].map((lot) => ({
 			...lot,
 			cards: rows
 				.filter(({ row }) => row.lotId === lot.id)
 				.map(({ row, card }) => ({ quantity: row.quantity, finish: row.variant, ...describe(card) }))
+		})),
+		wantLists: wantLists(data).map((list) => ({
+			id: list.id,
+			name: list.name,
+			note: list.note,
+			cards: wantRows(data, catalogue)
+				.filter(({ want }) => want.listId === list.id)
+				.map(({ want, card, owned, missing }) => ({
+					quantity: want.quantity,
+					owned,
+					missing,
+					finish: want.variant,
+					priority: want.priority,
+					note: want.note,
+					...describe(card)
+				}))
 		})),
 		folders: data.folders.map((folder) => ({
 			id: folder.id,

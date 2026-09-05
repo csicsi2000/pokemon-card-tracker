@@ -19,7 +19,7 @@
 	import Folder from '@lucide/svelte/icons/folder';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import { childrenOf, deckCountDeep, folderPath } from '$lib/data/folders';
+	import { childrenOf, countDeep, folderPath } from '$lib/data/folders';
 	import { store } from '$lib/store.svelte';
 
 	/** The folder being viewed; '' is the top level. Driven by the URL so it can be shared. */
@@ -30,7 +30,7 @@
 	const folders = $derived(
 		childrenOf(store.folders, folderId || null).map((folder) => ({
 			...folder,
-			deckCount: deckCountDeep(store.folders, store.decks, folder.id)
+			deckCount: countDeep(store.folders, store.decks, folder.id)
 		}))
 	);
 
@@ -112,8 +112,10 @@
 	backHref={current ? href(current.parentId) : undefined}
 >
 	{#snippet actions()}
-		<Button size="sm" variant="outline" onclick={() => openFolderDialog()}>
-			<FolderPlus class="size-4" /> New folder
+		<!-- The label drops away on a phone so a long folder name keeps room in the header. -->
+		<Button size="sm" variant="outline" onclick={() => openFolderDialog()} aria-label="New folder">
+			<FolderPlus class="size-4" />
+			<span class="hidden sm:inline">New folder</span>
 		</Button>
 		<Button size="sm" onclick={() => (deckDialog = true)}>
 			<Plus class="size-4" /> New deck
@@ -308,6 +310,8 @@
 		</Dialog.Header>
 		<FolderPicker
 			bind:value={moveTarget}
+			folders={store.folders}
+			rootLabel="Decks"
 			excludeId={moving?.kind === 'folder' ? moving.id : undefined}
 			class="w-full"
 		/>

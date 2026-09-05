@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { childrenOf, deckCountDeep, flattenTree, folderPath, isDescendant } from '../src/lib/data/folders';
-import { makeDeck, makeFolder } from './data-helpers';
+import { childrenOf, countDeep, flattenTree, folderPath, isDescendant } from '../src/lib/data/folders';
+import { makeDeck, makeFolder, makeLot } from './data-helpers';
 
 const folders = [
 	makeFolder({ id: 'std', name: 'Standard' }),
@@ -28,15 +28,19 @@ describe('folders', () => {
 		expect(isDescendant(folders, null, 'std')).toBe(false);
 	});
 
-	it('deckCountDeep counts decks in sub-folders too', () => {
+	it('countDeep counts items in sub-folders too', () => {
 		const decks = [
 			makeDeck({ id: 'a', folderId: 'std' }),
 			makeDeck({ id: 'b', folderId: 'zard' }),
 			makeDeck({ id: 'c', folderId: 'exp' }),
 			makeDeck({ id: 'd', folderId: null })
 		];
-		expect(deckCountDeep(folders, decks, 'std')).toBe(2);
-		expect(deckCountDeep(folders, decks, 'exp')).toBe(1);
+		expect(countDeep(folders, decks, 'std')).toBe(2);
+		expect(countDeep(folders, decks, 'exp')).toBe(1);
+
+		// The same helper walks the lot tree.
+		const lots = [makeLot({ id: 'p', folderId: 'y26' }), makeLot({ id: 'q', folderId: null })];
+		expect(countDeep(folders, lots, 'std')).toBe(1);
 	});
 
 	it('flattenTree lists depth-first with depths', () => {
