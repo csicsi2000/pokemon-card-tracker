@@ -30,7 +30,7 @@
 	import { prefs } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
-	import { VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
+	import { sortVariants, VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
 
 	let {
 		card = $bindable(),
@@ -108,7 +108,7 @@
 			.filter((entry) => entry.cardId === card!.id)
 			.map((entry) => entry.variant);
 		const all = new Set<CardVariant>([...card.variants, ...recorded]);
-		return all.size ? [...all] : (['normal'] as CardVariant[]);
+		return all.size ? sortVariants([...all]) : (['normal'] as CardVariant[]);
 	});
 
 	const ownedTotal = $derived(card ? store.ownedTotal(card.id) : 0);

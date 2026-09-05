@@ -127,41 +127,68 @@ export default defineConfig(({ mode }) => ({
 				// precache and pointing at it leaves those navigations failing offline.
 				// The prerendered index is precached, and boots the same client router.
 				navigateFallback: `${basePath}/`,
+				// Google's silent sign-in redirects a hidden iframe to this static page, which
+				// posts the token to the app. Served the app shell instead, it would never
+				// answer, and the refresh would time out into "reconnect" every hour.
+				navigateFallbackDenylist: [/\/google-callback\.html$/],
 				// Drop precaches from older builds instead of letting them accumulate;
 				// catalogue.json alone is 2 MB a time.
 				cleanupOutdatedCaches: true,
 				runtimeCaching: [
+					// No rule below may list status 0 as cacheable. An opaque response — what
+					// a cross-origin request made in no-cors mode returns — reports status 0
+					// whether the server said 200 or 404, so allowing it tells Workbox to
+					// store failures it cannot recognise as failures. Under CacheFirst that
+					// is permanent: a card whose scan had not been uploaded yet stayed blank
+					// for the full 60-day expiry, long after the art went up. Keep these
+					// lists at [200] and make the requests themselves CORS-mode instead.
 					{
 						// Immutable for a given build: rules text does not change once printed.
+						// Same-origin, so the status is always the real one.
 						urlPattern: /\/details\/[^/]+\.json$/i,
 						handler: 'CacheFirst',
 						options: {
 							cacheName: 'card-details',
 							expiration: { maxEntries: 250 },
-							cacheableResponse: { statuses: [0, 200] }
+							cacheableResponse: { statuses: [200] }
 						}
 					},
 					{
-						// Card art never changes once published — cache it hard so the grid
-						// stays usable offline and on a phone data connection.
+						// Card art, set logos and set symbols. Cached hard — the CDN serves
+						// them immutable — so the grid stays usable offline and on a phone
+						// data connection.
+						//
+						// Every <img> pointing here sets crossorigin="anonymous", which makes
+						// the response transparent (assets.tcgdex.net answers with
+						// Access-Control-Allow-Origin: *) so the check below can see a real
+						// status. A 404 from this CDN carries no CORS header at all, so it
+						// fails the cross-origin check and never reaches the cache — the
+						// image falls back to the card name and retries on the next visit.
+						// Forgetting the attribute on a new <img> now costs that image its
+						// cache entry rather than pinning a blank, which is the whole point.
 						urlPattern: /^https:\/\/assets\.tcgdex\.net\/.*/i,
 						handler: 'CacheFirst',
 						options: {
-							cacheName: 'tcgdex-images',
+							// Renamed from 'tcgdex-images', which is retired in
+							// src/lib/pwa/caches.ts: entries written under the old rule may be
+							// poisoned, and there is no way to tell which.
+							cacheName: 'tcgdex-art',
 							expiration: { maxEntries: 3000, maxAgeSeconds: 60 * 60 * 24 * 60 },
-							cacheableResponse: { statuses: [0, 200] }
+							cacheableResponse: { statuses: [200] }
 						}
 					},
 					{
 						// Per-card detail (attacks, abilities, prices). Network first, because
 						// prices move; the cached copy keeps a card readable offline once seen.
+						// Requested with fetch(), which defaults to CORS mode, so the status
+						// here is real too.
 						urlPattern: /^https:\/\/api\.tcgdex\.net\/.*/i,
 						handler: 'NetworkFirst',
 						options: {
 							cacheName: 'tcgdex-cards',
 							networkTimeoutSeconds: 5,
 							expiration: { maxEntries: 1000, maxAgeSeconds: 60 * 60 * 24 * 14 },
-							cacheableResponse: { statuses: [0, 200] }
+							cacheableResponse: { statuses: [200] }
 						}
 					}
 				]

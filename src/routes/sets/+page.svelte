@@ -128,7 +128,14 @@
 						<SetLogo set={row.set}>
 							{#snippet fallback()}
 								{#if symbol}
-									<img src={symbol} alt="" loading="lazy" class="size-8 object-contain opacity-70" />
+									<!-- crossorigin: see the assets.tcgdex.net rule in vite.config.ts. -->
+									<img
+										src={symbol}
+										alt=""
+										crossorigin="anonymous"
+										loading="lazy"
+										class="size-8 object-contain opacity-70"
+									/>
 								{:else}
 									<Boxes class="text-muted-foreground/60 size-6" />
 								{/if}
@@ -142,6 +149,7 @@
 								<img
 									src={symbol}
 									alt=""
+									crossorigin="anonymous"
 									loading="lazy"
 									class="mt-0.5 hidden size-4 object-contain sm:block"
 								/>

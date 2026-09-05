@@ -166,10 +166,13 @@ at the exact same moment can double-count that one edit — rare, and easy to fi
 
 ### Google Drive
 
-Google sign-ins last about an hour (the browser-only flow has no refresh tokens). When one
-runs out the cloud icon in the sidebar turns amber; tap **Reconnect** and edits made in the
-meantime are synced. Home-screen PWAs on iOS cannot complete Google's popup — connect once in
-Safari instead.
+Google sign-ins last about an hour (the browser-only flow has no refresh tokens), but you
+should rarely notice: the token is kept on the device, and when it runs out Cardex asks
+Google again in a hidden frame with no popup. That works while you are signed in to Google in
+the same browser and it allows third-party cookies in frames — Chrome, Edge and Android do;
+Safari and Firefox do not. Where it cannot, the cloud icon in the sidebar turns amber; tap
+**Reconnect** and edits made in the meantime are synced. Home-screen PWAs on iOS cannot
+complete Google's popup — connect once in Safari instead.
 
 One-time setup: the app needs a Google OAuth **client id** (a public identifier, not a secret):
 
@@ -180,7 +183,10 @@ One-time setup: the app needs a Google OAuth **client id** (a public identifier,
    Add your own Google account as a **test user** and leave the app in Testing — no
    verification is needed for personal use.
 4. **Credentials → Create credentials → OAuth client ID → Web application**. Authorized
-   JavaScript origins: `https://<user>.github.io` and `http://localhost:5173`. No redirect URIs.
+   JavaScript origins: `https://<user>.github.io` and `http://localhost:5173`. Authorized
+   redirect URIs: `https://<user>.github.io/<repo>/google-callback.html` and
+   `http://localhost:5173/google-callback.html` — the page the silent hourly refresh lands
+   on. Without them sync still works, but needs a tap on **Reconnect** every hour.
 5. Put the client id where the build can see it:
    - locally: copy `.env.example` to `.env` and set `PUBLIC_GOOGLE_CLIENT_ID=…`;
    - on GitHub Pages: repo **Settings → Secrets and variables → Actions → Variables**, add

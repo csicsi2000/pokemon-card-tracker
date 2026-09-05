@@ -27,6 +27,7 @@
 	import { resolveEntries, type ResolvedEntry } from '$lib/tcg/resolver';
 	import { buildBuylist } from '$lib/tcg/buylist';
 	import { toPtcglText, toAiEntries, AI_PREAMBLE, type ExportLine } from '$lib/tcg/exporter';
+	import { pickVariant } from '$lib/tcg/quick-add';
 	import { VARIANT_LABELS, type CardVariant } from '$lib/types';
 
 	let { data } = $props();
@@ -144,10 +145,8 @@ Total Cards: 3`;
 			store.addOwned(
 				importable.map((row) => ({
 					cardId: row.card!.id,
-					// Fall back to a finish this printing actually exists in.
-					variant: row.card!.variants.includes(variant)
-						? variant
-						: (row.card!.variants[0] ?? 'normal'),
+					// Fall back to the plainest finish this printing actually exists in.
+					variant: pickVariant(row.card!, null, variant),
 					quantity: row.entry.quantity,
 					lotId
 				})),

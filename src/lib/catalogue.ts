@@ -43,6 +43,14 @@ export async function loadCatalogue(fetcher: typeof fetch = fetch): Promise<Cata
 /** Non-null once `loadCatalogue()` has resolved. */
 export const getCatalogue = () => cached;
 
+/**
+ * Every URL these two return points at assets.tcgdex.net, and any <img> that renders one
+ * must carry `crossorigin="anonymous"`. The service worker caches that host with
+ * CacheFirst; without the attribute the browser fetches no-cors and hands it an opaque
+ * response, which reports the same status 0 for a missing scan as for real artwork. See
+ * the assets.tcgdex.net rule in vite.config.ts for what that cost us.
+ */
+
 /** TCGdex serves images without an extension; pick the size at render time. */
 export function cardImage(card: { image: string | null }, quality: 'low' | 'high' = 'low') {
 	return card.image ? `${card.image}/${quality}.webp` : null;

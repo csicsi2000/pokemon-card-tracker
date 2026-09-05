@@ -15,7 +15,7 @@
 	import { prefs, CARD_VIEW_LABELS, type CardView } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { sync } from '$lib/sync/engine.svelte';
-	import { popupUnsupported } from '$lib/sync/google-auth';
+	import { CALLBACK_PATH, popupUnsupported } from '$lib/sync/google-auth';
 
 	/** The two shells CardDetailSheet can use, in the order they are offered. */
 	const cardViews: { value: CardView; icon: typeof PanelRight; hint: string }[] = [
@@ -273,6 +273,8 @@
 						<li>
 							Credentials → Create OAuth client ID → Web application. Authorized JavaScript origins:
 							your site's origin (and <span class="font-mono">http://localhost:5173</span> for dev).
+							Authorized redirect URIs: the same, followed by
+							<span class="font-mono">{CALLBACK_PATH}</span>, so the hourly refresh needs no tap.
 						</li>
 						<li>
 							Put the client id in <span class="font-mono">.env</span> as

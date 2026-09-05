@@ -5,6 +5,29 @@ export type CardVariant = 'normal' | 'reverse' | 'holo' | 'firstEdition' | 'prom
 
 export const CARD_VARIANTS: CardVariant[] = ['normal', 'reverse', 'holo', 'firstEdition', 'promo'];
 
+/**
+ * Finishes from plainest to most special. Holo comes before reverse on purpose: for a
+ * rare holo card, the holo *is* the regular printing and the reverse is the parallel
+ * one, so a card that exists only as holo + reverse is recorded as holo by default.
+ */
+export const VARIANTS_PLAINEST_FIRST: CardVariant[] = [
+	'normal',
+	'holo',
+	'reverse',
+	'firstEdition',
+	'promo'
+];
+
+const VARIANT_RANK = new Map(VARIANTS_PLAINEST_FIRST.map((variant, index) => [variant, index]));
+
+/** The same finishes, plainest first. Unknown values (from a newer catalogue) sort last. */
+export const sortVariants = (variants: readonly CardVariant[]): CardVariant[] =>
+	[...variants].sort((a, b) => (VARIANT_RANK.get(a) ?? 99) - (VARIANT_RANK.get(b) ?? 99));
+
+/** The finish to assume when none was asked for: the plainest one the card exists in. */
+export const plainestVariant = (variants: readonly CardVariant[]): CardVariant =>
+	sortVariants(variants)[0] ?? 'normal';
+
 export const VARIANT_LABELS: Record<CardVariant, string> = {
 	normal: 'Normal',
 	reverse: 'Reverse holo',

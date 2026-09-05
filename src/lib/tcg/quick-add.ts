@@ -11,7 +11,7 @@
  * to do with the resolved cards.
  */
 import type { Catalogue } from '$lib/catalogue';
-import type { Card, CardSet, CardVariant } from '$lib/types';
+import { plainestVariant, type Card, type CardSet, type CardVariant } from '$lib/types';
 import { findByNumber, setForCode } from './resolver';
 
 export type QuickAddEntry = {
@@ -106,9 +106,16 @@ export function resolveQuickAdd(catalogue: Catalogue, entry: QuickAddEntry): Qui
 export const resolveQuickAddAll = (catalogue: Catalogue, entries: QuickAddEntry[]) =>
 	entries.map((entry) => resolveQuickAdd(catalogue, entry));
 
-/** The finish to record: the marker if the printing exists in it, else its first finish. */
-export function pickVariant(card: Card, requested: CardVariant | null, fallback: CardVariant): CardVariant {
+/**
+ * The finish to record: the marker if the printing exists in it, else the plainest finish
+ * it does exist in — holo for a rare that comes as holo + reverse, normal for a common.
+ */
+export function pickVariant(
+	card: Card,
+	requested: CardVariant | null,
+	fallback: CardVariant
+): CardVariant {
 	const wanted = requested ?? fallback;
 	if (card.variants.includes(wanted)) return wanted;
-	return card.variants[0] ?? 'normal';
+	return plainestVariant(card.variants);
 }

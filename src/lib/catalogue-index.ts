@@ -7,7 +7,7 @@
 import type { CatalogueFile, CardRow, SetRow } from './catalogue-format';
 import { cardQuery } from './tcg/card-query';
 import { normalizeName } from './tcg/normalize';
-import type { Card, CardSet, CardVariant, Supertype } from './types';
+import { sortVariants, type Card, type CardSet, type CardVariant, type Supertype } from './types';
 
 const SUPERTYPES: Record<string, Supertype> = { P: 'Pokemon', T: 'Trainer', E: 'Energy' };
 const VARIANTS: Record<string, CardVariant> = {
@@ -64,7 +64,8 @@ function toCard(row: CardRow, sets: CardSet[]): Card {
 		hp: row[8],
 		types: row[9],
 		evolvesFrom: row[10],
-		variants: [...row[11]].map((letter) => VARIANTS[letter]).filter(Boolean),
+		// Plainest first, so `variants[0]` is the finish to assume when none is asked for.
+		variants: sortVariants([...row[11]].map((letter) => VARIANTS[letter]).filter(Boolean)),
 		image: row[12] === 1 && set.imageBase ? `${set.imageBase}/${row[2]}` : null
 	};
 }
@@ -109,7 +110,16 @@ export function buildCatalogue(file: CatalogueFile): Catalogue {
 			collectorNumber(a) - collectorNumber(b)
 	);
 
-	return { generatedAt: file.generatedAt, cards, sets, byId, byName, setsById, setsByCode, cardsBySet };
+	return {
+		generatedAt: file.generatedAt,
+		cards,
+		sets,
+		byId,
+		byName,
+		setsById,
+		setsByCode,
+		cardsBySet
+	};
 }
 
 export type CardFilters = {

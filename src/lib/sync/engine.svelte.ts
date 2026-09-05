@@ -9,11 +9,11 @@ import { getCatalogue } from '$lib/catalogue';
 import { store } from '$lib/store.svelte';
 import {
 	AuthError,
-	currentToken,
 	ensureToken,
 	fetchEmail,
 	requestToken,
 	revokeToken,
+	setAccountHint,
 	syncConfigured
 } from './google-auth';
 import { createDriveClient } from './drive';
@@ -133,8 +133,9 @@ class SyncController {
 	}
 
 	/**
-	 * On app start: if this device connected before, pick up where it left off. Drive may
-	 * need a silent token; a blocked popup just leaves us in "reconnect" — one tap fixes it.
+	 * On app start: if this device connected before, pick up where it left off. Drive reuses
+	 * the stored token, or refreshes it silently; only when Google insists on the user do we
+	 * park in "reconnect" — one tap fixes it.
 	 */
 	async start() {
 		if (!browser) return;
@@ -152,9 +153,10 @@ class SyncController {
 
 		if (!this.googleConfigured) return;
 		this.status = 'reconnect';
+		setAccountHint(state.email);
 		this.#useBackend('drive');
 		try {
-			if (!currentToken()) await requestToken('');
+			await ensureToken();
 			await this.#engine.sync();
 		} catch (error) {
 			this.status = 'reconnect';
@@ -169,9 +171,11 @@ class SyncController {
 		const resuming = providerOf(previous) === 'drive';
 		this.status = 'connecting';
 		this.detail = undefined;
+		setAccountHint(resuming ? previous!.email : null);
 		try {
 			const token = await requestToken(resuming ? '' : 'consent');
 			const email = (await fetchEmail(token)) ?? (resuming ? previous!.email : null);
+			setAccountHint(email);
 			const state: SyncState = resuming
 				? { ...previous!, email, provider: 'drive' }
 				: { ...emptySyncState(), email, provider: 'drive' };

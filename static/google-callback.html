@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="robots" content="noindex" />
+		<title>Signing in…</title>
+	</head>
+	<body>
+		<script>
+			// Google's silent sign-in (prompt=none, in a hidden iframe opened by google-auth.ts)
+			// redirects here with the access token — or an error — in the URL fragment. Hand it
+			// to the app that owns the iframe and do nothing else. The token never leaves this
+			// origin: the target origin below is our own, and the app checks the sender too.
+			if (window.parent && window.parent !== window) {
+				window.parent.postMessage(
+					{ type: 'cardex:google-token', hash: window.location.hash },
+					window.location.origin
+				);
+			}
+		</script>
+	</body>
+</html>

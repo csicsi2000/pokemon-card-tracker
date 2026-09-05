@@ -5,6 +5,11 @@
 	 * TCGdex sometimes lists a card before its scan is published (brand-new sets),
 	 * so a URL existing is no guarantee the image does — hence the error handler
 	 * rather than just checking for a null URL.
+	 *
+	 * `crossorigin` is load-bearing, not decoration: without it the browser fetches
+	 * no-cors and the service worker cannot tell a missing scan from a real one, so it
+	 * caches the 404 and this card stays blank for weeks after the art appears. See the
+	 * assets.tcgdex.net rule in vite.config.ts.
 	 */
 	import { cardImage } from '$lib/catalogue';
 	import { cn } from '$lib/utils';
@@ -36,6 +41,7 @@
 	<img
 		{src}
 		alt={card.name}
+		crossorigin="anonymous"
 		loading={eager ? 'eager' : 'lazy'}
 		decoding="async"
 		onerror={() => (failed = true)}

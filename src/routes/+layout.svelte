@@ -8,6 +8,7 @@
 	import { store } from '$lib/store.svelte';
 	import { sync } from '$lib/sync/engine.svelte';
 	import { install } from '$lib/pwa/install.svelte';
+	import { dropRetiredCaches } from '$lib/pwa/caches';
 
 	let { children } = $props();
 
@@ -16,6 +17,9 @@
 	// re-run the effect — the handler reads sync status, which must not retrigger it.
 	onMount(() => {
 		void sync.start();
+		// Reclaim the space held by caches this build stopped using. Not awaited: nothing
+		// on the page depends on it.
+		void dropRetiredCaches(globalThis.caches);
 		// Catch Chromium's deferred install prompt so the app can offer its own button.
 		return install.listen();
 	});

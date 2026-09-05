@@ -13,6 +13,9 @@
 	 * aspect ratio. Percentage max-height alone is not enough: mobile Safari ignores it
 	 * on a flex item while the image is still loading, and the logo then paints at its
 	 * natural size over whatever is below.
+	 *
+	 * `crossorigin` keeps the service worker able to see a real status for these; see
+	 * the assets.tcgdex.net rule in vite.config.ts.
 	 */
 	import type { Snippet } from 'svelte';
 	import { setAsset } from '$lib/catalogue';
@@ -45,6 +48,7 @@
 	<img
 		{src}
 		alt={set.name}
+		crossorigin="anonymous"
 		loading="lazy"
 		onerror={() => (attempt += 1)}
 		class={cn(
