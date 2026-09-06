@@ -97,16 +97,22 @@ Three ways, all ending in the same collection:
 A lot is a batch of cards acquired together — an eBay bulk buy, a booster box, a trade.
 Every card row belongs to exactly one lot (or to **Unsorted**), so the collection is always
 the sum of its lots and a lot page shows exactly what came in it. Add cards straight into a
-lot with quick add, move copies between lots from a lot's **List & move** tab, and filter the
-Collection page by lot. Deleting a lot asks whether its cards should go to Unsorted or be
-removed too.
+lot with quick add, move copies between lots from a lot's **List & move** tab or from any
+card's **Across your lots** panel (open a card anywhere, set how many copies and pick the lot
+they go to — including a brand-new one), and filter the Collection page by lot. Deleting a
+lot asks whether its cards should go to Unsorted or be removed too.
 
 Lots live in folders of their own, nested as deep as you like and separate from the deck
 folders. The Lots page shows one folder at a time with a breadcrumb; **New folder** and
 **New lot** create inside the folder you are looking at, a folder card counts the lots and
-cards anywhere beneath it, and the ⋯ menu offers Rename, Move to… and Delete (deleting a
-folder moves its lots and sub-folders up a level — no lot is ever lost with it). A lot's own
-page has a **Folder** picker, so it can be filed while you are looking at what is in it.
+cards anywhere beneath it, and the ⋯ menu offers Rename, Edit description (free text shown
+on the card), Customize, Move to… and Delete (deleting a folder moves its lots and
+sub-folders up a level — no lot is ever lost with it). Customize gives a folder a colour and
+an emoji, which front its card; lots take the same in the New lot dialog and on their own
+page, and the emoji rides along in lot pickers and the lot's title. Tapping anywhere on a folder or lot card opens it. The
+search box above the cards looks through every folder and lot at once — names, notes,
+descriptions and the folder path — and shows where each match is filed. A lot's own page has
+a **Folder** picker, so it can be filed while you are looking at what is in it.
 
 ## Wants
 

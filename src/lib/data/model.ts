@@ -8,6 +8,8 @@
  */
 import type { CardVariant } from '$lib/types';
 
+import type { AppearanceColor } from './appearance';
+
 export type CollectionEntry = {
 	cardId: string;
 	variant: CardVariant;
@@ -17,8 +19,18 @@ export type CollectionEntry = {
 	updatedAt: string;
 };
 
+/**
+ * The look a lot or folder shows on its card: a palette colour and an emoji, either of
+ * them optional. See appearance.ts for the palette.
+ */
+export type Appearance = {
+	color: AppearanceColor | null;
+	/** One emoji (or any single character); null shows the default icon. */
+	icon: string | null;
+};
+
 /** A batch of cards acquired together — "july.2 lot", "Christmas booster box". */
-export type Lot = {
+export type Lot = Appearance & {
 	id: string;
 	name: string;
 	note: string | null;
@@ -81,9 +93,11 @@ export type TradeEntry = {
  * A node in a folder tree. Decks and lots each have their own tree — a deck never lands
  * in a lot folder — but the shape and the helpers in folders.ts are shared.
  */
-export type Folder = {
+export type Folder = Appearance & {
 	id: string;
 	name: string;
+	/** Free text shown on the folder's card — what the folder is for. */
+	description: string | null;
 	/** `null` at the root. Folders nest arbitrarily. */
 	parentId: string | null;
 	createdAt: string;

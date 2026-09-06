@@ -4,6 +4,7 @@
  * fields get defaults, and nothing here throws.
  */
 import { CARD_VARIANTS, type CardVariant } from '$lib/types';
+import { isAppearanceColor, normalizeIcon } from './appearance';
 import {
 	rowKey,
 	SENTINEL,
@@ -13,6 +14,7 @@ import {
 	type CollectionEntry,
 	type Deck,
 	type DeckCard,
+	type Appearance,
 	type Folder,
 	type Format,
 	type Lot,
@@ -140,6 +142,7 @@ function toLot(value: unknown): Lot | null {
 	return {
 		id: value.id,
 		name: str(value.name, 'Untitled lot'),
+		...toAppearance(value),
 		note: strOrNull(value.note),
 		acquiredOn: strOrNull(value.acquiredOn),
 		folderId: strOrNull(value.folderId),
@@ -148,11 +151,21 @@ function toLot(value: unknown): Lot | null {
 	};
 }
 
+/** A colour outside the palette (a newer version's, or a typo in a hand-edited file) drops to none. */
+function toAppearance(value: Record<string, unknown>): Appearance {
+	return {
+		color: isAppearanceColor(value.color) ? value.color : null,
+		icon: normalizeIcon(strOrNull(value.icon))
+	};
+}
+
 function toFolder(value: unknown): Folder | null {
 	if (!isDict(value) || typeof value.id !== 'string') return null;
 	return {
 		id: value.id,
 		name: str(value.name, 'Untitled folder'),
+		...toAppearance(value),
+		description: strOrNull(value.description),
 		parentId: strOrNull(value.parentId),
 		createdAt: stamp(value.createdAt),
 		updatedAt: stamp(value.updatedAt)

@@ -11,6 +11,7 @@
 	import QuickAddBar from '$lib/components/QuickAddBar.svelte';
 	import LotPicker from '$lib/components/LotPicker.svelte';
 	import FolderPicker from '$lib/components/FolderPicker.svelte';
+	import AppearancePicker from '$lib/components/AppearancePicker.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -25,6 +26,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Check from '@lucide/svelte/icons/check';
+	import Package from '@lucide/svelte/icons/package';
 	import { rowKey, store } from '$lib/store.svelte';
 	import { prefs } from '$lib/prefs.svelte';
 	import { pickVariant } from '$lib/tcg/quick-add';
@@ -37,7 +39,7 @@
 	const lotId = $derived(page.params.id === UNSORTED ? null : page.params.id!);
 	const lot = $derived(lotId ? store.lot(lotId) : null);
 	const exists = $derived(lotId === null || Boolean(lot));
-	const title = $derived(lot?.name ?? 'Unsorted');
+	const title = $derived(lot ? (lot.icon ? `${lot.icon} ${lot.name}` : lot.name) : 'Unsorted');
 
 	let addFinish = $state<CardVariant>('normal');
 	/**
@@ -254,6 +256,17 @@
 					/>
 				</div>
 			</div>
+			<!-- Saves on every pick, like the fields above; keyed so a lot switch resets the picker. -->
+			{#key lot.id}
+				<AppearancePicker
+					color={lot.color}
+					icon={lot.icon}
+					id="lot"
+					onchange={(appearance) => store.updateLot(lot.id, appearance)}
+				>
+					{#snippet fallback()}<Package class="size-4" />{/snippet}
+				</AppearancePicker>
+			{/key}
 		{/if}
 
 		<Card.Root>

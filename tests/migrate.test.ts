@@ -39,17 +39,19 @@ describe('migrate', () => {
 			collection: [
 				{ cardId: 'me01-021', variant: 'normal', quantity: 1, lotId: 'lot1', updatedAt: '2026-02-01T00:00:00.000Z' }
 			],
-			lots: [{ id: 'lot1', name: 'july.2 lot', folderId: 'lf1' }],
-			lotFolders: [{ id: 'lf1', name: 'eBay' }],
-			folders: [{ id: 'f1', name: 'Standard', parentId: null }],
+			lots: [{ id: 'lot1', name: 'july.2 lot', folderId: 'lf1', color: 'teal', icon: '🔥 hot' }],
+			lotFolders: [{ id: 'lf1', name: 'eBay', color: 'not-a-colour' }],
+			folders: [{ id: 'f1', name: 'Standard', parentId: null, description: 'Rotation-legal decks' }],
 			decks: [],
 			tombstones: [{ kind: 'deck', key: 'd9', deletedAt: '2026-02-02T00:00:00.000Z' }]
 		});
 
 		expect(result.collection[0].lotId).toBe('lot1');
-		expect(result.lots[0]).toMatchObject({ id: 'lot1', name: 'july.2 lot', note: null, acquiredOn: null, folderId: 'lf1' });
-		expect(result.lotFolders[0]).toMatchObject({ id: 'lf1', name: 'eBay', parentId: null });
-		expect(result.folders[0].parentId).toBeNull();
+		// The icon is cut to one character; a colour outside the palette drops to none.
+		expect(result.lots[0]).toMatchObject({ id: 'lot1', name: 'july.2 lot', note: null, acquiredOn: null, folderId: 'lf1', color: 'teal', icon: '🔥' });
+		// Folders written before descriptions and looks existed come through with none.
+		expect(result.lotFolders[0]).toMatchObject({ id: 'lf1', name: 'eBay', parentId: null, description: null, color: null, icon: null });
+		expect(result.folders[0]).toMatchObject({ parentId: null, description: 'Rotation-legal decks' });
 		expect(result.formats).toEqual([]);
 		expect(result.tombstones).toHaveLength(1);
 	});

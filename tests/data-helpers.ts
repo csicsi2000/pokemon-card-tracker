@@ -66,6 +66,8 @@ export function makeWantList(overrides: Partial<WantList> & { id: string }): Wan
 export function makeLot(overrides: Partial<Lot> & { id: string }): Lot {
 	return {
 		name: overrides.id,
+		color: null,
+		icon: null,
 		note: null,
 		acquiredOn: null,
 		folderId: null,
@@ -78,6 +80,9 @@ export function makeLot(overrides: Partial<Lot> & { id: string }): Lot {
 export function makeFolder(overrides: Partial<Folder> & { id: string }): Folder {
 	return {
 		name: overrides.id,
+		color: null,
+		icon: null,
+		description: null,
 		parentId: null,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',

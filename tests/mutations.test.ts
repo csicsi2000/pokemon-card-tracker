@@ -110,6 +110,39 @@ describe('lot folder mutations', () => {
 		expect(created.lot.folderId).toBe(folder.id);
 	});
 
+	it('lots and folders carry a colour and an emoji, both optional and both editable', () => {
+		const clock = fixedClock();
+		const plain = mutate.createLot(makeUserData(), clock, { name: 'plain' });
+		expect(plain.lot).toMatchObject({ color: null, icon: null });
+
+		const styled = mutate.createLot(plain.data, clock, { name: 'hot', color: 'red', icon: '🔥' });
+		expect(styled.lot).toMatchObject({ color: 'red', icon: '🔥' });
+
+		const recoloured = mutate.updateLot(styled.data, clock, styled.lot.id, { color: 'blue', icon: null });
+		expect(recoloured.lots[1]).toMatchObject({ color: 'blue', icon: null });
+
+		const folder = mutate.createLotFolder(recoloured, clock, 'eBay', null, { color: 'amber', icon: '🛒' });
+		expect(folder.folder).toMatchObject({ color: 'amber', icon: '🛒', description: null });
+		const restyled = mutate.updateLotFolder(folder.data, clock, folder.folder.id, { icon: '📦' });
+		expect(restyled.lotFolders[0]).toMatchObject({ color: 'amber', icon: '📦' });
+	});
+
+	it('createLotFolder keeps the description it was given; updateLotFolder can change or clear it', () => {
+		const clock = fixedClock();
+		const { data, folder } = mutate.createLotFolder(makeUserData(), clock, 'eBay', null, {
+			description: 'Bulk buys'
+		});
+		expect(folder.description).toBe('Bulk buys');
+		expect(mutate.createLotFolder(data, clock, 'Boxes', null).folder.description).toBeNull();
+
+		const edited = mutate.updateLotFolder(data, clock, folder.id, { description: 'Auctions' });
+		expect(edited.lotFolders[0]).toMatchObject({ name: 'eBay', description: 'Auctions' });
+		expect(edited.lotFolders[0].updatedAt > folder.updatedAt).toBe(true);
+
+		const cleared = mutate.updateLotFolder(edited, clock, folder.id, { description: null });
+		expect(cleared.lotFolders[0].description).toBeNull();
+	});
+
 	it('updateLot moves a lot between folders and stamps it', () => {
 		const clock = fixedClock();
 		const start = makeUserData({

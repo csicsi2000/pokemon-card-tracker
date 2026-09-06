@@ -11,6 +11,7 @@
 import type { CardVariant } from '$lib/types';
 import type { Clock } from './clock';
 import { isDescendant } from './folders';
+import type { AppearanceColor } from './appearance';
 import { dedupeRows, dedupeTrades, dedupeWants } from './migrate';
 import {
 	emptyData,
@@ -21,6 +22,7 @@ import {
 	type CollectionEntry,
 	type Deck,
 	type DeckFolder,
+	type Folder,
 	type Format,
 	type FormatPoolCard,
 	type Lot,
@@ -412,12 +414,16 @@ export function createLot(
 		note?: string | null;
 		acquiredOn?: string | null;
 		folderId?: string | null;
+		color?: AppearanceColor | null;
+		icon?: string | null;
 	}
 ): { data: UserData; lot: Lot } {
 	const now = clock.next();
 	const lot: Lot = {
 		id: newId(),
 		name: input.name,
+		color: input.color ?? null,
+		icon: input.icon ?? null,
 		note: input.note ?? null,
 		acquiredOn: input.acquiredOn ?? null,
 		folderId: input.folderId ?? null,
@@ -472,23 +478,39 @@ export function deleteLot(
 
 // -- lot folders ------------------------------------------------------------
 
+/** Optional fields a folder can be created with, beyond its name and parent. */
+export type FolderExtras = Partial<Pick<Folder, 'description' | 'color' | 'icon'>>;
+/** Everything about a folder that can change after creation. */
+export type FolderChanges = Partial<Omit<Folder, 'id' | 'createdAt' | 'updatedAt'>>;
+
+
 export function createLotFolder(
 	data: UserData,
 	clock: Clock,
 	name: string,
-	parentId: string | null
+	parentId: string | null,
+	extra: FolderExtras = {}
 ): { data: UserData; folder: LotFolder } {
 	const now = clock.next();
-	const folder: LotFolder = { id: newId(), name, parentId, createdAt: now, updatedAt: now };
+	const folder: LotFolder = {
+		id: newId(),
+		name,
+		description: extra.description ?? null,
+		color: extra.color ?? null,
+		icon: extra.icon ?? null,
+		parentId,
+		createdAt: now,
+		updatedAt: now
+	};
 	return { data: { ...data, lotFolders: [...data.lotFolders, folder] }, folder };
 }
 
-/** Rename or move a lot folder. Moving one into itself or a descendant is ignored. */
+/** Rename, describe, restyle or move a lot folder. Moving one into itself or a descendant is ignored. */
 export function updateLotFolder(
 	data: UserData,
 	clock: Clock,
 	id: string,
-	changes: Partial<Pick<LotFolder, 'name' | 'parentId'>>
+	changes: FolderChanges
 ): UserData {
 	if (changes.parentId !== undefined && changes.parentId !== null) {
 		if (isDescendant(data.lotFolders, changes.parentId, id)) return data;
@@ -527,19 +549,29 @@ export function createFolder(
 	data: UserData,
 	clock: Clock,
 	name: string,
-	parentId: string | null
+	parentId: string | null,
+	extra: FolderExtras = {}
 ): { data: UserData; folder: DeckFolder } {
 	const now = clock.next();
-	const folder: DeckFolder = { id: newId(), name, parentId, createdAt: now, updatedAt: now };
+	const folder: DeckFolder = {
+		id: newId(),
+		name,
+		description: extra.description ?? null,
+		color: extra.color ?? null,
+		icon: extra.icon ?? null,
+		parentId,
+		createdAt: now,
+		updatedAt: now
+	};
 	return { data: { ...data, folders: [...data.folders, folder] }, folder };
 }
 
-/** Rename or move a folder. Moving a folder into itself or a descendant is ignored. */
+/** Rename, describe, restyle or move a folder. Moving a folder into itself or a descendant is ignored. */
 export function updateFolder(
 	data: UserData,
 	clock: Clock,
 	id: string,
-	changes: Partial<Pick<DeckFolder, 'name' | 'parentId'>>
+	changes: FolderChanges
 ): UserData {
 	if (changes.parentId !== undefined && changes.parentId !== null) {
 		if (isDescendant(data.folders, changes.parentId, id)) return data;

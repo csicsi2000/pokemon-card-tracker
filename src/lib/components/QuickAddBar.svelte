@@ -88,7 +88,12 @@
 			rows={multiline ? 5 : 1}
 			placeholder={hint}
 			aria-label="Quick add by set code and number"
-			class="min-h-9 resize-none pl-9 font-mono text-sm"
+			class={cn(
+				'min-h-9 resize-none pl-9 font-mono text-sm',
+				// One line sits in a row with 36px inputs and pickers, so it takes their exact
+				// height and pill shape; a pasted list grows into a regular rounded box.
+				multiline ? 'rounded-xl py-3' : 'h-9 rounded-4xl py-[7px]'
+			)}
 			spellcheck={false}
 		/>
 	</div>

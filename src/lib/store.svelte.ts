@@ -243,12 +243,7 @@ class Store {
 		return this.#data.collection.filter((row) => row.lotId === lotId);
 	}
 
-	createLot(input: {
-		name: string;
-		note?: string | null;
-		acquiredOn?: string | null;
-		folderId?: string | null;
-	}): Lot {
+	createLot(input: Parameters<typeof mutate.createLot>[2]): Lot {
 		const { data, lot } = mutate.createLot(this.#data, this.clock, input);
 		this.#commit(data);
 		return lot;
@@ -273,13 +268,17 @@ class Store {
 		return this.#data.lotFolders.find((folder) => folder.id === id);
 	}
 
-	createLotFolder(name: string, parentId: string | null = null): LotFolder {
-		const { data, folder } = mutate.createLotFolder(this.#data, this.clock, name, parentId);
+	createLotFolder(
+		name: string,
+		parentId: string | null = null,
+		extra: mutate.FolderExtras = {}
+	): LotFolder {
+		const { data, folder } = mutate.createLotFolder(this.#data, this.clock, name, parentId, extra);
 		this.#commit(data);
 		return folder;
 	}
 
-	updateLotFolder(id: string, changes: Partial<Pick<LotFolder, 'name' | 'parentId'>>) {
+	updateLotFolder(id: string, changes: mutate.FolderChanges) {
 		this.#commit(mutate.updateLotFolder(this.#data, this.clock, id, changes));
 	}
 
@@ -299,7 +298,7 @@ class Store {
 		return folder;
 	}
 
-	updateFolder(id: string, changes: Partial<Pick<DeckFolder, 'name' | 'parentId'>>) {
+	updateFolder(id: string, changes: mutate.FolderChanges) {
 		this.#commit(mutate.updateFolder(this.#data, this.clock, id, changes));
 	}
 

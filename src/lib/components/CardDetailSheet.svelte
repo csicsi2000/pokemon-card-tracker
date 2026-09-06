@@ -12,6 +12,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Input } from '$lib/components/ui/input';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { toast } from 'svelte-sonner';
@@ -21,6 +22,7 @@
 	import Heart from '@lucide/svelte/icons/heart';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Brush from '@lucide/svelte/icons/brush';
+	import Package from '@lucide/svelte/icons/package';
 	import Shield from '@lucide/svelte/icons/shield';
 	import Footprints from '@lucide/svelte/icons/footprints';
 	import X from '@lucide/svelte/icons/x';
@@ -29,7 +31,7 @@
 	import LotPicker from './LotPicker.svelte';
 	import { loadCardText, loadPrices, formatPrice, type CardText, type MarketPrice } from '$lib/card-details';
 	import { prefs } from '$lib/prefs.svelte';
-	import { store } from '$lib/store.svelte';
+	import { rowKey, store } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
 	import { sortVariants, VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
 
@@ -51,18 +53,57 @@
 	});
 	const targetLotId = $derived(targetLot === '' ? null : targetLot);
 
-	/** How the copies are spread across lots, for the breakdown under the counters. */
-	const byLot = $derived.by(() => {
+	/**
+	 * Where the copies sit: one line per lot and finish — the same rows the collection
+	 * stores, which is what a move has to act on. Doubles as the breakdown under the
+	 * counters and as the source list for "move to another lot".
+	 */
+	const lotRows = $derived.by(() => {
 		if (!card) return [];
-		const totals = new Map<string | null, number>();
-		for (const row of store.collection) {
-			if (row.cardId !== card.id) continue;
-			totals.set(row.lotId, (totals.get(row.lotId) ?? 0) + row.quantity);
-		}
-		return [...totals]
-			.map(([id, quantity]) => ({ id, name: id ? (store.lot(id)?.name ?? 'Unknown lot') : 'Unsorted', quantity }))
-			.sort((a, b) => a.name.localeCompare(b.name));
+		return store.collection
+			.filter((row) => row.cardId === card!.id)
+			.map((row) => ({
+				key: rowKey(row),
+				lotId: row.lotId,
+				lot: row.lotId ?? '',
+				variant: row.variant,
+				quantity: row.quantity,
+				name: row.lotId ? (store.lot(row.lotId)?.name ?? 'Unknown lot') : 'Unsorted',
+				icon: row.lotId ? (store.lot(row.lotId)?.icon ?? null) : null
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name) || a.variant.localeCompare(b.variant));
 	});
+
+	/** Per-row "how many to move", keyed by row key. Unset means every copy. */
+	let moveCount = $state<Record<string, number>>({});
+
+	// A fresh printing (or a reopened sheet) starts from "move them all" again.
+	$effect(() => {
+		void card?.id;
+		void open;
+		moveCount = {};
+	});
+
+	function moveTo(row: (typeof lotRows)[number], target: string) {
+		const toLotId = target === '' ? null : target;
+		if (toLotId === row.lotId) return;
+
+		// An emptied or half-typed box means "all of them" rather than a broken quantity.
+		const typed = moveCount[row.key];
+		const wanted = Number.isFinite(typed) ? Math.floor(typed) : row.quantity;
+		const quantity = Math.min(Math.max(wanted, 1), row.quantity);
+		try {
+			store.moveOwned(row.key, toLotId, quantity);
+			const name = toLotId ? (store.lot(toLotId)?.name ?? 'that lot') : 'Unsorted';
+			toast.success(`Moved ${quantity}× ${card?.name} (${VARIANT_LABELS[row.variant]}) to ${name}`);
+			// The counters follow the cards, so the next +/- lands where they went, and the
+			// boxes go back to "all of them" — a partial move left the old number too high.
+			targetLot = target;
+			moveCount = {};
+		} catch (error) {
+			toast.error((error as Error).message);
+		}
+	}
 
 	let text = $state<CardText | null>(null);
 	let prices = $state<MarketPrice[] | null>(null);
@@ -366,16 +407,75 @@
 			</div>
 		{/if}
 
-		{#if byLot.length > 1 || (byLot.length === 1 && byLot[0].id !== targetLotId)}
-			<div class="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs">
-				{#each byLot as lot (lot.id ?? '')}
-					<button
-						type="button"
-						class="hover:text-foreground underline-offset-2 hover:underline"
-						onclick={() => (targetLot = lot.id ?? '')}
-					>
-						{lot.name}: {lot.quantity}
-					</button>
+		<!-- Where the copies sit, and the one control that shifts them: pick another lot
+		     on a line and that many copies move there (store.moveOwned). -->
+		{#if lotRows.length > 0}
+			<Separator />
+
+			<div class="flex flex-col gap-2">
+				<h3 class="text-sm font-medium">
+					Across your lots
+					<span class="text-muted-foreground text-xs font-normal">
+						— pick another lot to move copies there
+					</span>
+				</h3>
+
+				{#each lotRows as row, index (row.key)}
+					<!-- The picker drops to its own line on a phone rather than squeezing the lot
+					     name, so a rule keeps the two-line rows apart. -->
+					<div class={cn('flex flex-wrap items-center gap-2', index > 0 && 'border-t pt-2')}>
+						<button
+							type="button"
+							class="min-w-0 flex-1 text-left"
+							title="Count into {row.name}"
+							aria-label="Count into {row.name}"
+							onclick={() => (targetLot = row.lot)}
+						>
+							<p class="flex items-center gap-1.5">
+								{#if row.icon}
+									<span class="shrink-0 text-sm leading-none">{row.icon}</span>
+								{:else}
+									<Package class="text-muted-foreground size-3.5 shrink-0" />
+								{/if}
+								<span
+									class={cn(
+										'truncate text-sm underline-offset-2 hover:underline',
+										row.lotId === targetLotId && 'font-medium'
+									)}
+								>
+									{row.name}
+								</span>
+							</p>
+							<p class="text-muted-foreground truncate text-xs">{VARIANT_LABELS[row.variant]}</p>
+						</button>
+
+						<!-- How many of this line's copies to take. All of them unless told otherwise. -->
+						{#if row.quantity > 1}
+							<Input
+								type="number"
+								min="1"
+								max={row.quantity}
+								value={moveCount[row.key] ?? row.quantity}
+								class="h-8 w-14 px-2 text-center tabular-nums"
+								aria-label="Copies of {VARIANT_LABELS[row.variant]} to move out of {row.name}"
+								oninput={(event) =>
+									(moveCount[row.key] = Math.min(
+										Math.max(Math.floor(event.currentTarget.valueAsNumber), 1),
+										row.quantity
+									))}
+							/>
+						{:else}
+							<span class="w-14 text-center text-sm font-semibold tabular-nums">1</span>
+						{/if}
+
+						<LotPicker
+							value={row.lot}
+							allowCreate
+							size="sm"
+							class="w-full shrink-0 sm:w-32"
+							onchange={(target) => moveTo(row, target)}
+						/>
+					</div>
 				{/each}
 			</div>
 		{/if}

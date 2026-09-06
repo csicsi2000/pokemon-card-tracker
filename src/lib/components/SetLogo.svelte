@@ -15,11 +15,12 @@
 	 * natural size over whatever is below.
 	 *
 	 * `crossorigin` keeps the service worker able to see a real status for these; see
-	 * the assets.tcgdex.net rule in vite.config.ts.
+	 * the assets.tcgdex.net rule in vite.config.ts. A failed load climbs the same retry
+	 * ladder as card art (pwa/art.ts) before moving on to the next candidate URL.
 	 */
 	import type { Snippet } from 'svelte';
 	import { setAsset } from '$lib/catalogue';
-	import { healArtwork } from '$lib/pwa/art';
+	import { HEAL_DELAYS_MS, healArtwork } from '$lib/pwa/art';
 	import { cn } from '$lib/utils';
 	import type { CardSet } from '$lib/types';
 
@@ -41,27 +42,30 @@
 		void candidates;
 		attempt = 0;
 		retry = 0;
-		healed = new Set();
+		tries = new Map();
 	});
 
 	const src = $derived(candidates[attempt] ?? null);
 
-	/** Candidates already re-fetched past the HTTP cache once (see pwa/art.ts). */
-	let healed = new Set<string>();
+	/** Heals already spent per candidate URL; indexes the delay ladder. */
+	let tries = new Map<string, number>();
 	/** Bumped after a successful heal so the <img> is re-created and asks again. */
 	let retry = $state(0);
 
 	async function onerror() {
 		const url = src;
-		if (!url || healed.has(url)) {
-			attempt += 1; // second failure for this URL: on to the next candidate
-			return;
+		if (!url) return;
+		while ((tries.get(url) ?? 0) < HEAL_DELAYS_MS.length) {
+			const rung = tries.get(url) ?? 0;
+			tries.set(url, rung + 1);
+			const ok = await healArtwork(url, {}, rung);
+			if (src !== url) return;
+			if (ok) {
+				retry += 1; // re-mount; if that load fails too, onerror resumes the ladder
+				return;
+			}
 		}
-		healed.add(url);
-		const ok = await healArtwork(url);
-		if (src !== url) return;
-		if (ok) retry += 1;
-		else attempt += 1;
+		attempt += 1; // ladder exhausted for this URL: on to the next candidate
 	}
 </script>
 

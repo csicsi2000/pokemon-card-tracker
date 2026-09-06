@@ -28,10 +28,15 @@
 
 	const lots = $derived([...store.lots].sort((a, b) => a.name.localeCompare(b.name)));
 
+	/** "🔥 july.2 lot" — the emoji rides along so a picker reads like the card does. */
+	const nameOf = (lot: { name: string; icon: string | null }) =>
+		lot.icon ? `${lot.icon} ${lot.name}` : lot.name;
+
 	const label = $derived.by(() => {
 		if (value === '*') return 'All lots';
 		if (value === '') return 'Unsorted';
-		return store.lot(value)?.name ?? 'Unsorted';
+		const lot = store.lot(value);
+		return lot ? nameOf(lot) : 'Unsorted';
 	});
 
 	let dialogOpen = $state(false);
@@ -54,7 +59,7 @@
 		{/if}
 		<Select.Item value="">Unsorted</Select.Item>
 		{#each lots as lot (lot.id)}
-			<Select.Item value={lot.id}>{lot.name}</Select.Item>
+			<Select.Item value={lot.id}>{nameOf(lot)}</Select.Item>
 		{/each}
 		{#if allowCreate}
 			<Select.Item value="+">+ New lot…</Select.Item>

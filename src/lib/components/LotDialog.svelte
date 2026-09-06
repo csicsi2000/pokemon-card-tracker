@@ -8,8 +8,11 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import Package from '@lucide/svelte/icons/package';
+	import AppearancePicker from './AppearancePicker.svelte';
 	import { store } from '$lib/store.svelte';
 	import type { Lot } from '$lib/data/model';
+	import type { AppearanceColor } from '$lib/data/appearance';
 
 	let {
 		open = $bindable(false),
@@ -28,6 +31,8 @@
 	let name = $state('');
 	let acquiredOn = $state(today());
 	let note = $state('');
+	let color = $state<AppearanceColor | null>(null);
+	let icon = $state<string | null>(null);
 
 	// Every opening starts from a clean form, with today's date pre-filled.
 	$effect(() => {
@@ -35,6 +40,8 @@
 			name = '';
 			acquiredOn = today();
 			note = '';
+			color = null;
+			icon = null;
 		}
 	});
 
@@ -44,7 +51,9 @@
 			name: name.trim() || 'New lot',
 			acquiredOn: acquiredOn || null,
 			note: note.trim() || null,
-			folderId
+			folderId,
+			color,
+			icon
 		});
 		open = false;
 		oncreate?.(lot);
@@ -74,6 +83,9 @@
 				<Label for="lot-note">Note</Label>
 				<Input id="lot-note" bind:value={note} placeholder="eBay bulk lot, 300 cards, CHF 45" />
 			</div>
+			<AppearancePicker bind:color bind:icon id="new-lot">
+				{#snippet fallback()}<Package class="size-4" />{/snippet}
+			</AppearancePicker>
 			<Dialog.Footer>
 				<Button type="submit">Create</Button>
 			</Dialog.Footer>
