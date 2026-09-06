@@ -22,11 +22,21 @@ export const WANT_VIEW_LABELS: Record<WantView, string> = {
 	compact: 'Compact'
 };
 
+/** How a deck's cards are drawn: rows you can edit, or the art laid out like a binder page. */
+export type DeckView = 'list' | 'grid';
+
+export const DECK_VIEW_LABELS: Record<DeckView, string> = {
+	list: 'List',
+	grid: 'Grid'
+};
+
 const STORAGE_KEY = 'cardex:prefs:v1';
 
 type Preferences = {
 	cardView: CardView;
 	wantView: WantView;
+	/** How the cards in a deck are drawn. */
+	deckView: DeckView;
 	/** Wants list last looked at: '' the default list, '*' all of them, else an id. */
 	wantList: string;
 	/** How the trade binder is drawn; the same three views as wants. */
@@ -41,6 +51,7 @@ type Preferences = {
 const defaults = (): Preferences => ({
 	cardView: 'side',
 	wantView: 'detailed',
+	deckView: 'list',
 	wantList: '*',
 	tradeView: 'detailed',
 	lotAddSets: {}
@@ -66,6 +77,13 @@ class Prefs {
 	}
 	set wantView(value: WantView) {
 		this.#commit({ ...this.#values, wantView: value });
+	}
+
+	get deckView() {
+		return this.#values.deckView;
+	}
+	set deckView(value: DeckView) {
+		this.#commit({ ...this.#values, deckView: value });
 	}
 
 	get wantList() {

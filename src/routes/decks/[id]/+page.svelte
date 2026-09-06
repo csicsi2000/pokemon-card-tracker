@@ -17,10 +17,17 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Copy from '@lucide/svelte/icons/copy';
 	import Check from '@lucide/svelte/icons/check';
+	import Heart from '@lucide/svelte/icons/heart';
+	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
+	import List from '@lucide/svelte/icons/list';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
 	import CardImage from '$lib/components/CardImage.svelte';
+	import CardTile from '$lib/components/CardTile.svelte';
+	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
+	import ResolveMissing, { wantMissing } from '$lib/components/ResolveMissing.svelte';
 	import { folderPath } from '$lib/data/folders';
+	import { prefs, DECK_VIEW_LABELS, type DeckView } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { parseRules } from '$lib/tcg/format-rules';
 	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
@@ -106,6 +113,28 @@
 	}
 
 	const add = (card: CardType) => adjust(card.id, 1);
+
+	const VIEW_ICONS: Record<DeckView, typeof List> = { list: List, grid: LayoutGrid };
+
+	let selected = $state<CardType | null>(null);
+	let sheetOpen = $state(false);
+
+	/** The card sheet is the long way to fix a shortfall: any finish, any lot, wants too. */
+	function open(card: CardType) {
+		selected = card;
+		sheetOpen = true;
+	}
+
+	/** The whole buylist onto the wants list in one go, skipping what is already on it. */
+	function wantEverythingMissing() {
+		try {
+			const added = buylist.rows.filter((row) => wantMissing(row.suggestion, row.missing)).length;
+			if (added === 0) toast.info('Everything missing is already on your wants list');
+			else toast.success(`${added} card${added === 1 ? '' : 's'} added to your wants list`);
+		} catch (error) {
+			toast.error((error as Error).message);
+		}
+	}
 
 	async function copy(text: string, label: string) {
 		try {
@@ -213,64 +242,171 @@
 							Empty deck — search under “Add cards” to fill it.
 						</p>
 					{:else}
-						<p class="text-muted-foreground px-1.5 text-xs">
-							{Math.round(buylist.coverage * 100)}% owned · counts show owned / needed, any printing
-						</p>
-					{/if}
+						<div class="flex flex-wrap items-center gap-2 px-1.5">
+							<p class="text-muted-foreground text-xs">
+								{Math.round(buylist.coverage * 100)}% owned · counts show owned / needed, any printing
+							</p>
 
-					{#each entries as entry (entry.card.id)}
-						{@const owned = ownedByName.get(entry.card.nameNormalized) ?? 0}
-						{@const short = owned < entry.quantity}
-						<div
-							animate:flip={{ duration: 200 }}
-							in:fly|global={{ y: 6, duration: 160 }}
-							class={cn(
-								'hover:bg-accent/50 flex items-center gap-3 rounded-lg p-1.5 transition-colors',
-								short && 'bg-destructive/5'
-							)}
-						>
-							<CardImage card={entry.card} class="h-11 w-8 shrink-0 rounded" />
-
-							<div class="min-w-0 flex-1">
-								<p class="truncate text-sm font-medium">{entry.card.name}</p>
-								<p class="text-muted-foreground truncate text-xs">
-									{entry.card.set.ptcglCode ?? entry.card.set.id} · #{entry.card.localId}
-								</p>
-							</div>
-
-							<Badge
-								variant={short ? 'destructive' : 'outline'}
-								class="shrink-0 tabular-nums"
-								title={short ? `${entry.quantity - owned} missing` : 'You own enough'}
-							>
-								{Math.min(owned, entry.quantity)}/{entry.quantity}
-							</Badge>
-
-							<div class="flex items-center gap-1">
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-7"
-									aria-label="Remove one"
-									onclick={() => adjust(entry.card.id, -1)}
-								>
-									<Minus class="size-3" />
-								</Button>
-								<span class="w-6 text-center text-sm font-semibold tabular-nums">
-									{entry.quantity}
-								</span>
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-7"
-									aria-label="Add one"
-									onclick={() => adjust(entry.card.id, 1)}
-								>
-									<Plus class="size-3" />
-								</Button>
+							<!-- Segmented view switch; the choice sticks to this browser. -->
+							<div class="bg-muted ml-auto flex gap-0.5 rounded-lg p-0.5">
+								{#each Object.entries(DECK_VIEW_LABELS) as [value, label] (value)}
+									{@const Icon = VIEW_ICONS[value as DeckView]}
+									{@const active = prefs.deckView === value}
+									<button
+										type="button"
+										onclick={() => (prefs.deckView = value as DeckView)}
+										aria-pressed={active}
+										title="{label} view"
+										class={cn(
+											'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+											active
+												? 'bg-background text-foreground shadow-sm'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+									>
+										<Icon class="size-4" />
+										<span class="max-sm:sr-only">{label}</span>
+									</button>
+								{/each}
 							</div>
 						</div>
-					{/each}
+					{/if}
+
+					{#if prefs.deckView === 'grid'}
+						<!-- Binder view: the art, with the deck's counter and the shortfall drawn on the
+						     card they belong to. The lift sits on the wrapper so the badges rise with it. -->
+						<div
+							class="grid grid-cols-3 gap-3 pt-1 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5"
+						>
+							{#each entries as entry, index (entry.card.id)}
+								{@const owned = ownedByName.get(entry.card.nameNormalized) ?? 0}
+								{@const missing = Math.max(0, entry.quantity - owned)}
+								<div
+									animate:flip={{ duration: 200 }}
+									in:fly|global={{ y: 8, duration: 200, delay: Math.min(index, 20) * 12 }}
+									class="relative transition-transform duration-200 hover:-translate-y-1"
+								>
+									<CardTile card={entry.card} />
+
+									<!-- The art opens the card sheet: every finish, every lot, wants and trades —
+									     the long way round for anything the two quick actions do not cover. -->
+									<button
+										type="button"
+										onclick={() => open(entry.card)}
+										aria-label="Details for {entry.card.name}"
+										class="focus-visible:ring-ring absolute inset-x-0 top-0 aspect-[63/88] rounded-xl outline-none focus-visible:ring-2"
+									></button>
+
+									{#if missing > 0}
+										<span
+											class="ring-destructive/70 pointer-events-none absolute inset-x-0 top-0 aspect-[63/88] rounded-xl ring-2"
+										></span>
+										<ResolveMissing
+											card={entry.card}
+											{missing}
+											compact
+											ondetails={() => open(entry.card)}
+											class="absolute top-1.5 left-1.5"
+										/>
+									{/if}
+
+									<!-- Deck counter over the foot of the art, so the grid still edits the deck. -->
+									<div
+										class="bg-background/85 absolute inset-x-1.5 bottom-11 flex items-center justify-between rounded-full p-0.5 shadow-sm backdrop-blur"
+									>
+										<Button
+											variant="ghost"
+											size="icon"
+											class="size-6 rounded-full"
+											aria-label="Remove one {entry.card.name}"
+											onclick={() => adjust(entry.card.id, -1)}
+										>
+											<Minus class="size-3" />
+										</Button>
+										<span
+											class={cn(
+												'text-xs font-semibold tabular-nums',
+												missing > 0 && 'text-destructive'
+											)}
+											title="{Math.min(owned, entry.quantity)} owned of {entry.quantity} needed"
+										>
+											{Math.min(owned, entry.quantity)}/{entry.quantity}
+										</span>
+										<Button
+											variant="ghost"
+											size="icon"
+											class="size-6 rounded-full"
+											aria-label="Add one {entry.card.name}"
+											onclick={() => adjust(entry.card.id, 1)}
+										>
+											<Plus class="size-3" />
+										</Button>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						{#each entries as entry (entry.card.id)}
+							{@const owned = ownedByName.get(entry.card.nameNormalized) ?? 0}
+							{@const missing = Math.max(0, entry.quantity - owned)}
+							<div
+								animate:flip={{ duration: 200 }}
+								in:fly|global={{ y: 6, duration: 160 }}
+								class={cn(
+									'hover:bg-accent/50 flex items-center gap-3 rounded-lg p-1.5 transition-colors',
+									missing > 0 && 'bg-destructive/5'
+								)}
+							>
+								<button
+									type="button"
+									onclick={() => open(entry.card)}
+									aria-label="Details for {entry.card.name}"
+									class="shrink-0"
+								>
+									<CardImage card={entry.card} class="h-11 w-8 rounded" />
+								</button>
+
+								<div class="min-w-0 flex-1">
+									<p class="truncate text-sm font-medium">{entry.card.name}</p>
+									<p class="text-muted-foreground truncate text-xs">
+										{entry.card.set.ptcglCode ?? entry.card.set.id} · #{entry.card.localId}
+									</p>
+								</div>
+
+								{#if missing > 0}
+									<ResolveMissing card={entry.card} {missing} ondetails={() => open(entry.card)} />
+								{:else}
+									<Badge variant="outline" class="shrink-0 tabular-nums" title="You own enough">
+										{entry.quantity}/{entry.quantity}
+									</Badge>
+								{/if}
+
+								<div class="flex items-center gap-1">
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-7"
+										aria-label="Remove one"
+										onclick={() => adjust(entry.card.id, -1)}
+									>
+										<Minus class="size-3" />
+									</Button>
+									<span class="w-6 text-center text-sm font-semibold tabular-nums">
+										{entry.quantity}
+									</span>
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-7"
+										aria-label="Add one"
+										onclick={() => adjust(entry.card.id, 1)}
+									>
+										<Plus class="size-3" />
+									</Button>
+								</div>
+							</div>
+						{/each}
+					{/if}
 				</Tabs.Content>
 
 				<Tabs.Content value="buylist" class="pt-3">
@@ -287,9 +423,14 @@
 									{buylist.totalMissing} card{buylist.totalMissing === 1 ? '' : 's'} to buy ·
 									{Math.round(buylist.coverage * 100)}% of the deck already owned
 								</p>
-								<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
-									<Copy class="size-4" /> Copy missing as list
-								</Button>
+								<div class="flex flex-wrap gap-2">
+									<Button variant="outline" size="sm" onclick={wantEverythingMissing}>
+										<Heart class="size-4" /> Add all to wants
+									</Button>
+									<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
+										<Copy class="size-4" /> Copy missing as list
+									</Button>
+								</div>
 							</div>
 							{#each buylist.rows as row (row.name)}
 								<div class="flex items-center gap-3 rounded-lg border p-2">
@@ -302,7 +443,11 @@
 												.localId}
 										</p>
 									</div>
-									<Badge variant="secondary">{row.missing}×</Badge>
+									<ResolveMissing
+										card={row.suggestion}
+										missing={row.missing}
+										ondetails={() => open(row.suggestion)}
+									/>
 								</div>
 							{/each}
 						</div>
@@ -325,3 +470,5 @@
 		</aside>
 	</div>
 {/if}
+
+<CardDetailSheet bind:card={selected} bind:open={sheetOpen} />
