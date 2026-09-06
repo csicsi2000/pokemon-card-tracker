@@ -15,30 +15,42 @@
 	import {
 		parseQuickAdd,
 		parseQuickAddLine,
+		quickAddCode,
 		resolveQuickAdd,
 		resolveQuickAddAll
 	} from '$lib/tcg/quick-add';
-	import { VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
+	import { VARIANT_LABELS, type Card, type CardSet, type CardVariant } from '$lib/types';
 	import { cn } from '$lib/utils';
 
 	let {
 		catalogue,
 		onadd,
-		placeholder = 'Quick add: MEG 21, or 3 PAL 188 rh — paste a list for many',
+		defaultSet = null,
+		placeholder,
 		class: className
 	}: {
 		catalogue: Catalogue;
 		onadd: (card: Card, quantity: number, variant: CardVariant | null) => void;
+		/** Pin a set: lines then need only the collector number ("21", "3 188 rh"). */
+		defaultSet?: CardSet | null;
 		placeholder?: string;
 		class?: string;
 	} = $props();
 
 	let text = $state('');
 
+	const options = $derived({ defaultSetCode: defaultSet ? quickAddCode(defaultSet) : null });
+	const hint = $derived(
+		placeholder ??
+			(defaultSet
+				? `Quick add: 21, or 3 188 rh — ${quickAddCode(defaultSet)} is pinned`
+				: 'Quick add: MEG 21, or 3 PAL 188 rh — paste a list for many')
+	);
+
 	const multiline = $derived(text.includes('\n'));
-	const single = $derived(!multiline && text.trim() ? parseQuickAddLine(text) : null);
+	const single = $derived(!multiline && text.trim() ? parseQuickAddLine(text, 1, options) : null);
 	const preview = $derived(single ? resolveQuickAdd(catalogue, single) : null);
-	const batch = $derived(multiline ? parseQuickAdd(text) : null);
+	const batch = $derived(multiline ? parseQuickAdd(text, options) : null);
 	const rows = $derived(batch ? resolveQuickAddAll(catalogue, batch.entries) : []);
 	const addable = $derived(rows.filter((row) => row.card));
 	const total = $derived(addable.reduce((sum, row) => sum + row.entry.quantity, 0));
@@ -74,7 +86,7 @@
 			bind:value={text}
 			{onkeydown}
 			rows={multiline ? 5 : 1}
-			{placeholder}
+			placeholder={hint}
 			aria-label="Quick add by set code and number"
 			class="min-h-9 resize-none pl-9 font-mono text-sm"
 			spellcheck={false}
@@ -101,7 +113,12 @@
 		</div>
 	{:else if text.trim() && !multiline}
 		<p class="text-muted-foreground px-1 text-xs">
-			Type a set code and number, like <span class="font-mono">MEG 21</span>.
+			{#if defaultSet}
+				Type a collector number, like <span class="font-mono">21</span> — or a set code and
+				number to add from another set.
+			{:else}
+				Type a set code and number, like <span class="font-mono">MEG 21</span>.
+			{/if}
 		</p>
 	{/if}
 

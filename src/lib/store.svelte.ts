@@ -13,12 +13,14 @@ import { migrate } from './data/migrate';
 import {
 	emptyData,
 	rowKey,
+	tradeKey,
 	wantKey,
 	type Deck,
 	type DeckFolder,
 	type Format,
 	type Lot,
 	type LotFolder,
+	type TradeEntry,
 	type UserData,
 	type WantEntry,
 	type WantList
@@ -47,6 +49,9 @@ class Store {
 	}
 	get wantLists() {
 		return this.#data.wantLists;
+	}
+	get trades() {
+		return this.#data.trades;
 	}
 	get lots() {
 		return this.#data.lots;
@@ -170,6 +175,39 @@ class Store {
 
 	moveWant(ref: mutate.WantRef, toListId: string | null) {
 		this.#commit(mutate.moveWant(this.#data, this.clock, ref, toListId));
+	}
+
+	// -- trade binder -------------------------------------------------------
+
+	/** The binder entry for one printing and finish, if any copies are offered. */
+	trade(ref: mutate.TradeRef): TradeEntry | undefined {
+		const key = tradeKey(ref);
+		return this.#data.trades.find((trade) => tradeKey(trade) === key);
+	}
+
+	/** Copies offered of one printing across every finish. */
+	tradedTotal(cardId: string) {
+		return this.#data.trades
+			.filter((trade) => trade.cardId === cardId)
+			.reduce((sum, trade) => sum + trade.quantity, 0);
+	}
+
+	/** Absolute offered quantity; 0 takes the card out of the binder. */
+	setTrade(input: mutate.TradeInput) {
+		this.#commit(mutate.setTrade(this.#data, this.clock, input));
+	}
+
+	updateTrade(ref: mutate.TradeRef, changes: Partial<Pick<TradeEntry, 'quantity' | 'note'>>) {
+		this.#commit(mutate.updateTrade(this.#data, this.clock, ref, changes));
+	}
+
+	removeTrade(ref: mutate.TradeRef) {
+		this.#commit(mutate.removeTrade(this.#data, this.clock, ref));
+	}
+
+	/** The copies were handed over: out of the collection and off the binder entry. */
+	tradeAway(ref: mutate.TradeRef, quantity: number, lotId?: string | null) {
+		this.#commit(mutate.tradeAway(this.#data, this.clock, ref, quantity, lotId));
 	}
 
 	// -- wants lists --------------------------------------------------------
@@ -367,4 +405,4 @@ class Store {
 }
 
 export const store = new Store();
-export { rowKey, wantKey };
+export { rowKey, tradeKey, wantKey };

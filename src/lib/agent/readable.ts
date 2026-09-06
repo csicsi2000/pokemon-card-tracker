@@ -92,6 +92,20 @@ function wantRows(data: UserData, catalogue: Catalogue) {
 		);
 }
 
+/** The trade binder joined to the catalogue and to how many copies are actually owned. */
+function tradeRows(data: UserData, catalogue: Catalogue) {
+	return data.trades
+		.flatMap((trade) => {
+			const card = catalogue.byId.get(trade.cardId);
+			if (!card) return [];
+			const owned = data.collection
+				.filter((row) => row.cardId === trade.cardId && row.variant === trade.variant)
+				.reduce((sum, row) => sum + row.quantity, 0);
+			return [{ trade, card, owned }];
+		})
+		.sort((a, b) => a.card.name.localeCompare(b.card.name) || a.card.id.localeCompare(b.card.id));
+}
+
 /** Owned copies by card name — any printing counts towards a deck. */
 function ownedRows(data: UserData, catalogue: Catalogue) {
 	return data.collection.flatMap((row) => {
@@ -115,7 +129,7 @@ export function toReadableMarkdown(
 		`Generated ${options.generatedAt ?? new Date().toISOString()}. ` +
 			`${totalCards} cards, ${new Set(rows.map((r) => r.card.id)).size} printings, ` +
 			`${data.lots.length} lots, ${data.decks.length} decks, ${data.formats.length} formats, ` +
-			`${data.wants.length} wants.`
+			`${data.wants.length} wants, ${data.trades.length} printings in the trade binder.`
 	);
 	out.push('');
 	out.push(
@@ -189,6 +203,26 @@ export function toReadableMarkdown(
 			}
 			out.push('');
 		}
+	}
+
+	// -- trade binder --------------------------------------------------------
+	const trades = tradeRows(data, catalogue);
+	if (trades.length) {
+		out.push('## Trade binder');
+		out.push('');
+		out.push(
+			'Copies the owner does not need and would trade away. They are still counted in the ' +
+				'collection above; the quantity is how many are spare, "owns N" how many of that finish ' +
+				'they hold in total. Do not suggest these for decks the owner wants to keep.'
+		);
+		out.push('');
+		for (const { trade, card, owned } of trades) {
+			out.push(
+				`- ${cardLine(trade.quantity, card, trade.variant)} — owns ${owned}` +
+					(trade.note ? ` — ${trade.note}` : '')
+			);
+		}
+		out.push('');
 	}
 
 	// -- decks by folder -----------------------------------------------------
@@ -304,6 +338,13 @@ export function toReadableJson(data: UserData, catalogue: Catalogue) {
 					note: want.note,
 					...describe(card)
 				}))
+		})),
+		trades: tradeRows(data, catalogue).map(({ trade, card, owned }) => ({
+			quantity: trade.quantity,
+			owned,
+			finish: trade.variant,
+			note: trade.note,
+			...describe(card)
 		})),
 		folders: data.folders.map((folder) => ({
 			id: folder.id,

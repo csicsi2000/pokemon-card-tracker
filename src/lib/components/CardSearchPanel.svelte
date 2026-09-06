@@ -4,7 +4,7 @@
 	import CardImage from './CardImage.svelte';
 	import { searchCards, type Catalogue } from '$lib/catalogue';
 	import { parseQuickAddLine, resolveQuickAdd } from '$lib/tcg/quick-add';
-	import { lookupCardCode } from '$lib/tcg/card-query';
+	import { cardQuery, lookupCardCode } from '$lib/tcg/card-query';
 	import Search from '@lucide/svelte/icons/search';
 	import Plus from '@lucide/svelte/icons/plus';
 	import type { Card } from '$lib/types';
@@ -12,34 +12,59 @@
 	let {
 		catalogue,
 		onadd,
+		candidates = null,
+		outsideNote = 'is not one of the cards offered here',
 		placeholder = 'Search cards, or type MEG 21…'
-	}: { catalogue: Catalogue; onadd: (card: Card) => void; placeholder?: string } = $props();
+	}: {
+		catalogue: Catalogue;
+		onadd: (card: Card) => void;
+		/**
+		 * Search only these printings instead of the whole catalogue — the cards you own,
+		 * say. A "MEG 21" that resolves outside them is named but not offered.
+		 */
+		candidates?: Card[] | null;
+		/** Finishes the sentence "<card> …" for a code match outside `candidates`. */
+		outsideNote?: string;
+		placeholder?: string;
+	} = $props();
 
 	let query = $state('');
+
+	const allowed = $derived(candidates ? new Set(candidates.map((card) => card.id)) : null);
 
 	// "MEG 21" is a set code and number, not a name: resolve it to the exact printing and
 	// show it first. Name search still runs underneath in case it was a name after all.
 	// The quick-add grammar goes first because it also reads "3 MEG 21 rh"; the looser
 	// query lookup then catches the shorthand it rejects, above all "meg21" with no space.
 	const quick = $derived.by(() => {
+		let card: Card | null;
+		let note: string | null;
+
 		const entry = parseQuickAddLine(query);
 		if (entry) {
-			const resolved = resolveQuickAdd(catalogue, entry);
-			return { card: resolved.card, note: resolved.note };
+			({ card, note } = resolveQuickAdd(catalogue, entry));
+		} else {
+			const code = lookupCardCode(catalogue, query);
+			if (!code) return null;
+			card = code.cards[0] ?? null;
+			note = `${code.set.name} has no card #${code.number}`;
 		}
 
-		const code = lookupCardCode(catalogue, query);
-		if (!code) return null;
-		return {
-			card: code.cards[0] ?? null,
-			note: `${code.set.name} has no card #${code.number}`
-		};
+		if (card && allowed && !allowed.has(card.id)) {
+			return { card: null, note: `${card.name} (${card.set.ptcglCode ?? card.set.id} #${card.localId}) ${outsideNote}` };
+		}
+		return { card, note };
 	});
 
-	// The catalogue is in memory, so searching on every keystroke is cheap.
-	const results = $derived(
-		query.trim().length < 2 ? [] : searchCards(catalogue, { query: query.trim() }, 40)
-	);
+	// The catalogue is in memory, so searching on every keystroke is cheap. With a
+	// candidate list the same matcher runs over just those cards.
+	const results = $derived.by(() => {
+		const text = query.trim();
+		if (text.length < 2) return [];
+		if (!candidates) return searchCards(catalogue, { query: text }, 40);
+		const { matches } = cardQuery(catalogue, text);
+		return candidates.filter(matches).slice(0, 40);
+	});
 
 	function add(card: Card) {
 		onadd(card);

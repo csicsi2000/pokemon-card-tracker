@@ -12,6 +12,7 @@
 	import Server from '@lucide/svelte/icons/server';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import Copy from '@lucide/svelte/icons/copy';
 	import { prefs, CARD_VIEW_LABELS, type CardView } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { sync } from '$lib/sync/engine.svelte';
@@ -34,6 +35,17 @@
 	const busy = $derived(sync.status === 'connecting' || sync.status === 'syncing');
 	const standaloneIos = popupUnsupported();
 	const origin = typeof location === 'undefined' ? 'this site' : location.origin;
+	/** Where Google's silent renewal lands — must be registered on the OAuth client verbatim. */
+	const callbackUrl = `${origin}${CALLBACK_PATH}`;
+
+	async function copy(text: string, label: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toast.success(`${label} copied`);
+		} catch {
+			toast.error('Could not copy — the browser blocked clipboard access.');
+		}
+	}
 
 	const statusLabel = $derived.by(() => {
 		switch (sync.status) {
@@ -183,10 +195,37 @@
 				{/if}
 				{#if sync.provider === 'drive'}
 					<p class="text-muted-foreground">
-						Google sign-ins last about an hour. When one runs out the cloud icon turns amber and a
-						tap on <b>Reconnect</b> picks up where it left off; edits made in between are kept
+						Google sign-ins last about an hour. Cardex renews them in the background while you
+						stay signed in to Google in this browser; if that fails the cloud icon turns amber and
+						a tap on <b>Reconnect</b> picks up where it left off. Edits made in between are kept
 						locally and synced next.
 					</p>
+					{#if sync.status === 'reconnect'}
+						<div class="rounded-lg border p-3">
+							<p class="font-medium">The background renewal did not go through.</p>
+							<p class="text-muted-foreground mt-1">
+								Google only renews silently when nothing needs showing to you. Two things in the
+								Cloud console decide that. First, the Web client must list this page under
+								<b>Authorized redirect URIs</b>, exactly:
+							</p>
+							<div class="mt-2 flex flex-wrap items-center gap-2">
+								<code class="bg-muted rounded px-2 py-1 text-xs break-all">{callbackUrl}</code>
+								<Button variant="outline" size="sm" onclick={() => copy(callbackUrl, 'Redirect URI')}>
+									<Copy class="size-3.5" /> Copy
+								</Button>
+							</div>
+							<p class="text-muted-foreground mt-2">
+								Second, while the app's branding is unverified Google puts a "make sure you trust
+								this app" screen in front of every sign-in, which counts as something to show —
+								so the renewal fails even though the access was granted long ago. Publishing the
+								app (Audience page) and verifying its branding (Branding page) removes that
+								screen. The browser must also allow accounts.google.com cookies in embedded
+								frames (Safari and Firefox block them by default, Chrome only in Incognito).
+								Until all of that is in place, Reconnect once an hour is the best any site
+								without a server can do.
+							</p>
+						</div>
+					{/if}
 				{/if}
 				{#if sync.provider === 'webdav' && (showDavForm || sync.status === 'reconnect')}
 					<form class="flex flex-col gap-3" onsubmit={connectWebDav}>
@@ -274,7 +313,9 @@
 							Credentials → Create OAuth client ID → Web application. Authorized JavaScript origins:
 							your site's origin (and <span class="font-mono">http://localhost:5173</span> for dev).
 							Authorized redirect URIs: the same, followed by
-							<span class="font-mono">{CALLBACK_PATH}</span>, so the hourly refresh needs no tap.
+							<span class="font-mono">{CALLBACK_PATH}</span> — for this site that is
+							<span class="font-mono break-all">{callbackUrl}</span> — so the hourly refresh needs
+							no tap.
 						</li>
 						<li>
 							Put the client id in <span class="font-mono">.env</span> as

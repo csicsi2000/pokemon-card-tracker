@@ -131,6 +131,7 @@ async function main(argv: string[]) {
 				cards: rows.reduce((sum, row) => sum + row.quantity, 0),
 				printings: new Set(rows.map((row) => row.card.id)).size,
 				wants: ctx.data.wants.length,
+				forTrade: ctx.data.trades.length,
 				lots: ctx.data.lots.length,
 				decks: ctx.data.decks.length,
 				folders: ctx.data.folders.length,

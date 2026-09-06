@@ -5,6 +5,7 @@ import {
 	type Deck,
 	type Folder,
 	type Lot,
+	type TradeEntry,
 	type UserData,
 	type WantEntry,
 	type WantList
@@ -34,6 +35,17 @@ export function makeWant(overrides: Partial<WantEntry> & { cardId: string }): Wa
 		quantity: 1,
 		listId: null,
 		priority: 'normal',
+		note: null,
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+		...overrides
+	};
+}
+
+export function makeTrade(overrides: Partial<TradeEntry> & { cardId: string }): TradeEntry {
+	return {
+		variant: 'normal',
+		quantity: 1,
 		note: null,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',

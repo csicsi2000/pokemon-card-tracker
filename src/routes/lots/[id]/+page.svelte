@@ -26,6 +26,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Check from '@lucide/svelte/icons/check';
 	import { rowKey, store } from '$lib/store.svelte';
+	import { prefs } from '$lib/prefs.svelte';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { toPtcglText } from '$lib/tcg/exporter';
 	import { VARIANT_LABELS, type Card as CardType, type CardVariant } from '$lib/types';
@@ -39,6 +40,20 @@
 	const title = $derived(lot?.name ?? 'Unsorted');
 
 	let addFinish = $state<CardVariant>('normal');
+	/**
+	 * The set every quick-add line is assumed to be from, so a stack that is all one set
+	 * needs only the numbers typed. Remembered per lot in this browser; '' pins nothing.
+	 */
+	const lotKey = $derived(lotId ?? UNSORTED);
+	const addSetId = $derived(prefs.lotAddSet(lotKey));
+	const addSet = $derived(addSetId ? (data.catalogue.setsById.get(addSetId) ?? null) : null);
+	const setOptions = $derived([
+		{ value: '', label: 'Any set — type the code' },
+		...data.catalogue.sets.map((set) => ({
+			value: set.id,
+			label: `${set.ptcglCode ? `${set.ptcglCode} · ` : ''}${set.name}`
+		}))
+	]);
 	let selected = $state<CardType | null>(null);
 	let sheetOpen = $state(false);
 	let deleteOpen = $state(false);
@@ -245,23 +260,48 @@
 			<Card.Content class="flex flex-wrap items-end gap-3 py-4">
 				<div class="flex min-w-64 flex-1 flex-col gap-2">
 					<Label>Add to this lot</Label>
-					<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} />
+					<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} defaultSet={addSet} />
 				</div>
-				<!-- On a phone the finish picker drops under the quick add box. -->
-				<div class="flex basis-full flex-col gap-2 sm:basis-auto">
-					<Label>Finish</Label>
-					<Select.Root
-						type="single"
-						value={addFinish}
-						onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
-					>
-						<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
-						<Select.Content>
-							{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
-								<Select.Item {value}>{label}</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
+				<!-- On a phone the two pickers drop under the quick add box and share a line. -->
+				<div class="flex basis-full gap-3 sm:basis-auto">
+					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+						<Label>Set</Label>
+						<Select.Root
+							type="single"
+							value={addSetId}
+							onValueChange={(v) => prefs.setLotAddSet(lotKey, v ?? '')}
+						>
+							<Select.Trigger
+								class="w-full sm:w-56"
+								aria-label="Set for quick add"
+								title="Pin a set and type only the collector number"
+							>
+								<span class="truncate">
+									{setOptions.find((option) => option.value === addSetId)?.label ?? setOptions[0].label}
+								</span>
+							</Select.Trigger>
+							<Select.Content class="max-h-80">
+								{#each setOptions as option (option.value)}
+									<Select.Item value={option.value}>{option.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
+					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+						<Label>Finish</Label>
+						<Select.Root
+							type="single"
+							value={addFinish}
+							onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
+						>
+							<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
+							<Select.Content>
+								{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
+									<Select.Item {value}>{label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
 				</div>
 			</Card.Content>
 		</Card.Root>

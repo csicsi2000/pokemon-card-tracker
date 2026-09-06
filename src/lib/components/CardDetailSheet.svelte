@@ -19,6 +19,7 @@
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Heart from '@lucide/svelte/icons/heart';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Brush from '@lucide/svelte/icons/brush';
 	import Shield from '@lucide/svelte/icons/shield';
 	import Footprints from '@lucide/svelte/icons/footprints';
@@ -113,6 +114,21 @@
 
 	const ownedTotal = $derived(card ? store.ownedTotal(card.id) : 0);
 	const wantedTotal = $derived(card ? store.wantedTotal(card.id) : 0);
+	const tradedTotal = $derived(card ? store.tradedTotal(card.id) : 0);
+
+	/**
+	 * The arrows are the same kind of shortcut for the trade binder: one spare copy of
+	 * this finish offered, or the entry taken out again. How many is for the binder page.
+	 */
+	function toggleTrade(variant: CardVariant) {
+		if (!card) return;
+		try {
+			if (store.trade({ cardId: card.id, variant })) store.removeTrade({ cardId: card.id, variant });
+			else store.setTrade({ cardId: card.id, variant, quantity: 1 });
+		} catch (error) {
+			toast.error((error as Error).message);
+		}
+	}
 
 	/**
 	 * The heart is a shortcut: one copy of this finish on, or off, the default wants
@@ -287,18 +303,29 @@
 		{#each variants as variant (variant)}
 			{@const owned = store.ownedOf(card.id, variant, targetLotId)}
 			{@const wanted = store.want({ cardId: card.id, variant })?.quantity ?? 0}
+			{@const offered = store.trade({ cardId: card.id, variant })?.quantity ?? 0}
 			<div class="flex items-center justify-between gap-3">
 				<span class="text-sm">{VARIANT_LABELS[variant]}</span>
 				<div class="flex items-center gap-1">
 					<Button
 						variant="ghost"
 						size="icon"
-						class={cn('mr-1 size-8', wanted > 0 && 'text-primary')}
+						class={cn('size-8', wanted > 0 && 'text-primary')}
 						onclick={() => toggleWant(variant)}
 						title={wanted > 0 ? `On your wants list (${wanted})` : 'Add to your wants list'}
 						aria-label={`${wanted > 0 ? 'Remove' : 'Add'} ${VARIANT_LABELS[variant]} ${wanted > 0 ? 'from' : 'to'} wants`}
 					>
 						<Heart class={cn('size-3.5', wanted > 0 && 'fill-current')} />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						class={cn('mr-1 size-8', offered > 0 && 'text-primary')}
+						onclick={() => toggleTrade(variant)}
+						title={offered > 0 ? `In your trade binder (${offered})` : 'Offer a spare copy for trade'}
+						aria-label={`${offered > 0 ? 'Remove' : 'Add'} ${VARIANT_LABELS[variant]} ${offered > 0 ? 'from' : 'to'} the trade binder`}
+					>
+						<ArrowLeftRight class={cn('size-3.5', offered > 0 && 'stroke-[2.5]')} />
 					</Button>
 					<Button
 						variant="outline"
@@ -324,13 +351,19 @@
 			</div>
 		{/each}
 
-		{#if wantedTotal > 0}
-			<a
-				href="{base}/wants"
-				class="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
-			>
-				{wantedTotal} on your wants list
-			</a>
+		{#if wantedTotal > 0 || tradedTotal > 0}
+			<div class="text-muted-foreground flex flex-wrap gap-x-3 text-xs">
+				{#if wantedTotal > 0}
+					<a href="{base}/wants" class="hover:text-foreground underline-offset-2 hover:underline">
+						{wantedTotal} on your wants list
+					</a>
+				{/if}
+				{#if tradedTotal > 0}
+					<a href="{base}/trades" class="hover:text-foreground underline-offset-2 hover:underline">
+						{tradedTotal} in your trade binder
+					</a>
+				{/if}
+			</div>
 		{/if}
 
 		{#if byLot.length > 1 || (byLot.length === 1 && byLot[0].id !== targetLotId)}

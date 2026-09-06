@@ -63,6 +63,21 @@ export type WantEntry = {
 };
 
 /**
+ * A card the user would trade away: one printing, one finish, how many copies are up for
+ * grabs. The copies themselves stay in the collection (and in their lots) until they
+ * actually change hands; this only marks them as spare.
+ */
+export type TradeEntry = {
+	cardId: string;
+	variant: CardVariant;
+	/** How many copies are offered. */
+	quantity: number;
+	note: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+/**
  * A node in a folder tree. Decks and lots each have their own tree — a deck never lands
  * in a lot folder — but the shape and the helpers in folders.ts are shared.
  */
@@ -111,6 +126,7 @@ export type TombstoneKind =
 	| 'collection'
 	| 'want'
 	| 'wantList'
+	| 'trade'
 	| 'lot'
 	| 'lotFolder'
 	| 'folder'
@@ -126,6 +142,8 @@ export type UserData = {
 	/** The wishlist. Absent from files written before wants existed; migrate defaults it. */
 	wants: WantEntry[];
 	wantLists: WantList[];
+	/** The trade binder. Absent from files written before it existed; migrate defaults it. */
+	trades: TradeEntry[];
 	lots: Lot[];
 	/** The lot tree. Absent from files written before lot folders existed; migrate defaults it. */
 	lotFolders: LotFolder[];
@@ -157,11 +175,16 @@ export const rowKey = (entry: { cardId: string; variant: string; lotId: string |
 export const wantKey = (entry: { cardId: string; variant: string; listId: string | null }) =>
 	`${entry.cardId}|${entry.variant}|${entry.listId ?? ''}`;
 
+/** Identity of a trade binder entry: one printing, one finish. */
+export const tradeKey = (entry: { cardId: string; variant: string }) =>
+	`${entry.cardId}|${entry.variant}`;
+
 export const emptyData = (): UserData => ({
 	version: 2,
 	collection: [],
 	wants: [],
 	wantLists: [],
+	trades: [],
 	lots: [],
 	lotFolders: [],
 	folders: [],

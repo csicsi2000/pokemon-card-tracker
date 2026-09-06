@@ -7,6 +7,7 @@ import { CARD_VARIANTS, type CardVariant } from '$lib/types';
 import {
 	rowKey,
 	SENTINEL,
+	tradeKey,
 	wantKey,
 	WANT_PRIORITIES,
 	type CollectionEntry,
@@ -16,6 +17,7 @@ import {
 	type Format,
 	type Lot,
 	type Tombstone,
+	type TradeEntry,
 	type UserData,
 	type WantEntry,
 	type WantList,
@@ -65,6 +67,20 @@ function toWant(value: unknown): WantEntry | null {
 		quantity,
 		listId: strOrNull(value.listId),
 		priority: priority(value.priority),
+		note: strOrNull(value.note),
+		createdAt: stamp(value.createdAt),
+		updatedAt: stamp(value.updatedAt)
+	};
+}
+
+function toTrade(value: unknown): TradeEntry | null {
+	if (!isDict(value) || typeof value.cardId !== 'string') return null;
+	const quantity = positiveInt(value.quantity);
+	if (quantity === 0) return null;
+	return {
+		cardId: value.cardId,
+		variant: variant(value.variant),
+		quantity,
 		note: strOrNull(value.note),
 		createdAt: stamp(value.createdAt),
 		updatedAt: stamp(value.updatedAt)
@@ -147,6 +163,7 @@ const TOMBSTONE_KINDS = new Set([
 	'collection',
 	'want',
 	'wantList',
+	'trade',
 	'lot',
 	'lotFolder',
 	'folder',
@@ -198,6 +215,17 @@ export function dedupeWants(wants: WantEntry[]): WantEntry[] {
 	return [...byKey.values()];
 }
 
+/** Two entries for one trade are a corruption rather than two piles: the later edit wins. */
+export function dedupeTrades(trades: TradeEntry[]): TradeEntry[] {
+	const byKey = new Map<string, TradeEntry>();
+	for (const trade of trades) {
+		const key = tradeKey(trade);
+		const existing = byKey.get(key);
+		if (!existing || trade.updatedAt > existing.updatedAt) byKey.set(key, trade);
+	}
+	return [...byKey.values()];
+}
+
 export function migrate(value: unknown): UserData {
 	const data = isDict(value) ? value : {};
 	return {
@@ -205,6 +233,7 @@ export function migrate(value: unknown): UserData {
 		collection: dedupeRows(compact(arr(data.collection).map(toRow))),
 		wants: dedupeWants(compact(arr(data.wants).map(toWant))),
 		wantLists: uniqueById(compact(arr(data.wantLists).map(toWantList))),
+		trades: dedupeTrades(compact(arr(data.trades).map(toTrade))),
 		lots: uniqueById(compact(arr(data.lots).map(toLot))),
 		lotFolders: uniqueById(compact(arr(data.lotFolders).map(toFolder))),
 		folders: uniqueById(compact(arr(data.folders).map(toFolder))),

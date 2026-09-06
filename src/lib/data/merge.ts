@@ -13,6 +13,7 @@
 import {
 	rowKey,
 	SENTINEL,
+	tradeKey,
 	wantKey,
 	type CollectionEntry,
 	type Tombstone,
@@ -91,6 +92,7 @@ export function merge(left: UserData, right: UserData): UserData {
 		),
 		wants: alive('want', mergeRecords(left.wants, right.wants, wantKey)),
 		wantLists: alive('wantList', mergeRecords(left.wantLists, right.wantLists, id)),
+		trades: alive('trade', mergeRecords(left.trades, right.trades, tradeKey)),
 		lots: alive('lot', mergeRecords(left.lots, right.lots, id)),
 		lotFolders: alive('lotFolder', mergeRecords(left.lotFolders, right.lotFolders, id)),
 		folders: alive('folder', mergeRecords(left.folders, right.folders, id)),
@@ -112,6 +114,7 @@ function canonical(data: UserData) {
 		collection: byKey(data.collection, rowKey),
 		wants: byKey(data.wants, wantKey),
 		wantLists: byKey(data.wantLists, id),
+		trades: byKey(data.trades, tradeKey),
 		lots: byKey(data.lots, id),
 		lotFolders: byKey(data.lotFolders, id),
 		folders: byKey(data.folders, id),

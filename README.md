@@ -19,6 +19,8 @@ locally with `npm run dev`, or host it free on GitHub Pages.
 - **Lots** — the purchase or batch each card came in, so "what was in the july.2 lot?" has an answer
 - **Wants** — the cards you are still hunting for, in as many lists as you like, with
   priority, notes and one tap to file them into a lot when they turn up
+- **Trade binder** — the spares you would trade away, with one tap to take them out of the
+  collection once they change hands
 - **Folders** for decks and for lots, nested as deep as you like (2026 › eBay › july.2 lot)
 - Import a PTCGL / Limitless decklist and see exactly what you own and what is missing
 - Optional **sync** through your own Google Drive — no Cardex server — to use it on several
@@ -82,7 +84,10 @@ Three ways, all ending in the same collection:
   zeros and case do not matter. `3 PAL 188 rh` adds three reverse holos; `x2` after the
   number works too. Finish markers: `rh`/`r` reverse, `h` holo, `1st`, `promo`. Promo sets
   use their PTCGL code (`PR-SW 92`); a raw TCGdex set id (`sv03 125`) is accepted as well.
-  Paste several lines and you get a review list with one "Add all" button.
+  Paste several lines and you get a review list with one "Add all" button. On a lot page a
+  **Set** picker beside the box pins a set, so a stack that is all one set needs only the
+  numbers typed — `21`, `3 188 rh` — while a line that names its own set still goes there.
+  The pinned set is remembered per lot in this browser.
 - **Browse** the Cards or Sets pages and use the +/− buttons on a card.
 - **Import** a decklist on the Import / Export page — name-less lines like `3 MEG 21` work
   there too.
@@ -131,6 +136,25 @@ each — one hunt does not disturb the other.
 - **Detailed** — a row each with notes, priority, counters and the lot to file them into.
   This is where you edit.
 - **Compact** — one line per card, no art. What you want open on your phone at a shop.
+
+## Trade binder
+
+The **Trade binder** is the mirror of wants: copies you own but do not need. An entry is
+one printing in one finish, how many of it are spare, and a free note — condition, what
+you would take for it. The arrows beside the heart on any card's detail sheet put one spare
+copy in the binder; the page's add panel searches only the cards you own and offers one
+more copy per tap, in the chosen finish if you hold any, else the finish you hold most of.
+
+The cards stay counted in your collection and in their lots until they actually change
+hands. Each row shows `offered/owned`, and an entry offering more than you still hold is
+flagged so it can be trimmed or cleared. **Traded** removes the offered copies from your
+collection — from the lots holding the most of them, or from one lot chosen in the panel —
+and clears the entry; the bin icon takes an entry out of the binder and leaves the cards
+alone. **Copy list** puts the whole binder on the clipboard as a decklist for a trade
+thread, and the same three views as wants (cards, detailed, compact) are a click away.
+
+The binder syncs like everything else and appears in the readable export, so an AI
+coach knows which copies not to build a keeper deck around.
 
 ## Decks and folders
 
@@ -298,7 +322,16 @@ exist, and some older promo sets and trainer kits have no images at all. The bui
 checks a few cards per set and records the answer, so the app can sort those sets to the
 back of the card browser — otherwise a just-released set fills the opening screen with
 cards that have no art — and badge them "No art yet" on the Sets page. Currently 56 of
-203 sets are in that state; they fall back to showing card names.
+203 sets are in that state; they fall back to showing card names. A couple of hundred
+cards in otherwise scanned sets (mostly promo sets) have no image on TCGdex at all and show
+their name for good.
+
+A card that *used* to show its name and now has art is a different story. The CDN marks
+its 404s cacheable for a year, so a browser that asked for a scan before it existed keeps
+that miss in its HTTP cache. The service worker therefore revalidates every art request
+it does not already hold, and an image that fails to load is fetched once more past the
+HTTP cache before the name fallback is accepted — which also rides out the odd rate-limit
+error when a big grid loads at once.
 
 ## Working with AI
 
@@ -393,7 +426,7 @@ src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts 
 src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (flagged off)
 src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, format rules
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
-src/routes/                 dashboard, cards, sets, collection, wants, lots, decks, formats, import, settings
+src/routes/                 dashboard, cards, sets, collection, wants, trades, lots, decks, formats, import, settings
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json
 tests/                      unit tests for the pure logic above
 ```

@@ -10,7 +10,7 @@
  * Repair never stamps `updatedAt`: it is a projection, not an edit, so repairing twice
  * is the same as repairing once.
  */
-import { dedupeRows, dedupeWants } from './migrate';
+import { dedupeRows, dedupeTrades, dedupeWants } from './migrate';
 import type { Folder, Tombstone, UserData } from './model';
 
 const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
@@ -96,6 +96,9 @@ export function repair(data: UserData, options: RepairOptions): UserData {
 				.map((want) => (want.listId && !wantListIds.has(want.listId) ? { ...want, listId: null } : want))
 		),
 		wantLists: data.wantLists,
+		// A binder entry outlives the copies it offers on purpose: the page shows the gap,
+		// and only the user knows whether the cards were traded or merely re-counted.
+		trades: dedupeTrades(data.trades.filter((trade) => trade.quantity > 0)),
 		// A lot whose folder the other device deleted goes back to the top level.
 		lots: data.lots.map((lot) =>
 			lot.folderId && !lotFolderIds.has(lot.folderId) ? { ...lot, folderId: null } : lot

@@ -166,9 +166,20 @@ export default defineConfig(({ mode }) => ({
 						// image falls back to the card name and retries on the next visit.
 						// Forgetting the attribute on a new <img> now costs that image its
 						// cache entry rather than pinning a blank, which is the whole point.
+						//
+						// The browser's own HTTP cache is the other trap. The CDN answers a
+						// missing scan with a 404 that carries `Cache-Control: public,
+						// max-age=31536000, immutable`, and Chrome keeps that 404 for the year
+						// it asks for — so a card seen once before its art was uploaded stayed
+						// blank on that device long after, whatever this worker did. `no-cache`
+						// makes every miss here revalidate with the CDN instead of trusting
+						// that entry (a hit in our own cache above never reaches the network,
+						// so this costs nothing for art already stored). CardImage does the
+						// same for pages this worker does not control.
 						urlPattern: /^https:\/\/assets\.tcgdex\.net\/.*/i,
 						handler: 'CacheFirst',
 						options: {
+							fetchOptions: { cache: 'no-cache' },
 							// Renamed from 'tcgdex-images', which is retired in
 							// src/lib/pwa/caches.ts: entries written under the old rule may be
 							// poisoned, and there is no way to tell which.

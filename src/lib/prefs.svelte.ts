@@ -29,9 +29,22 @@ type Preferences = {
 	wantView: WantView;
 	/** Wants list last looked at: '' the default list, '*' all of them, else an id. */
 	wantList: string;
+	/** How the trade binder is drawn; the same three views as wants. */
+	tradeView: WantView;
+	/**
+	 * The set pinned in each lot's quick add box, by lot id ('unsorted' for the Unsorted
+	 * lot). A half-sorted stack is usually finished over several sittings.
+	 */
+	lotAddSets: Record<string, string>;
 };
 
-const defaults = (): Preferences => ({ cardView: 'side', wantView: 'detailed', wantList: '*' });
+const defaults = (): Preferences => ({
+	cardView: 'side',
+	wantView: 'detailed',
+	wantList: '*',
+	tradeView: 'detailed',
+	lotAddSets: {}
+});
 
 class Prefs {
 	#values = $state<Preferences>(defaults());
@@ -60,6 +73,25 @@ class Prefs {
 	}
 	set wantList(value: string) {
 		this.#commit({ ...this.#values, wantList: value });
+	}
+
+	get tradeView() {
+		return this.#values.tradeView;
+	}
+	set tradeView(value: WantView) {
+		this.#commit({ ...this.#values, tradeView: value });
+	}
+
+	/** The set id pinned for quick add in one lot, or '' for none. */
+	lotAddSet(lotKey: string): string {
+		return this.#values.lotAddSets[lotKey] ?? '';
+	}
+
+	setLotAddSet(lotKey: string, setId: string) {
+		const lotAddSets = { ...this.#values.lotAddSets };
+		if (setId) lotAddSets[lotKey] = setId;
+		else delete lotAddSets[lotKey];
+		this.#commit({ ...this.#values, lotAddSets });
 	}
 
 	#read(): Preferences {

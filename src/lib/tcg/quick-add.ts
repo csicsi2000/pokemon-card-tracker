@@ -7,6 +7,13 @@
  *   PR-SW 92          promo sets by their PTCGL code
  *   sv03 125          a raw TCGdex set id also works
  *
+ * With a default set pinned (sorting a stack that is all one set), the code can be left
+ * off and the collector number alone is enough:
+ *
+ *   21                one #021 of the pinned set
+ *   3 188 rh          three reverse holos of the pinned set
+ *   MEG 21            a line that names a set still wins over the pinned one
+ *
  * One entry per line, so a whole stack can be pasted at once. Pure; the UI decides what
  * to do with the resolved cards.
  */
@@ -53,12 +60,47 @@ const VARIANT_MARKERS: Record<string, CardVariant> = {
 const LINE =
 	/^(?:(\d+)\s*[x×]?\s+)?([A-Za-z][A-Za-z0-9]{0,4}(?:-[A-Za-z0-9]{1,4})?)\s+([A-Za-z]{0,5}\d+[A-Za-z]?)(?:\s*[x×]\s*(\d+))?(?:\s+([A-Za-z0-9]+))?$/;
 
-export function parseQuickAddLine(line: string, lineNumber = 1): QuickAddEntry | null {
-	const trimmed = line.trim();
-	const match = trimmed.match(LINE);
-	if (!match) return null;
+/**
+ * The same line without the set code — only read when a default set is pinned, since
+ * "21" on its own is not a card otherwise. `[qty[x]] NUMBER [xQTY] [finish]`. The
+ * lookahead keeps "188 x2" from being read as 188 copies of a card numbered "x2".
+ */
+const NUMBER_LINE =
+	/^(?:(\d+)\s*[x×]?\s+(?![x×]\d+(?:\s|$)))?([A-Za-z]{0,5}\d+[A-Za-z]?)(?:\s*[x×]\s*(\d+))?(?:\s+([A-Za-z0-9]+))?$/;
 
-	const [, leading, code, number, trailing, marker] = match;
+export type QuickAddOptions = {
+	/**
+	 * A set code (or raw set id) that lines with no code of their own belong to. A line
+	 * that does name a set is unaffected.
+	 */
+	defaultSetCode?: string | null;
+};
+
+export function parseQuickAddLine(
+	line: string,
+	lineNumber = 1,
+	options: QuickAddOptions = {}
+): QuickAddEntry | null {
+	const trimmed = line.trim();
+
+	let code: string | undefined;
+	let leading: string | undefined;
+	let number: string | undefined;
+	let trailing: string | undefined;
+	let marker: string | undefined;
+
+	const full = trimmed.match(LINE);
+	if (full) {
+		[, leading, code, number, trailing, marker] = full;
+	} else if (options.defaultSetCode) {
+		const bare = trimmed.match(NUMBER_LINE);
+		if (!bare) return null;
+		[, leading, number, trailing, marker] = bare;
+		code = options.defaultSetCode;
+	} else {
+		return null;
+	}
+
 	let variant: CardVariant | null = null;
 	if (marker) {
 		variant = VARIANT_MARKERS[marker.toLowerCase()] ?? null;
@@ -68,22 +110,35 @@ export function parseQuickAddLine(line: string, lineNumber = 1): QuickAddEntry |
 	const quantity = Number(trailing ?? leading ?? 1);
 	if (!Number.isFinite(quantity) || quantity < 1) return null;
 
-	return { quantity, setCode: code.toUpperCase(), number, variant, lineNumber, raw: trimmed };
+	return {
+		quantity,
+		setCode: code!.toUpperCase(),
+		number: number!,
+		variant,
+		lineNumber,
+		raw: trimmed
+	};
 }
 
-export function parseQuickAdd(text: string): { entries: QuickAddEntry[]; warnings: string[] } {
+export function parseQuickAdd(
+	text: string,
+	options: QuickAddOptions = {}
+): { entries: QuickAddEntry[]; warnings: string[] } {
 	const entries: QuickAddEntry[] = [];
 	const warnings: string[] = [];
 
 	text.split(/\r?\n/).forEach((line, index) => {
 		if (!line.trim()) return;
-		const entry = parseQuickAddLine(line, index + 1);
+		const entry = parseQuickAddLine(line, index + 1, options);
 		if (entry) entries.push(entry);
 		else warnings.push(`Line ${index + 1}: could not read "${line.trim()}"`);
 	});
 
 	return { entries, warnings };
 }
+
+/** The code to pin a set by: its PTCGL code, or the raw set id for sets that have none. */
+export const quickAddCode = (set: CardSet) => set.ptcglCode ?? set.id;
 
 /** True when the text is a code + number rather than a card name to search for. */
 export const looksLikeQuickAdd = (text: string) => parseQuickAddLine(text) !== null;

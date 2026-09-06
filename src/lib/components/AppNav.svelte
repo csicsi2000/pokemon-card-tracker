@@ -12,6 +12,7 @@
 	import Search from '@lucide/svelte/icons/search';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Heart from '@lucide/svelte/icons/heart';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Boxes from '@lucide/svelte/icons/boxes';
 	import Package from '@lucide/svelte/icons/package';
@@ -28,6 +29,7 @@
 		{ href: '/cards', label: 'Cards', icon: Search },
 		{ href: '/decks', label: 'Decks', icon: Layers },
 		{ href: '/wants', label: 'Wants', icon: Heart },
+		{ href: '/trades', label: 'Trade binder', icon: ArrowLeftRight },
 		{ href: '/lots', label: 'Lots', icon: Package },
 		{ href: '/sets', label: 'Sets', icon: Boxes },
 		{ href: '/formats', label: 'Formats', icon: Sparkles },
@@ -85,6 +87,13 @@
 
 	<div class="flex items-center justify-between">
 		<SyncStatus showLabel />
+		<!-- Google's consent screen links here, so the page must exist and be reachable from the app. -->
+		<a
+			href="{base}/privacy.html"
+			class="text-muted-foreground hover:text-foreground px-2 text-xs underline-offset-2 hover:underline"
+		>
+			Privacy
+		</a>
 		<Button variant="ghost" size="icon" onclick={toggleMode} aria-label="Toggle theme">
 			{#if mode.current === 'dark'}
 				<Sun class="size-4" />
@@ -159,6 +168,13 @@
 			<InstallButton class="py-3" />
 
 			<SyncStatus showLabel class="py-3" />
+
+			<a
+				href="{base}/privacy.html"
+				class="text-muted-foreground hover:text-foreground px-3 py-2 text-xs underline-offset-2 hover:underline"
+			>
+				Privacy
+			</a>
 
 			<button
 				type="button"

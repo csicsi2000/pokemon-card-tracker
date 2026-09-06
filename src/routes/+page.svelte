@@ -8,6 +8,7 @@
 	import Library from '@lucide/svelte/icons/library';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Heart from '@lucide/svelte/icons/heart';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Boxes from '@lucide/svelte/icons/boxes';
 	import Package from '@lucide/svelte/icons/package';
@@ -51,6 +52,7 @@
 	const shortcuts = [
 		{ href: '/collection', icon: Library, title: 'Collection', text: 'Track what you own.' },
 		{ href: '/wants', icon: Heart, title: 'Wants', text: 'Cards you are hunting for.' },
+		{ href: '/trades', icon: ArrowLeftRight, title: 'Trade binder', text: 'Spares you would trade away.' },
 		{ href: '/lots', icon: Package, title: 'Lots', text: 'What came in each purchase.' },
 		{ href: '/sets', icon: Boxes, title: 'Sets', text: 'Browse art and completion.' },
 		{ href: '/decks', icon: Layers, title: 'Decks', text: 'Build and check legality.' },
@@ -75,9 +77,9 @@
 		/>
 	</div>
 
-	<!-- Two columns even on a phone: seven full-width cards would push the recent decks
+	<!-- Two columns even on a phone: eight full-width cards would push the recent decks
 	     and lots below the fold. -->
-	<div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 		{#each shortcuts as shortcut, index (shortcut.href)}
 			{@const Icon = shortcut.icon}
 			<a href="{base}{shortcut.href}" in:fly|global={{ y: 10, duration: 220, delay: index * 40 }}>

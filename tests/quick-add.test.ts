@@ -87,11 +87,73 @@ describe('parseQuickAddLine', () => {
 	});
 });
 
+describe('parseQuickAddLine with a pinned set', () => {
+	const pinned = { defaultSetCode: 'PFL' };
+
+	it('reads a bare collector number as the pinned set', () => {
+		expect(parseQuickAddLine('21', 1, pinned)).toMatchObject({
+			quantity: 1,
+			setCode: 'PFL',
+			number: '21',
+			variant: null
+		});
+		expect(parseQuickAddLine('021', 1, pinned)).toMatchObject({ number: '021' });
+		expect(parseQuickAddLine('TG05', 1, pinned)).toMatchObject({ number: 'TG05' });
+	});
+
+	it('still reads quantities and finishes around the number', () => {
+		expect(parseQuickAddLine('3 188', 1, pinned)).toMatchObject({ quantity: 3, number: '188' });
+		expect(parseQuickAddLine('3x 188', 1, pinned)).toMatchObject({ quantity: 3, number: '188' });
+		expect(parseQuickAddLine('188 x2', 1, pinned)).toMatchObject({ quantity: 2, number: '188' });
+		expect(parseQuickAddLine('188 x2 rh', 1, pinned)).toMatchObject({
+			quantity: 2,
+			number: '188',
+			variant: 'reverse'
+		});
+		expect(parseQuickAddLine('188 rh', 1, pinned)).toMatchObject({ number: '188', variant: 'reverse' });
+		expect(parseQuickAddLine('2 188 h', 1, pinned)).toMatchObject({
+			quantity: 2,
+			number: '188',
+			variant: 'holo'
+		});
+		expect(parseQuickAddLine('188 shiny', 1, pinned)).toBeNull();
+	});
+
+	it('lets a line that names its own set win over the pinned one', () => {
+		expect(parseQuickAddLine('MEG 21', 1, pinned)).toMatchObject({ setCode: 'MEG', number: '21' });
+		expect(parseQuickAddLine('2 PAL 188 rh', 1, pinned)).toMatchObject({ setCode: 'PAL', quantity: 2 });
+	});
+
+	it('does not read a bare number without a pinned set', () => {
+		expect(parseQuickAddLine('21')).toBeNull();
+		expect(parseQuickAddLine('21', 1, { defaultSetCode: null })).toBeNull();
+	});
+
+	it('resolves through the pinned set, including one pinned by raw set id', () => {
+		expect(resolveQuickAdd(catalogue, parseQuickAddLine('21', 1, { defaultSetCode: 'MEG' })!).card?.name).toBe(
+			'Mega Venusaur ex'
+		);
+		expect(
+			resolveQuickAdd(catalogue, parseQuickAddLine('92', 1, { defaultSetCode: 'swshp' })!).card?.name
+		).toBe('Charmander');
+	});
+});
+
 describe('parseQuickAdd', () => {
 	it('parses one entry per line and warns on the rest', () => {
 		const result = parseQuickAdd('MEG 21\n\n3 PAL 188 rh\nnot a line');
 		expect(result.entries.map((entry) => entry.lineNumber)).toEqual([1, 3]);
 		expect(result.warnings).toEqual(['Line 4: could not read "not a line"']);
+	});
+
+	it('applies the pinned set to every line that lacks one', () => {
+		const result = parseQuickAdd('1\n3 21 rh\nPAL 188', { defaultSetCode: 'MEG' });
+		expect(result.entries.map((entry) => `${entry.setCode} ${entry.number}`)).toEqual([
+			'MEG 1',
+			'MEG 21',
+			'PAL 188'
+		]);
+		expect(result.warnings).toEqual([]);
 	});
 });
 

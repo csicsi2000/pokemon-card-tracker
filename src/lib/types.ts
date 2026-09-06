@@ -103,6 +103,7 @@ export type {
 	Lot,
 	LotFolder,
 	Tombstone,
+	TradeEntry,
 	UserData,
 	WantEntry,
 	WantList,

@@ -11,11 +11,12 @@
 import type { CardVariant } from '$lib/types';
 import type { Clock } from './clock';
 import { isDescendant } from './folders';
-import { dedupeRows, dedupeWants } from './migrate';
+import { dedupeRows, dedupeTrades, dedupeWants } from './migrate';
 import {
 	emptyData,
 	newId,
 	rowKey,
+	tradeKey,
 	wantKey,
 	type CollectionEntry,
 	type Deck,
@@ -25,6 +26,7 @@ import {
 	type Lot,
 	type LotFolder,
 	type Tombstone,
+	type TradeEntry,
 	type UserData,
 	type WantEntry,
 	type WantList,
@@ -236,6 +238,107 @@ export function moveWant(
 		priority: source.priority,
 		note: source.note ?? target?.note ?? null
 	});
+}
+
+// -- trade binder -----------------------------------------------------------
+
+export type TradeInput = {
+	cardId: string;
+	variant: CardVariant;
+	quantity: number;
+	note?: string | null;
+};
+
+/** The identity of a binder entry. */
+export type TradeRef = { cardId: string; variant: CardVariant };
+
+/**
+ * Absolute number of copies offered for one printing and finish; 0 takes it out of the
+ * binder. A note left out keeps what the entry already had.
+ */
+export function setTrade(data: UserData, clock: Clock, input: TradeInput): UserData {
+	const next = clampQuantity(input.quantity);
+	const key = tradeKey(input);
+	const existing = data.trades.find((trade) => tradeKey(trade) === key);
+	const now = clock.next();
+
+	if (next === 0) {
+		if (!existing) return data;
+		return {
+			...data,
+			trades: data.trades.filter((trade) => tradeKey(trade) !== key),
+			tombstones: bury(data, 'trade', key, now)
+		};
+	}
+
+	const trade: TradeEntry = {
+		cardId: input.cardId,
+		variant: input.variant,
+		quantity: next,
+		note: input.note !== undefined ? input.note : (existing?.note ?? null),
+		createdAt: existing?.createdAt ?? now,
+		updatedAt: now
+	};
+
+	return {
+		...data,
+		trades: [...data.trades.filter((item) => tradeKey(item) !== key), trade],
+		// An entry put back after deletion must outrank its old tombstone.
+		tombstones: data.tombstones.filter((t) => !(t.kind === 'trade' && t.key === key))
+	};
+}
+
+/** Edit an existing binder entry. Unknown entries are ignored — nothing is created here. */
+export function updateTrade(
+	data: UserData,
+	clock: Clock,
+	ref: TradeRef,
+	changes: Partial<Pick<TradeEntry, 'quantity' | 'note'>>
+): UserData {
+	const existing = data.trades.find((trade) => tradeKey(trade) === tradeKey(ref));
+	if (!existing) return data;
+	return setTrade(data, clock, { ...existing, ...changes });
+}
+
+export const removeTrade = (data: UserData, clock: Clock, ref: TradeRef) =>
+	setTrade(data, clock, { ...ref, quantity: 0 });
+
+/**
+ * The copies changed hands: take `quantity` of them out of the collection and off the
+ * binder entry. With no lot named, the copies come from the lots that hold the most of
+ * them first (ties by lot id, so two devices replaying this agree). Never removes more
+ * than is owned; the binder entry shrinks by what was asked regardless.
+ */
+export function tradeAway(
+	data: UserData,
+	clock: Clock,
+	ref: TradeRef,
+	quantity: number,
+	lotId?: string | null
+): UserData {
+	let remaining = clampQuantity(quantity);
+	if (remaining === 0) return data;
+
+	const stacks = data.collection
+		.filter(
+			(row) =>
+				row.cardId === ref.cardId &&
+				row.variant === ref.variant &&
+				(lotId === undefined || row.lotId === lotId)
+		)
+		.sort((a, b) => b.quantity - a.quantity || (a.lotId ?? '').localeCompare(b.lotId ?? ''));
+
+	let next = data;
+	for (const stack of stacks) {
+		if (remaining === 0) break;
+		const taken = Math.min(stack.quantity, remaining);
+		next = setOwned(next, clock, stack.cardId, stack.variant, stack.quantity - taken, stack.lotId);
+		remaining -= taken;
+	}
+
+	const entry = next.trades.find((trade) => tradeKey(trade) === tradeKey(ref));
+	if (entry) next = setTrade(next, clock, { ...entry, quantity: entry.quantity - clampQuantity(quantity) });
+	return next;
 }
 
 // -- wants lists ------------------------------------------------------------
@@ -637,6 +740,7 @@ export function restore(data: UserData, clock: Clock, incoming: UserData): UserD
 		...missing(data.collection, incoming.collection, rowKey, 'collection'),
 		...missing(data.wants, incoming.wants, wantKey, 'want'),
 		...missing(data.wantLists, incoming.wantLists, id, 'wantList'),
+		...missing(data.trades, incoming.trades, tradeKey, 'trade'),
 		...missing(data.lots, incoming.lots, id, 'lot'),
 		...missing(data.lotFolders, incoming.lotFolders, id, 'lotFolder'),
 		...missing(data.folders, incoming.folders, id, 'folder'),
@@ -649,6 +753,7 @@ export function restore(data: UserData, clock: Clock, incoming: UserData): UserD
 		collection: stampAll(dedupeRows(incoming.collection)),
 		wants: stampAll(dedupeWants(incoming.wants)),
 		wantLists: stampAll(incoming.wantLists),
+		trades: stampAll(dedupeTrades(incoming.trades)),
 		lots: stampAll(incoming.lots),
 		lotFolders: stampAll(incoming.lotFolders),
 		folders: stampAll(incoming.folders),
