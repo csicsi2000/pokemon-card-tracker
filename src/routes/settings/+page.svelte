@@ -202,11 +202,18 @@
 					</p>
 					{#if sync.status === 'reconnect'}
 						<div class="rounded-lg border p-3">
-							<p class="font-medium">The background renewal did not go through.</p>
+							<p class="font-medium">Google wants a tap before it renews the sign-in.</p>
 							<p class="text-muted-foreground mt-1">
-								Google only renews silently when nothing needs showing to you. Two things in the
-								Cloud console decide that. First, the Web client must list this page under
-								<b>Authorized redirect URIs</b>, exactly:
+								Google renews silently only when it has nothing to show you. For an app it has
+								not reviewed it always shows a "make sure you trust this app" screen first, and
+								Google does not review apps for personal use — so with a personal OAuth client
+								the renewal needs one tap every hour: the amber cloud icon in the menu opens the
+								sign-in popup straight away, and <b>Continue</b> in that popup finishes it. Edits
+								made in between are kept and synced next.
+							</p>
+							<p class="text-muted-foreground mt-2">
+								Should the renewal fail for a different reason, check that the Web client in the
+								Cloud console lists this page under <b>Authorized redirect URIs</b>, exactly:
 							</p>
 							<div class="mt-2 flex flex-wrap items-center gap-2">
 								<code class="bg-muted rounded px-2 py-1 text-xs break-all">{callbackUrl}</code>
@@ -214,16 +221,6 @@
 									<Copy class="size-3.5" /> Copy
 								</Button>
 							</div>
-							<p class="text-muted-foreground mt-2">
-								Second, while the app's branding is unverified Google puts a "make sure you trust
-								this app" screen in front of every sign-in, which counts as something to show —
-								so the renewal fails even though the access was granted long ago. Publishing the
-								app (Audience page) and verifying its branding (Branding page) removes that
-								screen. The browser must also allow accounts.google.com cookies in embedded
-								frames (Safari and Firefox block them by default, Chrome only in Incognito).
-								Until all of that is in place, Reconnect once an hour is the best any site
-								without a server can do.
-							</p>
 						</div>
 					{/if}
 				{/if}

@@ -209,8 +209,16 @@ One-time setup: the app needs a Google OAuth **client id** (a public identifier,
 4. **Credentials → Create credentials → OAuth client ID → Web application**. Authorized
    JavaScript origins: `https://<user>.github.io` and `http://localhost:5173`. Authorized
    redirect URIs: `https://<user>.github.io/<repo>/google-callback.html` and
-   `http://localhost:5173/google-callback.html` — the page the silent hourly refresh lands
-   on. Without them sync still works, but needs a tap on **Reconnect** every hour.
+   `http://localhost:5173/google-callback.html` — the page the hourly token refresh lands
+   on.
+
+   Be realistic about that refresh: Google only renews a token silently when it has nothing
+   to show the user, and it shows a "make sure you trust this app" screen for every app it
+   has not reviewed. Google does not review apps for personal use (its own verification
+   questionnaire says so), so with a personal client the refresh cannot be silent. What
+   Cardex does instead is make it one tap: the amber cloud icon opens the sign-in popup
+   directly, and **Continue** in the popup finishes it. Edits made in between are kept
+   locally and synced afterwards.
 5. Put the client id where the build can see it:
    - locally: copy `.env.example` to `.env` and set `PUBLIC_GOOGLE_CLIENT_ID=…`;
    - on GitHub Pages: repo **Settings → Secrets and variables → Actions → Variables**, add
