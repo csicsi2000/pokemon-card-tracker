@@ -21,15 +21,18 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import Copy from '@lucide/svelte/icons/copy';
+	import Download from '@lucide/svelte/icons/download';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Check from '@lucide/svelte/icons/check';
 	import Package from '@lucide/svelte/icons/package';
+	import Search from '@lucide/svelte/icons/search';
 	import { rowKey, store } from '$lib/store.svelte';
 	import { prefs } from '$lib/prefs.svelte';
 	import { pickVariant } from '$lib/tcg/quick-add';
+	import { cardQuery } from '$lib/tcg/card-query';
 	import { toPtcglText } from '$lib/tcg/exporter';
 	import { VARIANT_LABELS, type Card as CardType, type CardVariant } from '$lib/types';
 
@@ -76,12 +79,18 @@
 			)
 	);
 
+	/** Narrows what the two tabs show; the stats above them stay about the whole lot. */
+	let query = $state('');
+	// Name substring, or a set code and number like "MEG 21" / "meg21".
+	const matches = $derived(cardQuery(data.catalogue, query).matches);
+	const visible = $derived(entries.filter((entry) => matches(entry.card)));
+
 	type Tile = { card: CardType; total: number; rows: { variant: CardVariant; quantity: number }[] };
 
 	/** Grid view folds finishes together, like the collection page. */
 	const tiles = $derived.by(() => {
 		const byCard = new Map<string, Tile>();
-		for (const { row, card } of entries) {
+		for (const { row, card } of visible) {
 			const existing = byCard.get(card.id);
 			if (existing) {
 				existing.total += row.quantity;
@@ -99,7 +108,7 @@
 
 	const stats = $derived({
 		cards: entries.reduce((sum, entry) => sum + entry.row.quantity, 0),
-		printings: tiles.length,
+		printings: new Set(entries.map((entry) => entry.card.id)).size,
 		sets: new Set(entries.map((entry) => entry.card.set.id)).size
 	});
 
@@ -197,6 +206,14 @@
 			<Button variant="outline" size="sm" onclick={copy} disabled={entries.length === 0}>
 				<Copy class="size-4" /> Copy list
 			</Button>
+			<!-- Pasting a list is the fast way to fill a lot, so Import arrives set to this one. -->
+			<Button
+				href="{base}/import?target=collection&lot={encodeURIComponent(lotId ?? '')}"
+				variant="outline"
+				size="sm"
+			>
+				<Download class="size-4" /> <span class="sr-only sm:not-sr-only">Import list</span>
+			</Button>
 			{#if lot}
 				<Button
 					variant="outline"
@@ -270,52 +287,59 @@
 		{/if}
 
 		<Card.Root>
-			<Card.Content class="flex flex-wrap items-end gap-3 py-4">
-				<div class="flex min-w-64 flex-1 flex-col gap-2">
-					<Label>Add to this lot</Label>
-					<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} defaultSet={addSet} />
-				</div>
-				<!-- On a phone the two pickers drop under the quick add box and share a line. -->
-				<div class="flex basis-full gap-3 sm:basis-auto">
-					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
-						<Label>Set</Label>
-						<Select.Root
-							type="single"
-							value={addSetId}
-							onValueChange={(v) => prefs.setLotAddSet(lotKey, v ?? '')}
-						>
-							<Select.Trigger
-								class="w-full sm:w-56"
-								aria-label="Set for quick add"
-								title="Pin a set and type only the collector number"
-							>
-								<span class="truncate">
-									{setOptions.find((option) => option.value === addSetId)?.label ?? setOptions[0].label}
-								</span>
-							</Select.Trigger>
-							<Select.Content class="max-h-80">
-								{#each setOptions as option (option.value)}
-									<Select.Item value={option.value}>{option.label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
-						<Label>Finish</Label>
-						<Select.Root
-							type="single"
-							value={addFinish}
-							onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
-						>
-							<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
-							<Select.Content>
-								{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
-									<Select.Item {value}>{label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-				</div>
+			<Card.Content class="py-4">
+				<!-- The bar owns the row so a card preview cannot lift the field off the pickers' line. -->
+				<QuickAddBar
+					catalogue={data.catalogue}
+					onadd={quickAdd}
+					defaultSet={addSet}
+					label="Add to this lot"
+				>
+					{#snippet controls()}
+						<!-- On a phone the two pickers drop under the quick add box and share a line. -->
+						<div class="flex basis-full gap-3 sm:contents">
+							<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+								<Label>Set</Label>
+								<Select.Root
+									type="single"
+									value={addSetId}
+									onValueChange={(v) => prefs.setLotAddSet(lotKey, v ?? '')}
+								>
+									<Select.Trigger
+										class="w-full sm:w-56"
+										aria-label="Set for quick add"
+										title="Pin a set and type only the collector number"
+									>
+										<span class="truncate">
+											{setOptions.find((option) => option.value === addSetId)?.label ??
+												setOptions[0].label}
+										</span>
+									</Select.Trigger>
+									<Select.Content class="max-h-80">
+										{#each setOptions as option (option.value)}
+											<Select.Item value={option.value}>{option.label}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
+							<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+								<Label>Finish</Label>
+								<Select.Root
+									type="single"
+									value={addFinish}
+									onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
+								>
+									<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
+									<Select.Content>
+										{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
+											<Select.Item {value}>{label}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
+						</div>
+					{/snippet}
+				</QuickAddBar>
 			</Card.Content>
 		</Card.Root>
 
@@ -327,99 +351,121 @@
 
 		{#if entries.length === 0}
 			<p class="text-muted-foreground py-16 text-center text-sm">
-				Nothing in this lot yet — type a set code and number above, like <span class="font-mono">MEG 21</span>.
+				Nothing in this lot yet — type a set code and number above, like
+				<span class="font-mono">MEG 21</span>, or a card name.
 			</p>
 		{:else}
+			<!-- Searches this lot only; the stat tiles above stay about all of it. -->
+			<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+				<div class="relative min-w-50 flex-1">
+					<Search
+						class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+					/>
+					<Input bind:value={query} placeholder="Search this lot, or type MEG 21…" class="pl-9" />
+				</div>
+				{#if query.trim()}
+					<span class="text-muted-foreground text-sm">
+						{tiles.length} of {stats.printings} printings
+					</span>
+				{/if}
+			</div>
+
 			<Tabs.Root value="grid">
 				<Tabs.List>
 					<Tabs.Trigger value="grid">Grid</Tabs.Trigger>
 					<Tabs.Trigger value="list">List &amp; move</Tabs.Trigger>
 				</Tabs.List>
 
-				<Tabs.Content value="grid" class="pt-3">
-					<div class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
-						{#each tiles as tile, index (tile.card.id)}
-							<div in:fly|global={{ y: 8, duration: 200, delay: Math.min(index, 20) * 12 }}>
-								<CardTile card={tile.card} owned={tile.total} onclick={() => open(tile.card)} />
-								{#if editing}
-									<div class="mt-1.5 flex items-center justify-center gap-1">
-										<Button
-											variant="outline"
-											size="icon"
-											class="size-7"
-											aria-label="Remove one {tile.card.name}"
-											onclick={() => adjustTile(tile, -1)}
-										>
-											<Minus class="size-3" />
-										</Button>
-										<span class="w-6 text-center text-sm font-semibold tabular-nums">
-											{tile.total}
-										</span>
-										<Button
-											variant="outline"
-											size="icon"
-											class="size-7"
-											aria-label="Add one {tile.card.name}"
-											onclick={() => adjustTile(tile, 1)}
-										>
-											<Plus class="size-3" />
-										</Button>
-									</div>
-								{/if}
+				{#if visible.length === 0}
+					<p class="text-muted-foreground py-16 text-center text-sm">
+						Nothing in this lot matches “{query.trim()}”.
+					</p>
+				{:else}
+					<Tabs.Content value="grid" class="pt-3">
+						<div class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+							{#each tiles as tile, index (tile.card.id)}
+								<div in:fly|global={{ y: 8, duration: 200, delay: Math.min(index, 20) * 12 }}>
+									<CardTile card={tile.card} owned={tile.total} onclick={() => open(tile.card)} />
+									{#if editing}
+										<div class="mt-1.5 flex items-center justify-center gap-1">
+											<Button
+												variant="outline"
+												size="icon"
+												class="size-7"
+												aria-label="Remove one {tile.card.name}"
+												onclick={() => adjustTile(tile, -1)}
+											>
+												<Minus class="size-3" />
+											</Button>
+											<span class="w-6 text-center text-sm font-semibold tabular-nums">
+												{tile.total}
+											</span>
+											<Button
+												variant="outline"
+												size="icon"
+												class="size-7"
+												aria-label="Add one {tile.card.name}"
+												onclick={() => adjustTile(tile, 1)}
+											>
+												<Plus class="size-3" />
+											</Button>
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					</Tabs.Content>
+	
+					<Tabs.Content value="list" class="flex flex-col gap-1.5 pt-3">
+						{#each visible as entry (entry.key)}
+							<!-- The lot picker drops to its own line on a phone rather than squeezing the name. -->
+							<div
+								class="hover:bg-accent/50 flex flex-wrap items-center gap-3 rounded-lg p-1.5 transition-colors"
+							>
+								<button type="button" onclick={() => open(entry.card)} class="shrink-0">
+									<CardImage card={entry.card} class="h-11 w-8 rounded" />
+								</button>
+								<div class="min-w-0 flex-1">
+									<p class="truncate text-sm font-medium">{entry.card.name}</p>
+									<p class="text-muted-foreground truncate text-xs">
+										{entry.card.set.ptcglCode ?? entry.card.set.id} · #{entry.card.localId} ·
+										{VARIANT_LABELS[entry.row.variant]}
+									</p>
+								</div>
+								<div class="flex items-center gap-1">
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-7"
+										aria-label="Remove one"
+										onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, -1)}
+									>
+										<Minus class="size-3" />
+									</Button>
+									<span class="w-6 text-center text-sm font-semibold tabular-nums">
+										{entry.row.quantity}
+									</span>
+									<Button
+										variant="outline"
+										size="icon"
+										class="size-7"
+										aria-label="Add one"
+										onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, 1)}
+									>
+										<Plus class="size-3" />
+									</Button>
+								</div>
+								<LotPicker
+									value={lotId ?? ''}
+									allowCreate
+									size="sm"
+									class="w-full sm:w-36"
+									onchange={(target) => move(entry.key, entry.row.quantity, target)}
+								/>
 							</div>
 						{/each}
-					</div>
-				</Tabs.Content>
-
-				<Tabs.Content value="list" class="flex flex-col gap-1.5 pt-3">
-					{#each entries as entry (entry.key)}
-						<!-- The lot picker drops to its own line on a phone rather than squeezing the name. -->
-						<div
-							class="hover:bg-accent/50 flex flex-wrap items-center gap-3 rounded-lg p-1.5 transition-colors"
-						>
-							<button type="button" onclick={() => open(entry.card)} class="shrink-0">
-								<CardImage card={entry.card} class="h-11 w-8 rounded" />
-							</button>
-							<div class="min-w-0 flex-1">
-								<p class="truncate text-sm font-medium">{entry.card.name}</p>
-								<p class="text-muted-foreground truncate text-xs">
-									{entry.card.set.ptcglCode ?? entry.card.set.id} · #{entry.card.localId} ·
-									{VARIANT_LABELS[entry.row.variant]}
-								</p>
-							</div>
-							<div class="flex items-center gap-1">
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-7"
-									aria-label="Remove one"
-									onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, -1)}
-								>
-									<Minus class="size-3" />
-								</Button>
-								<span class="w-6 text-center text-sm font-semibold tabular-nums">
-									{entry.row.quantity}
-								</span>
-								<Button
-									variant="outline"
-									size="icon"
-									class="size-7"
-									aria-label="Add one"
-									onclick={() => adjust(entry.card.id, entry.row.variant, entry.row.quantity, 1)}
-								>
-									<Plus class="size-3" />
-								</Button>
-							</div>
-							<LotPicker
-								value={lotId ?? ''}
-								allowCreate
-								size="sm"
-								class="w-full sm:w-36"
-								onchange={(target) => move(entry.key, entry.row.quantity, target)}
-							/>
-						</div>
-					{/each}
-				</Tabs.Content>
+					</Tabs.Content>
+				{/if}
 			</Tabs.Root>
 		{/if}
 	</div>

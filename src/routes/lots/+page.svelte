@@ -26,7 +26,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Search from '@lucide/svelte/icons/search';
 	import X from '@lucide/svelte/icons/x';
-	import { childrenOf, countDeep, folderPath, isDescendant } from '$lib/data/folders';
+	import { childrenOf, countDeep, folderPath, folderTrail, isDescendant } from '$lib/data/folders';
 	import { store } from '$lib/store.svelte';
 	import type { Lot, LotFolder } from '$lib/types';
 	import type { AppearanceColor } from '$lib/data/appearance';
@@ -65,10 +65,7 @@
 	const words = $derived(query.toLocaleLowerCase().split(/\s+/).filter(Boolean));
 	const searching = $derived(words.length > 0);
 
-	const pathOf = (id: string | null) =>
-		folderPath(store.lotFolders, id)
-			.map((folder) => folder.name)
-			.join(' › ');
+	const pathOf = (id: string | null) => folderTrail(store.lotFolders, id);
 
 	const matches = (...fields: (string | null | undefined)[]) => {
 		const haystack = fields.filter(Boolean).join(' ').toLocaleLowerCase();

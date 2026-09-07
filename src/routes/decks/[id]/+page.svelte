@@ -16,6 +16,8 @@
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Copy from '@lucide/svelte/icons/copy';
+	import Download from '@lucide/svelte/icons/download';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Check from '@lucide/svelte/icons/check';
 	import Heart from '@lucide/svelte/icons/heart';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
@@ -162,11 +164,21 @@
 		{backHref}
 	>
 		{#snippet actions()}
+			<!-- Labels drop away on a phone: four full ones leave the deck name a single letter. -->
 			<Button variant="outline" size="sm" onclick={() => copy(ptcglText, 'Decklist')}>
-				<Copy class="size-4" /> Copy list
+				<Copy class="size-4" /> <span class="sr-only sm:not-sr-only">Copy list</span>
 			</Button>
 			<Button variant="outline" size="sm" onclick={() => copy(aiPayload, 'AI export')}>
-				Copy for AI
+				<Sparkles class="size-4" /> <span class="sr-only sm:not-sr-only">Copy for AI</span>
+			</Button>
+			<!-- Import arrives pointed at this deck, ready to replace its list with a paste. -->
+			<Button
+				href="{base}/import?target=existing&deck={deckId}"
+				variant="outline"
+				size="sm"
+				aria-label="Import a decklist into this deck"
+			>
+				<Download class="size-4" /> <span class="sr-only sm:not-sr-only">Import list</span>
 			</Button>
 		{/snippet}
 	</PageHeader>

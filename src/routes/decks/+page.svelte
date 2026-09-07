@@ -16,6 +16,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import Plus from '@lucide/svelte/icons/plus';
 	import FolderPlus from '@lucide/svelte/icons/folder-plus';
+	import Download from '@lucide/svelte/icons/download';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -46,6 +47,10 @@
 	);
 
 	const href = (id: string | null) => `${base}/decks/${id ? `?folder=${id}` : ''}`;
+
+	/** Import straight into a folder — the new deck lands here instead of at the top level. */
+	const importHref = (id: string | null) =>
+		`${base}/import?target=deck&folder=${encodeURIComponent(id ?? '')}`;
 
 	// -- new deck ---------------------------------------------------------------
 	let deckDialog = $state(false);
@@ -112,7 +117,17 @@
 	backHref={current ? href(current.parentId) : undefined}
 >
 	{#snippet actions()}
-		<!-- The label drops away on a phone so a long folder name keeps room in the header. -->
+		<!-- The labels drop away on a phone so a long folder name keeps room in the header. -->
+		<!-- Import is always reachable, and it arrives pointing at the folder being viewed. -->
+		<Button
+			href={importHref(folderId || null)}
+			size="sm"
+			variant="outline"
+			aria-label="Import a decklist"
+		>
+			<Download class="size-4" />
+			<span class="hidden sm:inline">Import decklist</span>
+		</Button>
 		<Button size="sm" variant="outline" onclick={() => openFolderDialog()} aria-label="New folder">
 			<FolderPlus class="size-4" />
 			<span class="hidden sm:inline">New folder</span>
@@ -145,7 +160,7 @@
 			</p>
 			<div class="flex gap-2">
 				<Button onclick={() => (deckDialog = true)}>Create a deck</Button>
-				<Button href="{base}/import" variant="outline">Import a decklist</Button>
+				<Button href={importHref(folderId || null)} variant="outline">Import a decklist</Button>
 			</div>
 		</div>
 	{:else}
@@ -176,6 +191,11 @@
 												onclick={() => openMove('folder', folder.id, folder.name, folder.parentId)}
 											>
 												Move to…
+											</DropdownMenu.Item>
+											<DropdownMenu.Item>
+												{#snippet child({ props })}
+													<a {...props} href={importHref(folder.id)}>Import a decklist here</a>
+												{/snippet}
 											</DropdownMenu.Item>
 											<DropdownMenu.Separator />
 											<DropdownMenu.Item variant="destructive" onclick={() => deleteFolder(folder)}>

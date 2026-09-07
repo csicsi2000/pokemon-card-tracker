@@ -45,6 +45,7 @@
 	import Package from '@lucide/svelte/icons/package';
 	import Info from '@lucide/svelte/icons/info';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import { folderTrail } from '$lib/data/folders';
 	import { cn } from '$lib/utils';
 	import { VARIANT_LABELS } from '$lib/types';
 
@@ -65,7 +66,12 @@
 		class?: string;
 	} = $props();
 
-	const lots = $derived([...store.lots].sort((a, b) => a.name.localeCompare(b.name)));
+	/** Grouped by folder, so two lots with the same name are told apart by their trail. */
+	const lots = $derived(
+		store.lots
+			.map((lot) => ({ ...lot, trail: folderTrail(store.lotFolders, lot.folderId) }))
+			.sort((a, b) => a.trail.localeCompare(b.trail) || a.name.localeCompare(b.name))
+	);
 
 	function markOwned(lotId: string | null) {
 		try {
@@ -144,7 +150,9 @@
 					{:else}
 						<Package class="size-4" />
 					{/if}
-					<span class="truncate">{lot.name}</span>
+					<span class="truncate">
+						{#if lot.trail}<span class="text-muted-foreground">{lot.trail} › </span>{/if}{lot.name}
+					</span>
 				</DropdownMenu.Item>
 			{/each}
 		</DropdownMenu.Group>

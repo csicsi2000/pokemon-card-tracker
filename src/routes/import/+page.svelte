@@ -20,7 +20,7 @@
 	import Upload from '@lucide/svelte/icons/upload';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import CardImage from '$lib/components/CardImage.svelte';
-	import { folderPath } from '$lib/data/folders';
+	import { folderPath, folderTrail } from '$lib/data/folders';
 	import { toReadableJson, toReadableMarkdown } from '$lib/agent/readable';
 	import { store } from '$lib/store.svelte';
 	import { parseDecklist } from '$lib/tcg/parser';
@@ -43,16 +43,31 @@ Total Cards: 3`;
 	type Target = 'collection' | 'deck' | 'existing';
 
 	// An agent (or a link) can hand over a list: /import/?list=<encoded>&target=deck&name=…
+	// Import buttons elsewhere in the app also say *where* they were pressed, so the pickers
+	// come up already pointing there: ?lot=<id> (a lot page, or the collection's lot filter),
+	// ?folder=<id> (a deck folder), ?deck=<id> (a deck's own page). An empty lot or folder is
+	// the top level, which is why presence — not the value — decides the target.
 	const seed = page.url.searchParams;
 	const seededTarget = seed.get('target');
+	// '*' is the collection's "all lots" filter; as a destination that just means Unsorted.
+	const seededLot = seed.has('lot') ? (seed.get('lot') === '*' ? '' : (seed.get('lot') ?? '')) : null;
+	const seededFolder = seed.has('folder') ? (seed.get('folder') ?? '') : null;
+	const seededDeck = seed.get('deck') ?? '';
+
 	let text = $state(seed.get('list') ?? '');
 	let target = $state<Target>(
-		seededTarget === 'deck' || seededTarget === 'existing' ? seededTarget : 'collection'
+		seededTarget === 'deck' || seededTarget === 'existing' || seededTarget === 'collection'
+			? seededTarget
+			: seededDeck
+				? 'existing'
+				: seededFolder !== null
+					? 'deck'
+					: 'collection'
 	);
 	let deckName = $state(seed.get('name') ?? '');
-	let folderTarget = $state('');
-	let existingDeckId = $state('');
-	let lotTarget = $state('');
+	let folderTarget = $state(seededFolder ?? '');
+	let existingDeckId = $state(seededDeck);
+	let lotTarget = $state(seededLot ?? '');
 	let variant = $state<CardVariant>('normal');
 	let mode = $state<'add' | 'replace'>('add');
 	/** Printing overrides picked in review, keyed by the parsed line number. */
@@ -111,6 +126,22 @@ Total Cards: 3`;
 				label: [...folderPath(store.folders, deck.folderId).map((f) => f.name), deck.name].join(' › ')
 			}))
 	);
+
+	/** Where the link said to import, spelled out — nobody should have to re-read the pickers. */
+	const prefilled = $derived.by(() => {
+		if (seededDeck) return deckOptions.find((deck) => deck.id === seededDeck)?.label ?? null;
+		if (seededFolder !== null) {
+			const trail = folderTrail(store.folders, seededFolder || null);
+			return trail ? `a new deck in ${trail}` : 'a new deck at the top level';
+		}
+		if (seededLot !== null) {
+			const lot = seededLot ? store.lot(seededLot) : null;
+			if (!lot) return 'Unsorted';
+			const trail = folderTrail(store.lotFolders, lot.folderId);
+			return trail ? `${trail} › ${lot.name}` : lot.name;
+		}
+		return null;
+	});
 
 	function matchLabel(row: ResolvedEntry & { overridden: boolean }) {
 		if (row.overridden) return { text: 'chosen', variant: 'secondary' as const };
@@ -302,6 +333,13 @@ Total Cards: 3`;
 							</Button>
 						{/if}
 					</div>
+
+					{#if prefilled}
+						<p class="text-muted-foreground text-xs">
+							Set to import into <span class="text-foreground font-medium">{prefilled}</span> — where
+							you pressed Import. Change it below if you meant somewhere else.
+						</p>
+					{/if}
 
 					<div class="flex flex-wrap items-end gap-3">
 						<div class="flex flex-col gap-2">

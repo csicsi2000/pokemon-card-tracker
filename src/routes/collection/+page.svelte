@@ -19,16 +19,35 @@
 	import Package from '@lucide/svelte/icons/package';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Layers from '@lucide/svelte/icons/layers';
+	import ArrowDownNarrowWide from '@lucide/svelte/icons/arrow-down-narrow-wide';
+	import ArrowDownWideNarrow from '@lucide/svelte/icons/arrow-down-wide-narrow';
 	import { cardQuery } from '$lib/tcg/card-query';
+	import {
+		COLLECTION_SORTS,
+		COLLECTION_SORT_LABELS,
+		DEFAULT_SORT_DIRECTION,
+		directionLabel,
+		rarityRank,
+		sortRows,
+		type CollectionSort
+	} from '$lib/tcg/collection-view';
 	import { pickVariant } from '$lib/tcg/quick-add';
+	import { prefs } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
 	import type { CollectionEntry } from '$lib/data/model';
-	import { VARIANT_LABELS, type Card as CardType, type CardVariant } from '$lib/types';
+	import {
+		VARIANT_LABELS,
+		type Card as CardType,
+		type CardVariant,
+		type Supertype
+	} from '$lib/types';
 
 	let { data } = $props();
 
 	let query = $state('');
 	let setId = $state('');
+	let supertype = $state<Supertype | ''>('');
+	let rarity = $state('');
 	/** '*' every lot, '' Unsorted, else a lot id — see LotPicker. */
 	let lotFilter = $state('*');
 	/** Show the cards under a heading per lot instead of one flat grid. */
@@ -42,9 +61,12 @@
 	let addFinish = $state<CardVariant>('normal');
 	const addLotId = $derived(addLot === '' ? null : addLot);
 
-	type Row = { card: CardType; total: number };
+	type Row = { card: CardType; total: number; updatedAt: string };
 
-	/** One row per printing, with the per-variant counts folded together. */
+	/**
+	 * One row per printing, with the per-variant counts folded together. Unordered: the
+	 * grid sorts what it shows, and the callers that only count do not care.
+	 */
 	function fold(entries: CollectionEntry[]): Row[] {
 		const byCard = new Map<string, Row>();
 
@@ -52,11 +74,16 @@
 			const card = data.catalogue.byId.get(entry.cardId);
 			if (!card) continue; // printing vanished from the catalogue
 			const existing = byCard.get(card.id);
-			if (existing) existing.total += entry.quantity;
-			else byCard.set(card.id, { card, total: entry.quantity });
+			if (existing) {
+				existing.total += entry.quantity;
+				// The row is as new as its newest finish — one added holo re-dates the printing.
+				if (entry.updatedAt > existing.updatedAt) existing.updatedAt = entry.updatedAt;
+			} else {
+				byCard.set(card.id, { card, total: entry.quantity, updatedAt: entry.updatedAt });
+			}
 		}
 
-		return [...byCard.values()].sort((a, b) => a.card.name.localeCompare(b.card.name));
+		return [...byCard.values()];
 	}
 
 	const visible = $derived(
@@ -67,11 +94,35 @@
 
 	// Name substring, or a set code and number like "MEG 21" / "meg21".
 	const matches = $derived(cardQuery(data.catalogue, query).matches);
-	const keep = (row: Row) => matches(row.card) && (!setId || row.card.set.id === setId);
+	const keep = (row: Row) =>
+		matches(row.card) &&
+		(!setId || row.card.set.id === setId) &&
+		(!supertype || row.card.supertype === supertype) &&
+		(!rarity || (row.card.rarity ?? '') === rarity);
 
-	const filtered = $derived(rows.filter(keep));
+	/** Remembered per browser, so the order you like survives a reload. */
+	const sort = $derived(prefs.collectionSort);
+	const direction = $derived(prefs.collectionSortDir);
+
+	/** Picking a sort starts it at the useful end; the button then flips it. */
+	function chooseSort(next: CollectionSort) {
+		prefs.collectionSort = next;
+		prefs.collectionSortDir = DEFAULT_SORT_DIRECTION[next];
+	}
+
+	const ordered = (items: Row[]) => sortRows(items, sort, direction);
+
+	const filtered = $derived(ordered(rows.filter(keep)));
 
 	const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+
+	/**
+	 * Import lands where you are looking: the filtered lot, or — while every lot is shown —
+	 * whatever quick add is filing into. `?lot=` on its own means Unsorted.
+	 */
+	const importHref = $derived(
+		`${base}/import?target=collection&lot=${encodeURIComponent(lotFilter === '*' ? addLot : lotFilter)}`
+	);
 
 	/** The same cards, split per lot: newest acquisition first, Unsorted last. */
 	const sections = $derived.by(() => {
@@ -94,7 +145,7 @@
 			href: string,
 			entries: CollectionEntry[]
 		) => {
-			const rows = fold(entries).filter(keep);
+			const rows = ordered(fold(entries).filter(keep));
 			return {
 				key,
 				name: lot.name,
@@ -140,6 +191,26 @@
 		}))
 	]);
 
+	const typeOptions = [
+		{ value: '', label: 'All types' },
+		{ value: 'Pokemon', label: 'Pokémon' },
+		{ value: 'Trainer', label: 'Trainer' },
+		{ value: 'Energy', label: 'Energy' }
+	];
+
+	/** Only the rarities actually owned, rarest first — the long tail is the interesting end. */
+	const rarityOptions = $derived([
+		{ value: '', label: 'All rarities' },
+		...[...new Set(rows.map((row) => row.card.rarity).filter((value) => value !== null))]
+			.sort((a, b) => rarityRank(b) - rarityRank(a) || a.localeCompare(b))
+			.map((value) => ({ value, label: value }))
+	]);
+
+	const sortOptions = COLLECTION_SORTS.map((value) => ({
+		value,
+		label: COLLECTION_SORT_LABELS[value]
+	}));
+
 	function open(card: CardType) {
 		selected = card;
 		sheetOpen = true;
@@ -170,7 +241,7 @@
 			<Package class="size-4" />
 			<span class="hidden sm:inline">Lots</span>
 		</Button>
-		<Button href="{base}/import" variant="outline" size="sm" aria-label="Import / Export">
+		<Button href={importHref} variant="outline" size="sm" aria-label="Import / Export">
 			<Download class="size-4" />
 			<span class="hidden sm:inline">Import / Export</span>
 		</Button>
@@ -179,35 +250,34 @@
 
 <div class="flex flex-col gap-5 p-4 md:p-8">
 	<Card.Root>
-		<Card.Content class="flex flex-col gap-3 py-4">
-			<div class="flex flex-wrap items-end gap-3">
-				<div class="flex min-w-64 flex-1 flex-col gap-2">
-					<Label>Quick add</Label>
-					<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} />
-				</div>
-				<!-- On a phone the two pickers share one line under the quick add box. -->
-				<div class="flex basis-full gap-3 sm:contents">
-					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
-						<Label>Into lot</Label>
-						<LotPicker bind:value={addLot} allowCreate class="w-full sm:w-44" />
+		<Card.Content class="py-4">
+			<!-- The bar owns the row so a card preview cannot lift the field off the pickers' line. -->
+			<QuickAddBar catalogue={data.catalogue} onadd={quickAdd} label="Quick add">
+				{#snippet controls()}
+					<!-- On a phone the two pickers share one line under the quick add box. -->
+					<div class="flex basis-full gap-3 sm:contents">
+						<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+							<Label>Into lot</Label>
+							<LotPicker bind:value={addLot} allowCreate class="w-full sm:w-44" />
+						</div>
+						<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+							<Label>Finish</Label>
+							<Select.Root
+								type="single"
+								value={addFinish}
+								onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
+							>
+								<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
+								<Select.Content>
+									{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
+										<Select.Item {value}>{label}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
 					</div>
-					<div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
-						<Label>Finish</Label>
-						<Select.Root
-							type="single"
-							value={addFinish}
-							onValueChange={(v) => (addFinish = (v as CardVariant) ?? 'normal')}
-						>
-							<Select.Trigger class="w-full sm:w-36">{VARIANT_LABELS[addFinish]}</Select.Trigger>
-							<Select.Content>
-								{#each Object.entries(VARIANT_LABELS) as [value, label] (value)}
-									<Select.Item {value}>{label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-				</div>
-			</div>
+				{/snippet}
+			</QuickAddBar>
 		</Card.Content>
 	</Card.Root>
 
@@ -240,6 +310,69 @@
 			</Select.Content>
 		</Select.Root>
 
+	</div>
+
+	<!-- Second line: how the cards are narrowed down and ordered. -->
+	<div class="flex flex-wrap gap-2">
+		<Select.Root
+			type="single"
+			value={supertype}
+			onValueChange={(v) => (supertype = (v ?? '') as Supertype | '')}
+		>
+			<Select.Trigger class="min-w-0 flex-1 sm:w-36 sm:flex-none">
+				{typeOptions.find((o) => o.value === supertype)?.label ?? 'All types'}
+			</Select.Trigger>
+			<Select.Content>
+				{#each typeOptions as option (option.value)}
+					<Select.Item value={option.value}>{option.label}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+
+		<Select.Root type="single" value={rarity} onValueChange={(v) => (rarity = v ?? '')}>
+			<Select.Trigger class="min-w-0 flex-1 sm:w-44 sm:flex-none">
+				{rarityOptions.find((o) => o.value === rarity)?.label ?? 'All rarities'}
+			</Select.Trigger>
+			<Select.Content class="max-h-80">
+				{#each rarityOptions as option (option.value)}
+					<Select.Item value={option.value}>{option.label}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+
+		<!-- The picker chooses what to sort on; the button beside it chooses which way. -->
+		<div class="flex min-w-0 flex-1 gap-2 sm:flex-none">
+			<Select.Root
+				type="single"
+				value={sort}
+				onValueChange={(v) => chooseSort((v as CollectionSort) ?? 'name')}
+			>
+				<Select.Trigger class="min-w-0 flex-1 sm:w-44 sm:flex-none">
+					Sort: {COLLECTION_SORT_LABELS[sort]}
+				</Select.Trigger>
+				<Select.Content>
+					{#each sortOptions as option (option.value)}
+						<Select.Item value={option.value}>{option.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+
+			<Button
+				variant="outline"
+				onclick={() => (prefs.collectionSortDir = direction === 'asc' ? 'desc' : 'asc')}
+				title={directionLabel(sort, direction)}
+			>
+				{#if direction === 'asc'}
+					<ArrowDownNarrowWide class="size-4" />
+				{:else}
+					<ArrowDownWideNarrow class="size-4" />
+				{/if}
+				<!-- The words only fit on a wide screen; the icon and the title carry it otherwise. -->
+				<span class="hidden lg:inline">{directionLabel(sort, direction)}</span>
+				<span class="sr-only lg:hidden">Sort direction: {directionLabel(sort, direction)}</span>
+			</Button>
+		</div>
+
 		<Button
 			variant={groupByLot ? 'secondary' : 'outline'}
 			onclick={() => (groupByLot = !groupByLot)}
@@ -263,7 +396,7 @@
 			{#if store.collection.length === 0}
 				<div class="flex gap-2">
 					<Button href="{base}/cards">Browse cards</Button>
-					<Button href="{base}/import" variant="outline">Import a list</Button>
+					<Button href={importHref} variant="outline">Import a list</Button>
 				</div>
 			{/if}
 		</div>

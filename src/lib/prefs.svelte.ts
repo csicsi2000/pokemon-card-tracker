@@ -4,6 +4,7 @@
  * a phone may well want the side sheet while a desktop wants the big centred dialog.
  */
 import { browser } from '$app/environment';
+import type { CollectionSort, SortDirection } from './tcg/collection-view';
 
 /** Where a card opens: the sheet sliding in from the right, or a centred dialog with bigger art. */
 export type CardView = 'side' | 'center';
@@ -41,6 +42,9 @@ type Preferences = {
 	wantList: string;
 	/** How the trade binder is drawn; the same three views as wants. */
 	tradeView: WantView;
+	/** How the collection grid is ordered. The filters beside it are not remembered. */
+	collectionSort: CollectionSort;
+	collectionSortDir: SortDirection;
 	/**
 	 * The set pinned in each lot's quick add box, by lot id ('unsorted' for the Unsorted
 	 * lot). A half-sorted stack is usually finished over several sittings.
@@ -54,6 +58,8 @@ const defaults = (): Preferences => ({
 	deckView: 'list',
 	wantList: '*',
 	tradeView: 'detailed',
+	collectionSort: 'name',
+	collectionSortDir: 'asc',
 	lotAddSets: {}
 });
 
@@ -98,6 +104,20 @@ class Prefs {
 	}
 	set tradeView(value: WantView) {
 		this.#commit({ ...this.#values, tradeView: value });
+	}
+
+	get collectionSort() {
+		return this.#values.collectionSort;
+	}
+	set collectionSort(value: CollectionSort) {
+		this.#commit({ ...this.#values, collectionSort: value });
+	}
+
+	get collectionSortDir() {
+		return this.#values.collectionSortDir;
+	}
+	set collectionSortDir(value: SortDirection) {
+		this.#commit({ ...this.#values, collectionSortDir: value });
 	}
 
 	/** The set id pinned for quick add in one lot, or '' for none. */

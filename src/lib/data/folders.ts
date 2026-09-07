@@ -48,3 +48,9 @@ export function flattenTree(
 		...flattenTree(folders, folder.id, depth + 1)
 	]);
 }
+
+/** "Binders › 2026" — the folder trail as one line. Empty string at the root. */
+export const folderTrail = (folders: Folder[], id: string | null) =>
+	folderPath(folders, id)
+		.map((folder) => folder.name)
+		.join(' › ');
