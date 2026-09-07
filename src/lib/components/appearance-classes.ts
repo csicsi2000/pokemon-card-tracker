@@ -2,7 +2,12 @@
  * How each palette colour renders. Written out in full (not built from the colour name) so
  * Tailwind sees every class at build time. Tints are the soft background + readable text
  * used by the tile on a card; swatches are the solid dots in the picker.
+ *
+ * The deck-composition colours at the bottom live here for the same reason: they are
+ * class names Tailwind has to see spelled out somewhere.
  */
+import type { Supertype } from '$lib/types';
+
 import type { AppearanceColor } from '$lib/data/appearance';
 
 export const TINT: Record<AppearanceColor, string> = {
@@ -42,4 +47,14 @@ export const COLOR_LABELS: Record<AppearanceColor, string> = {
 	violet: 'Violet',
 	pink: 'Pink',
 	slate: 'Slate'
+};
+
+/**
+ * The colour each card kind wears in a deck breakdown — the bar on the deck page and the
+ * dots on a deck card. Red is deliberately absent: on those screens it means "missing".
+ */
+export const SUPERTYPE_COLOR: Record<Supertype, string> = {
+	Pokemon: 'bg-sky-500',
+	Trainer: 'bg-violet-500',
+	Energy: 'bg-amber-500'
 };

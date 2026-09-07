@@ -21,7 +21,11 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { childrenOf, countDeep, folderPath } from '$lib/data/folders';
+	import { SUPERTYPE_COLOR } from '$lib/components/appearance-classes';
 	import { store } from '$lib/store.svelte';
+	import { deckStats } from '$lib/tcg/deck-stats';
+
+	let { data } = $props();
 
 	/** The folder being viewed; '' is the top level. Driven by the URL so it can be shared. */
 	const folderId = $derived(page.url.searchParams.get('folder') ?? '');
@@ -42,6 +46,14 @@
 			.map((deck) => ({
 				...deck,
 				cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
+				// The Pokémon / Trainer / Energy split, so a deck can be recognised without
+				// opening it. Cards the catalogue does not know are simply not counted.
+				groups: deckStats(
+					deck.cards.flatMap((row) => {
+						const card = data.catalogue.byId.get(row.cardId);
+						return card ? [{ card, quantity: row.quantity }] : [];
+					})
+				).groups,
 				format: store.formats.find((format) => format.id === deck.formatId) ?? null
 			}))
 	);
@@ -248,14 +260,27 @@
 										</DropdownMenu.Content>
 									</DropdownMenu.Root>
 								</Card.Title>
-								<Card.Description>
+								<Card.Description class="line-clamp-2">
 									{deck.cardCount} cards
 									{#if deck.description}· {deck.description}{/if}
 								</Card.Description>
 							</Card.Header>
-							{#if deck.format}
-								<Card.Content>
-									<Badge variant="secondary">{deck.format.name}</Badge>
+							{#if deck.format || deck.cardCount > 0}
+								<Card.Content class="flex flex-wrap items-center gap-x-3 gap-y-2">
+									{#if deck.format}
+										<Badge variant="secondary">{deck.format.name}</Badge>
+									{/if}
+									{#each deck.groups as group (group.supertype)}
+										{#if group.count > 0}
+											<span
+												class="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums"
+												title="{group.count} {group.label}"
+											>
+												<span class="size-2 rounded-full {SUPERTYPE_COLOR[group.supertype]}"></span>
+												{group.count}
+											</span>
+										{/if}
+									{/each}
 								</Card.Content>
 							{/if}
 						</Card.Root>

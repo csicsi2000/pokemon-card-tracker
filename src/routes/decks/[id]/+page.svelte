@@ -9,6 +9,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -18,6 +19,7 @@
 	import Copy from '@lucide/svelte/icons/copy';
 	import Download from '@lucide/svelte/icons/download';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
+	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
 	import Check from '@lucide/svelte/icons/check';
 	import Heart from '@lucide/svelte/icons/heart';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
@@ -27,6 +29,7 @@
 	import CardImage from '$lib/components/CardImage.svelte';
 	import CardTile from '$lib/components/CardTile.svelte';
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
+	import DeckSummary from '$lib/components/DeckSummary.svelte';
 	import ResolveMissing, { wantMissing } from '$lib/components/ResolveMissing.svelte';
 	import { folderPath } from '$lib/data/folders';
 	import { prefs, DECK_VIEW_LABELS, type DeckView } from '$lib/prefs.svelte';
@@ -69,10 +72,13 @@
 		deck?.folderId ? `${base}/decks/?folder=${deck.folderId}` : `${base}/decks`
 	);
 
+	/** Null when the deck has no format — the summary's tips then stay generic. */
+	const rules = $derived(format ? parseRules(format.rules) : null);
+
 	const report = $derived.by(() => {
-		if (!format) return null;
+		if (!format || !rules) return null;
 		const poolIds = new Set(format.pool.map((card) => card.cardId));
-		return checkLegality(entries, parseRules(format.rules), poolIds);
+		return checkLegality(entries, rules, poolIds);
 	});
 
 	/** Copies owned per card name, any printing or finish — how deck requirements count. */
@@ -102,7 +108,12 @@
 	);
 	const aiPayload = $derived(
 		`${AI_PREAMBLE}\n${JSON.stringify(
-			{ deck: deck?.name, format: format?.name ?? null, cards: toAiEntries(entries) },
+			{
+				deck: deck?.name,
+				format: format?.name ?? null,
+				notes: deck?.description ?? null,
+				cards: toAiEntries(entries)
+			},
 			null,
 			2
 		)}`
@@ -237,6 +248,10 @@
 				</Card.Root>
 			{/if}
 
+			{#if entries.length > 0}
+				<DeckSummary {entries} {rules} />
+			{/if}
+
 			<Tabs.Root value="list">
 				<Tabs.List>
 					<Tabs.Trigger value="list">Decklist</Tabs.Trigger>
@@ -244,6 +259,12 @@
 						Missing
 						{#if buylist.totalMissing > 0}
 							<Badge variant="secondary" class="ml-1.5">{buylist.totalMissing}</Badge>
+						{/if}
+					</Tabs.Trigger>
+					<Tabs.Trigger value="notes">
+						Notes
+						{#if deck.description}
+							<span class="bg-primary ml-1.5 size-1.5 rounded-full" aria-label="has notes"></span>
 						{/if}
 					</Tabs.Trigger>
 				</Tabs.List>
@@ -464,6 +485,29 @@
 							{/each}
 						</div>
 					{/if}
+				</Tabs.Content>
+
+				<!-- Free text about the deck: the plan, what to swap in, what it loses to. It
+				     rides along in the readable and "Copy for AI" exports, so whatever coach the
+				     user pastes into reads it with the list. -->
+				<Tabs.Content value="notes" class="flex flex-col gap-2 pt-3">
+					<label class="flex items-center gap-2 text-sm font-medium" for="deck-notes">
+						<NotebookPen class="text-muted-foreground size-4" /> Notes for this deck
+					</label>
+					<Textarea
+						id="deck-notes"
+						rows={10}
+						placeholder="How the deck sets up, how it wins, what it fears. Tech cards to try, what to cut first, matchups to watch…"
+						value={deck.description ?? ''}
+						onchange={(event) =>
+							store.updateDeck(deckId, {
+								description: event.currentTarget.value.trim() || null
+							})}
+					/>
+					<p class="text-muted-foreground text-xs">
+						Saved when you click away. Goes with the deck everywhere — the decks list, the
+						readable export, and “Copy for AI”.
+					</p>
 				</Tabs.Content>
 			</Tabs.Root>
 		</div>
