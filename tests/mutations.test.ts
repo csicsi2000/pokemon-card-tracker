@@ -242,6 +242,66 @@ describe('folder and deck mutations', () => {
 	});
 });
 
+describe('duplicateDeck', () => {
+	it('copies the list, format, notes and folder into a new record', () => {
+		const clock = fixedClock();
+		const start = makeUserData({
+			folders: [makeFolder({ id: 'std' })],
+			decks: [
+				makeDeck({
+					id: 'zard',
+					name: 'Zard test',
+					description: 'needs a second Buddy-Buddy',
+					formatId: 'standard',
+					folderId: 'std',
+					cards: [{ cardId: 'OBF-125', quantity: 3 }]
+				}),
+				makeDeck({ id: 'other', name: 'Lost Box' })
+			]
+		});
+
+		const { data, deck } = mutate.duplicateDeck(start, clock, 'zard');
+
+		expect(deck).toMatchObject({
+			name: 'Zard test copy',
+			description: 'needs a second Buddy-Buddy',
+			formatId: 'standard',
+			folderId: 'std',
+			cards: [{ cardId: 'OBF-125', quantity: 3 }]
+		});
+		expect(deck!.id).not.toBe('zard');
+		expect(deck!.createdAt).toBe(deck!.updatedAt);
+		expect(deck!.updatedAt > start.decks[0].updatedAt).toBe(true);
+
+		// Next to the deck it came from, and the original is untouched.
+		expect(data.decks.map((item) => item.id)).toEqual(['zard', deck!.id, 'other']);
+		expect(data.decks[0]).toBe(start.decks[0]);
+		// Rows are copied, not shared: editing the copy must not touch the original.
+		expect(deck!.cards[0]).not.toBe(start.decks[0].cards[0]);
+	});
+
+	it('numbers further copies and leaves an unknown id alone', () => {
+		const clock = fixedClock();
+		const start = makeUserData({
+			decks: [makeDeck({ id: 'a', name: 'Zard' }), makeDeck({ id: 'b', name: 'Zard copy' })]
+		});
+
+		expect(mutate.duplicateDeck(start, clock, 'a').deck!.name).toBe('Zard copy 2');
+
+		const missing = mutate.duplicateDeck(start, clock, 'nope');
+		expect(missing.deck).toBeNull();
+		expect(missing.data).toBe(start);
+	});
+
+	it('copyName skips names already taken, whatever their case', () => {
+		expect(mutate.copyName('Lost Box', [])).toBe('Lost Box copy');
+		expect(mutate.copyName('Lost Box', ['lost box COPY'])).toBe('Lost Box copy 2');
+		expect(mutate.copyName('Lost Box', ['Lost Box copy', 'Lost Box copy 2'])).toBe(
+			'Lost Box copy 3'
+		);
+	});
+});
+
 describe('restore and clear', () => {
 	it('restore stamps incoming records and tombstones what the file lacks', () => {
 		const clock = fixedClock();

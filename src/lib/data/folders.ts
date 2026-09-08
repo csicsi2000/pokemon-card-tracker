@@ -54,3 +54,18 @@ export const folderTrail = (folders: Folder[], id: string | null) =>
 	folderPath(folders, id)
 		.map((folder) => folder.name)
 		.join(' › ');
+
+/**
+ * Whether dropping something onto a folder would actually move it — the rule behind the
+ * drag-and-drop highlight. `targetId` is `null` for the top level. Nothing moves into the
+ * folder it already sits in, and a folder cannot land in itself or in its own subtree.
+ */
+export function canMoveInto(
+	folders: Folder[],
+	item: { kind: 'item' | 'folder'; id: string; parentId: string | null },
+	targetId: string | null
+) {
+	if (item.parentId === targetId) return false;
+	if (item.kind === 'item' || targetId === null) return true;
+	return !isDescendant(folders, targetId, item.id);
+}

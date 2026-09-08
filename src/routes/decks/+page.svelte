@@ -4,8 +4,10 @@
 	import { base } from '$app/paths';
 	import { fly } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
+	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import FolderPicker from '$lib/components/FolderPicker.svelte';
+	import DragGhost from '$lib/components/DragGhost.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -17,13 +19,16 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import Download from '@lucide/svelte/icons/download';
+	import CopyPlus from '@lucide/svelte/icons/copy-plus';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { childrenOf, countDeep, folderPath } from '$lib/data/folders';
 	import { SUPERTYPE_COLOR } from '$lib/components/appearance-classes';
+	import { createFolderDnd } from '$lib/dnd.svelte';
 	import { store } from '$lib/store.svelte';
 	import { deckStats } from '$lib/tcg/deck-stats';
+	import { cn } from '$lib/utils';
 
 	let { data } = $props();
 
@@ -113,6 +118,35 @@
 		moving = null;
 	}
 
+	// -- drag and drop ----------------------------------------------------------
+	// Dragging a deck or a folder onto a folder card files it there; the breadcrumbs are
+	// drop targets too, which is how something moves back up a level.
+	const dnd = createFolderDnd({
+		folders: () => store.folders,
+		move(item, folderId) {
+			if (item.kind === 'folder') store.updateFolder(item.id, { parentId: folderId });
+			else store.moveDeck(item.id, folderId);
+			const where = folderId ? (store.folder(folderId)?.name ?? 'Decks') : 'Decks';
+			toast.success(`Moved “${item.name}” to ${where}`);
+		}
+	});
+
+	/** How a card looks mid-drag: lifted if it is the one moving, dimmed if it cannot take it. */
+	const dragClass = (kind: 'item' | 'folder', id: string) =>
+		cn(
+			dnd.isDragging(id) && 'opacity-40',
+			kind === 'folder' &&
+				dnd.item &&
+				!dnd.isDragging(id) &&
+				(dnd.isOver(id) ? 'ring-primary ring-2' : !dnd.canDrop(id) && 'opacity-50')
+		);
+
+	// -- duplicate --------------------------------------------------------------
+	function duplicate(id: string) {
+		const copy = store.duplicateDeck(id);
+		if (copy) toast.success(`Created “${copy.name}”`);
+	}
+
 	function deleteFolder(folder: { id: string; name: string; deckCount: number }) {
 		const detail = folder.deckCount
 			? ` Its ${folder.deckCount} deck${folder.deckCount === 1 ? '' : 's'} and sub-folders move up a level.`
@@ -152,14 +186,33 @@
 
 <div class="flex flex-col gap-4 p-4 md:p-8">
 	{#if crumbs.length}
-		<nav class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm" aria-label="Folder path">
-			<a href={href(null)} class="hover:text-foreground">Decks</a>
+		<!-- Each crumb is a drop target, so dragging onto one moves an item back up a level. -->
+		<nav
+			class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
+			aria-label="Folder path"
+		>
+			<a
+				href={href(null)}
+				class={cn('hover:text-foreground rounded px-1', dnd.isOver(null) && 'bg-primary/15 text-foreground')}
+				{@attach dnd.zone(null)}
+			>
+				Decks
+			</a>
 			{#each crumbs as crumb (crumb.id)}
 				<ChevronRight class="size-3.5" />
 				{#if crumb.id === folderId}
 					<span class="text-foreground font-medium">{crumb.name}</span>
 				{:else}
-					<a href={href(crumb.id)} class="hover:text-foreground">{crumb.name}</a>
+					<a
+						href={href(crumb.id)}
+						class={cn(
+							'hover:text-foreground rounded px-1',
+							dnd.isOver(crumb.id) && 'bg-primary/15 text-foreground'
+						)}
+						{@attach dnd.zone(crumb.id)}
+					>
+						{crumb.name}
+					</a>
 				{/if}
 			{/each}
 		</nav>
@@ -182,8 +235,22 @@
 					<div
 						animate:flip={{ duration: 250 }}
 						in:fly|global={{ y: 10, duration: 220, delay: index * 30 }}
+						class="select-none"
+						{@attach dnd.grab({
+							kind: 'folder',
+							id: folder.id,
+							name: folder.name,
+							parentId: folder.parentId,
+							icon: folder.icon
+						})}
+						{@attach dnd.zone(folder.id)}
 					>
-						<Card.Root class="h-full transition-shadow hover:shadow-md">
+						<Card.Root
+							class={cn(
+								'h-full transition-shadow hover:shadow-md',
+								dragClass('folder', folder.id)
+							)}
+						>
 							<Card.Header>
 								<Card.Title class="flex items-start justify-between gap-2">
 									<a href={href(folder.id)} class="flex min-w-0 items-center gap-2 hover:underline">
@@ -232,33 +299,55 @@
 					<div
 						animate:flip={{ duration: 250 }}
 						in:fly|global={{ y: 10, duration: 220, delay: index * 30 }}
+						class="select-none"
+						{@attach dnd.grab({
+							kind: 'item',
+							id: deck.id,
+							name: deck.name,
+							parentId: deck.folderId
+						})}
 					>
-						<Card.Root class="h-full transition-shadow hover:shadow-md">
+						<Card.Root
+							class={cn('h-full transition-shadow hover:shadow-md', dragClass('item', deck.id))}
+						>
 							<Card.Header>
 								<Card.Title class="flex items-start justify-between gap-2">
 									<a href="{base}/decks/{deck.id}" class="truncate hover:underline">{deck.name}</a>
-									<DropdownMenu.Root>
-										<DropdownMenu.Trigger
-											class={buttonVariants({ variant: 'ghost', size: 'icon', class: 'text-muted-foreground size-7' })}
-											aria-label="Deck actions"
+									<div class="flex shrink-0 items-center">
+										<!-- One tap to try a change out on a copy instead of the real deck. -->
+										<Button
+											variant="ghost"
+											size="icon"
+											class="text-muted-foreground size-7"
+											aria-label="Duplicate deck"
+											title="Duplicate"
+											onclick={() => duplicate(deck.id)}
 										>
-											<Ellipsis class="size-4" />
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content align="end">
-											<DropdownMenu.Item onclick={() => openMove('deck', deck.id, deck.name, deck.folderId)}>
-												Move to…
-											</DropdownMenu.Item>
-											<DropdownMenu.Separator />
-											<DropdownMenu.Item
-												variant="destructive"
-												onclick={() => {
-													if (confirm(`Delete “${deck.name}”?`)) store.deleteDeck(deck.id);
-												}}
+											<CopyPlus class="size-4" />
+										</Button>
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger
+												class={buttonVariants({ variant: 'ghost', size: 'icon', class: 'text-muted-foreground size-7' })}
+												aria-label="Deck actions"
 											>
-												Delete
-											</DropdownMenu.Item>
-										</DropdownMenu.Content>
-									</DropdownMenu.Root>
+												<Ellipsis class="size-4" />
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content align="end">
+												<DropdownMenu.Item onclick={() => openMove('deck', deck.id, deck.name, deck.folderId)}>
+													Move to…
+												</DropdownMenu.Item>
+												<DropdownMenu.Separator />
+												<DropdownMenu.Item
+													variant="destructive"
+													onclick={() => {
+														if (confirm(`Delete “${deck.name}”?`)) store.deleteDeck(deck.id);
+													}}
+												>
+													Delete
+												</DropdownMenu.Item>
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
+									</div>
 								</Card.Title>
 								<Card.Description class="line-clamp-2">
 									{deck.cardCount} cards
@@ -365,3 +454,5 @@
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
+
+<DragGhost {dnd} folders={store.folders} rootLabel="Decks" />

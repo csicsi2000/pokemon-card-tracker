@@ -644,6 +644,48 @@ export function updateDeck(
 	};
 }
 
+/** "Zard test" → "Zard test copy", then "Zard test copy 2" — the first name still free. */
+export function copyName(name: string, taken: Iterable<string>): string {
+	const used = new Set([...taken].map((value) => value.toLocaleLowerCase()));
+	const base = `${name} copy`;
+	if (!used.has(base.toLocaleLowerCase())) return base;
+	// `used` is finite, so a free suffix always turns up.
+	for (let n = 2; ; n += 1) {
+		const candidate = `${base} ${n}`;
+		if (!used.has(candidate.toLocaleLowerCase())) return candidate;
+	}
+}
+
+/**
+ * Copy a deck — same list, format, notes and folder — for trying a change out without
+ * touching the original. The copy is its own record: new id, fresh timestamps, and it
+ * sits right after the deck it came from.
+ */
+export function duplicateDeck(
+	data: UserData,
+	clock: Clock,
+	id: string
+): { data: UserData; deck: Deck | null } {
+	const index = data.decks.findIndex((deck) => deck.id === id);
+	if (index === -1) return { data, deck: null };
+	const source = data.decks[index];
+	const now = clock.next();
+	const deck: Deck = {
+		...source,
+		id: newId(),
+		name: copyName(
+			source.name,
+			data.decks.map((item) => item.name)
+		),
+		cards: source.cards.map((card) => ({ ...card })),
+		createdAt: now,
+		updatedAt: now
+	};
+	const decks = [...data.decks];
+	decks.splice(index + 1, 0, deck);
+	return { data: { ...data, decks }, deck };
+}
+
 export function deleteDeck(data: UserData, clock: Clock, id: string): UserData {
 	if (!data.decks.some((deck) => deck.id === id)) return data;
 	return {

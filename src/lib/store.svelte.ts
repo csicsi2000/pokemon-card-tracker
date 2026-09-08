@@ -336,6 +336,13 @@ class Store {
 		this.updateDeck(id, { folderId });
 	}
 
+	/** A copy of the deck, next to it and ready to be edited. Null if the id is unknown. */
+	duplicateDeck(id: string): Deck | null {
+		const { data, deck } = mutate.duplicateDeck(this.#data, this.clock, id);
+		this.#commit(data);
+		return deck;
+	}
+
 	deleteDeck(id: string) {
 		this.#commit(mutate.deleteDeck(this.#data, this.clock, id));
 	}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
 	import { flip } from 'svelte/animate';
@@ -17,6 +18,7 @@
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Copy from '@lucide/svelte/icons/copy';
+	import CopyPlus from '@lucide/svelte/icons/copy-plus';
 	import Download from '@lucide/svelte/icons/download';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
@@ -149,6 +151,14 @@
 		}
 	}
 
+	/** A copy of this deck to change freely, and straight into it — that is the point of it. */
+	function duplicate() {
+		const copy = store.duplicateDeck(deckId);
+		if (!copy) return;
+		toast.success(`Created “${copy.name}”`);
+		goto(`${base}/decks/${copy.id}`);
+	}
+
 	async function copy(text: string, label: string) {
 		try {
 			await navigator.clipboard.writeText(text);
@@ -175,7 +185,10 @@
 		{backHref}
 	>
 		{#snippet actions()}
-			<!-- Labels drop away on a phone: four full ones leave the deck name a single letter. -->
+			<!-- Labels drop away on a phone: full ones leave the deck name a single letter. -->
+			<Button variant="outline" size="sm" onclick={duplicate} title="Duplicate this deck">
+				<CopyPlus class="size-4" /> <span class="sr-only sm:not-sr-only">Duplicate</span>
+			</Button>
 			<Button variant="outline" size="sm" onclick={() => copy(ptcglText, 'Decklist')}>
 				<Copy class="size-4" /> <span class="sr-only sm:not-sr-only">Copy list</span>
 			</Button>

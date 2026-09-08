@@ -4,11 +4,13 @@
 	import { base } from '$app/paths';
 	import { fly } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
+	import { toast } from 'svelte-sonner';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import LotDialog from '$lib/components/LotDialog.svelte';
 	import FolderPicker from '$lib/components/FolderPicker.svelte';
 	import AppearanceTile from '$lib/components/AppearanceTile.svelte';
 	import AppearancePicker from '$lib/components/AppearancePicker.svelte';
+	import DragGhost from '$lib/components/DragGhost.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
@@ -27,7 +29,9 @@
 	import Search from '@lucide/svelte/icons/search';
 	import X from '@lucide/svelte/icons/x';
 	import { childrenOf, countDeep, folderPath, folderTrail, isDescendant } from '$lib/data/folders';
+	import { createFolderDnd } from '$lib/dnd.svelte';
 	import { store } from '$lib/store.svelte';
+	import { cn } from '$lib/utils';
 	import type { Lot, LotFolder } from '$lib/types';
 	import type { AppearanceColor } from '$lib/data/appearance';
 
@@ -185,6 +189,30 @@
 		moving = null;
 	}
 
+	// -- drag and drop ----------------------------------------------------------
+	// Dragging a lot or a folder onto a folder card files it there; the breadcrumbs are
+	// drop targets too, which is how something moves back up a level. It works while a
+	// search is on as well, where the grid shows folders from anywhere in the tree.
+	const dnd = createFolderDnd({
+		folders: () => store.lotFolders,
+		move(item, folderId) {
+			if (item.kind === 'folder') store.updateLotFolder(item.id, { parentId: folderId });
+			else store.moveLot(item.id, folderId);
+			const where = folderId ? (store.lotFolder(folderId)?.name ?? 'Lots') : 'Lots';
+			toast.success(`Moved “${item.name}” to ${where}`);
+		}
+	});
+
+	/** How a card looks mid-drag: lifted if it is the one moving, dimmed if it cannot take it. */
+	const dragClass = (kind: 'item' | 'folder', id: string) =>
+		cn(
+			dnd.isDragging(id) && 'opacity-40',
+			kind === 'folder' &&
+				dnd.item &&
+				!dnd.isDragging(id) &&
+				(dnd.isOver(id) ? 'ring-primary ring-2' : !dnd.canDrop(id) && 'opacity-50')
+		);
+
 	function deleteFolder(folder: { id: string; name: string; lotCount: number }) {
 		const detail = folder.lotCount
 			? ` Its ${folder.lotCount} lot${folder.lotCount === 1 ? '' : 's'} and sub-folders move up a level.`
@@ -216,17 +244,36 @@
 
 <div class="flex flex-col gap-4 p-4 md:p-8">
 	{#if crumbs.length}
+		<!-- Each crumb is a drop target, so dragging onto one moves an item back up a level. -->
 		<nav
 			class="text-muted-foreground flex flex-wrap items-center gap-1 text-sm"
 			aria-label="Folder path"
 		>
-			<a href={href(null)} class="hover:text-foreground">Lots</a>
+			<a
+				href={href(null)}
+				class={cn(
+					'hover:text-foreground rounded px-1',
+					dnd.isOver(null) && 'bg-primary/15 text-foreground'
+				)}
+				{@attach dnd.zone(null)}
+			>
+				Lots
+			</a>
 			{#each crumbs as crumb (crumb.id)}
 				<ChevronRight class="size-3.5" />
 				{#if crumb.id === folderId}
 					<span class="text-foreground font-medium">{crumb.name}</span>
 				{:else}
-					<a href={href(crumb.id)} class="hover:text-foreground">{crumb.name}</a>
+					<a
+						href={href(crumb.id)}
+						class={cn(
+							'hover:text-foreground rounded px-1',
+							dnd.isOver(crumb.id) && 'bg-primary/15 text-foreground'
+						)}
+						{@attach dnd.zone(crumb.id)}
+					>
+						{crumb.name}
+					</a>
 				{/if}
 			{/each}
 		</nav>
@@ -263,9 +310,21 @@
 				<div
 					animate:flip={{ duration: 250 }}
 					in:fly|global={{ y: 10, duration: 220, delay: index * 30 }}
+					class="select-none"
+					{@attach dnd.grab({
+						kind: 'folder',
+						id: folder.id,
+						name: folder.name,
+						parentId: folder.parentId,
+						icon: folder.icon
+					})}
+					{@attach dnd.zone(folder.id)}
 				>
 					<Card.Root
-						class="h-full cursor-pointer transition-shadow hover:shadow-md"
+						class={cn(
+							'h-full cursor-pointer transition-shadow hover:shadow-md',
+							dragClass('folder', folder.id)
+						)}
 						onclick={(event) => openCard(event, href(folder.id))}
 					>
 						<Card.Header>
@@ -371,9 +430,20 @@
 				<div
 					animate:flip={{ duration: 250 }}
 					in:fly|global={{ y: 10, duration: 220, delay: index * 30 }}
+					class="select-none"
+					{@attach dnd.grab({
+						kind: 'item',
+						id: lot.id,
+						name: lot.name,
+						parentId: lot.folderId,
+						icon: lot.icon
+					})}
 				>
 					<Card.Root
-						class="h-full cursor-pointer transition-shadow hover:shadow-md"
+						class={cn(
+							'h-full cursor-pointer transition-shadow hover:shadow-md',
+							dragClass('item', lot.id)
+						)}
 						onclick={(event) => openCard(event, `${base}/lots/${lot.id}`)}
 					>
 						<Card.Header>
@@ -480,3 +550,5 @@
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
+
+<DragGhost {dnd} folders={store.lotFolders} rootLabel="Lots" />

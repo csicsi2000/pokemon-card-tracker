@@ -127,4 +127,12 @@
 	html {
 		@apply font-sans;
 	}
+	/*
+	 * Set on <body> while a card is being dragged into a folder (see lib/dnd.svelte.ts):
+	 * the pointer says "grabbing" everywhere, and a mouse drag does not select text on
+	 * the way past.
+	 */
+	body.dragging {
+		@apply cursor-grabbing select-none;
+	}
 }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { childrenOf, countDeep, flattenTree, folderPath, isDescendant } from '../src/lib/data/folders';
+import {
+	canMoveInto,
+	childrenOf,
+	countDeep,
+	flattenTree,
+	folderPath,
+	isDescendant
+} from '../src/lib/data/folders';
 import { makeDeck, makeFolder, makeLot } from './data-helpers';
 
 const folders = [
@@ -50,6 +57,24 @@ describe('folders', () => {
 			'1:y26',
 			'2:zard'
 		]);
+	});
+
+	it('canMoveInto refuses no-op moves and moves into own subtree', () => {
+		const deck = { kind: 'item' as const, id: 'd1', parentId: 'std' };
+		expect(canMoveInto(folders, deck, 'exp')).toBe(true);
+		expect(canMoveInto(folders, deck, null)).toBe(true);
+		expect(canMoveInto(folders, deck, 'std')).toBe(false); // already there
+
+		const folder = { kind: 'folder' as const, id: 'std', parentId: null };
+		expect(canMoveInto(folders, folder, 'exp')).toBe(true);
+		expect(canMoveInto(folders, folder, 'std')).toBe(false); // into itself
+		expect(canMoveInto(folders, folder, 'zard')).toBe(false); // into its own subtree
+		expect(canMoveInto(folders, folder, null)).toBe(false); // already at the top level
+
+		// A folder from further down can always come back up to the root.
+		const nested = { kind: 'folder' as const, id: 'zard', parentId: 'y26' };
+		expect(canMoveInto(folders, nested, null)).toBe(true);
+		expect(canMoveInto(folders, nested, 'std')).toBe(true);
 	});
 
 	it('survives a cycle without looping forever', () => {
