@@ -1,6 +1,7 @@
 <script lang="ts">
 	/**
-	 * Card art with a name fallback.
+	 * Card art, falling back to a drawn energy card (basic energy has no scans on TCGdex)
+	 * and, failing that, to the card's name.
 	 *
 	 * TCGdex sometimes lists a card before its scan is published (brand-new sets),
 	 * so a URL existing is no guarantee the image does — hence the error handler
@@ -14,14 +15,20 @@
 	 * A load that fails is retried through `healArtwork`, which re-fetches past the
 	 * browser's HTTP cache (the CDN's 404s are marked cacheable for a year) with growing
 	 * pauses between attempts, so a phone whose network is still waking up gets more
-	 * than two seconds to come back. Only when the whole ladder fails does the name
-	 * fallback show — and even then the tile asks once more when the browser reports it
-	 * is online again or the page is brought back into view, instead of staying blank
-	 * until the next navigation while the detail sheet, asking for a different size of
-	 * the same scan, loads it without trouble.
+	 * than two seconds to come back. Only when the whole ladder fails does a fallback
+	 * show — and even then the tile asks once more when the browser reports it is online
+	 * again or the page is brought back into view, instead of staying blank until the
+	 * next navigation while the detail sheet, asking for a different size of the same
+	 * scan, loads it without trouble.
+	 *
+	 * A real scan always wins; the drawn energy card is only what an energy tile shows
+	 * in place of the name box, which for most basic energy is immediately — those
+	 * printings have no `image` at all, so there is nothing to ask for.
 	 */
+	import EnergyCardArt from './EnergyCardArt.svelte';
 	import { cardImage } from '$lib/catalogue';
 	import { HEAL_DELAYS_MS, healArtwork, onRetryChance } from '$lib/pwa/art';
+	import { energyType } from '$lib/tcg/energy';
 	import { cn } from '$lib/utils';
 	import type { Card } from '$lib/types';
 
@@ -44,6 +51,8 @@
 	let tries = 0;
 
 	const src = $derived(cardImage(card, quality));
+	/** Non-null for an energy card whose type we can name — then we can draw it ourselves. */
+	const energy = $derived(energyType(card));
 	// Reset when the component is reused for a different printing.
 	$effect(() => {
 		void src;
@@ -93,6 +102,9 @@
 			class={cn('object-cover', className)}
 		/>
 	{/key}
+{:else if energy}
+	<EnergyCardArt type={energy} label={card.name} {eager} class={className} />
+
 {:else}
 	<div
 		class={cn(

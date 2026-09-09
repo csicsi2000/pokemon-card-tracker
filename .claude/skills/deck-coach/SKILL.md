@@ -17,7 +17,9 @@ it is connected). Work from the data, not from memory of what they might own.
    folder; every card line is `qty name SET number`.
 3. For a specific deck: `npm run cardex -- deck show "<name>"` and
    `npm run cardex -- buylist "<name>"`. Look up unknown cards with
-   `npm run cardex -- search <name>` or `resolve "<SET NUMBER>"`.
+   `npm run cardex -- search <name>` or `resolve "<SET NUMBER>"`. When the user has two
+   versions of one archetype, `npm run cardex -- deck diff "<a>" "<b>"` is the fastest way
+   to see what actually differs — cards are matched by name, so reprints are not changes.
 4. Give advice the way docs/deck-coach-prompt.md describes: plan in a few sentences, full
    60-card PTCGL list, then a separate **To buy** section for cards not owned.
 5. Only write when asked. To save a deck: write the list to a file and run

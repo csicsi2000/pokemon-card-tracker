@@ -20,6 +20,7 @@
 	import Copy from '@lucide/svelte/icons/copy';
 	import CopyPlus from '@lucide/svelte/icons/copy-plus';
 	import Download from '@lucide/svelte/icons/download';
+	import GitCompare from '@lucide/svelte/icons/git-compare';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
 	import Check from '@lucide/svelte/icons/check';
@@ -189,6 +190,18 @@
 			<Button variant="outline" size="sm" onclick={duplicate} title="Duplicate this deck">
 				<CopyPlus class="size-4" /> <span class="sr-only sm:not-sr-only">Duplicate</span>
 			</Button>
+			<!-- Straight to the compare screen with this deck on the left, ready to pick the
+			     other version of it. Hidden when there is nothing to compare against. -->
+			{#if store.decks.length >= 2}
+				<Button
+					href="{base}/decks/compare/?a={deckId}"
+					variant="outline"
+					size="sm"
+					title="Compare this deck with another"
+				>
+					<GitCompare class="size-4" /> <span class="sr-only sm:not-sr-only">Compare</span>
+				</Button>
+			{/if}
 			<Button variant="outline" size="sm" onclick={() => copy(ptcglText, 'Decklist')}>
 				<Copy class="size-4" /> <span class="sr-only sm:not-sr-only">Copy list</span>
 			</Button>

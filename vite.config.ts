@@ -189,6 +189,25 @@ export default defineConfig(({ mode }) => ({
 						}
 					},
 					{
+						// The basic energy cards TCGdex never scanned, borrowed from
+						// pokemontcg.io — a fixed handful of URLs (see tcg/energy.ts), so this
+						// cache holds ten entries, not thousands.
+						//
+						// Unlike the CDN above, this one answers a 404 *with* CORS headers, so
+						// a miss cannot be rejected by the cross-origin check — `statuses: [200]`
+						// is what keeps a missing scan out of the cache here. Its 404s carry the
+						// same year-long `Cache-Control` as its images, hence `no-cache` again:
+						// without it the browser's own cache would pin one for the year.
+						urlPattern: /^https:\/\/images\.pokemontcg\.io\/.*/i,
+						handler: 'CacheFirst',
+						options: {
+							fetchOptions: { cache: 'no-cache' },
+							cacheName: 'energy-art',
+							expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 180 },
+							cacheableResponse: { statuses: [200] }
+						}
+					},
+					{
 						// Per-card detail (attacks, abilities, prices). Network first, because
 						// prices move; the cached copy keeps a card readable offline once seen.
 						// Requested with fetch(), which defaults to CORS mode, so the status

@@ -15,6 +15,7 @@ import * as mutate from '$lib/data/mutations';
 import { repair } from '$lib/data/repair';
 import type { Card, CardVariant, Deck, DeckFolder, Folder, Lot, LotFolder, UserData } from '$lib/types';
 import { buildBuylist, type Buylist } from '$lib/tcg/buylist';
+import { diffDecks, type DeckDiff } from '$lib/tcg/deck-diff';
 import { parseRules } from '$lib/tcg/format-rules';
 import { checkLegality, type LegalityReport } from '$lib/tcg/legality';
 import { normalizeName } from '$lib/tcg/normalize';
@@ -245,11 +246,68 @@ export function deckLegality(data: UserData, catalogue: Catalogue, ref: string):
 	const deck = findDeck(data, ref);
 	const format = deck.formatId ? data.formats.find((f) => f.id === deck.formatId) : undefined;
 	if (!format) return null;
-	const entries = deck.cards.flatMap((row) => {
+	return checkLegality(
+		deckEntries(catalogue, deck),
+		parseRules(format.rules),
+		new Set(format.pool.map((c) => c.cardId))
+	);
+}
+
+/** A deck's rows joined to the catalogue. Cards the catalogue does not know are dropped. */
+const deckEntries = (catalogue: Catalogue, deck: Deck) =>
+	deck.cards.flatMap((row) => {
 		const card = catalogue.byId.get(row.cardId);
 		return card ? [{ card, quantity: row.quantity }] : [];
 	});
-	return checkLegality(entries, parseRules(format.rules), new Set(format.pool.map((c) => c.cardId)));
+
+/** One side of a comparison: enough to name the deck without re-reading it. */
+export type DeckDiffSide = { id: string; name: string; path: string[]; format: string | null; total: number };
+
+export type DeckDiffView = {
+	a: DeckDiffSide;
+	b: DeckDiffSide;
+	diff: DeckDiff;
+	/**
+	 * What switching from A to B would cost: the copies coming in that the user does not
+	 * own. Ownership counts every printing, as everywhere else, and does not reserve the
+	 * copies already sleeved in another deck.
+	 */
+	toBuy: Buylist;
+};
+
+/** Two decks side by side — the two builds of an archetype question. */
+export function deckDiffView(
+	data: UserData,
+	catalogue: Catalogue,
+	refA: string,
+	refB: string
+): DeckDiffView {
+	const deckA = findDeck(data, refA);
+	const deckB = findDeck(data, refB);
+	const diff = diffDecks(deckEntries(catalogue, deckA), deckEntries(catalogue, deckB));
+
+	const side = (deck: Deck, total: number): DeckDiffSide => ({
+		id: deck.id,
+		name: deck.name,
+		path: folderPath(data.folders, deck.folderId).map((f) => f.name),
+		format: deck.formatId ? (data.formats.find((f) => f.id === deck.formatId)?.name ?? null) : null,
+		total
+	});
+
+	const owned = data.collection.flatMap((row) => {
+		const card = catalogue.byId.get(row.cardId);
+		return card ? [{ name: card.name, quantity: row.quantity }] : [];
+	});
+
+	return {
+		a: side(deckA, diff.totals.a),
+		b: side(deckB, diff.totals.b),
+		diff,
+		toBuy: buildBuylist(
+			diff.rows.filter((row) => row.delta > 0).map((row) => ({ card: row.card, quantity: row.delta })),
+			owned
+		)
+	};
 }
 
 // -- writing ----------------------------------------------------------------

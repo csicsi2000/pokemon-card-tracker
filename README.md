@@ -175,6 +175,19 @@ page shows the same have/missing summary for a pasted list *before* you save any
 can import into a new deck (in a chosen folder), into your collection (into a chosen lot), or
 replace the list of an existing deck.
 
+### Comparing two decks
+
+**Compare** (on the Decks page, on a deck, or in a deck's ⋯ menu) puts two lists side by
+side — the screen for "I keep two versions of this archetype, what is actually different?".
+It reports how much of the list the two share, which cards came in and which went out, the
+Pokémon / Trainer / Energy counts of each, and what you would still have to buy to switch
+from the left deck to the right one. Both decks are in the URL (`?a=…&b=…`), so a
+comparison can be bookmarked or sent to someone.
+
+Cards are matched **by name**, so a different printing of the same card is not a change —
+those are called out separately as reprint swaps, since the regulation mark can differ. Pair
+it with **Duplicate**: copy a deck, change the copy, then compare the two.
+
 ## Sync (optional)
 
 Cardex has no server. If you want the same data on your phone and your laptop, it can keep a
@@ -320,6 +333,7 @@ Three tiers, chosen by how often each thing changes and how much of it you need 
 | Attacks, abilities, weaknesses, retreat, illustrator | `static/details/<setId>.json`, 7.3 MB total, one file fetched per set you open | Fixed once a set is printed. Split by set because ~13 KB gzipped per set beats 1.3 MB up front, and opening one card makes the rest of that set instant |
 | Market prices | Live TCGdex call per card | Change daily; storing them would ship stale numbers |
 | Card images and set logos | Hotlinked to `assets.tcgdex.net` | ~550 MB at low quality, 2.1 GB at high — GitHub Pages allows 1 GB per site |
+| The nine basic energy cards TCGdex never scanned | Hotlinked to `images.pokemontcg.io` | Nine files, cached on first sight like any other scan |
 
 Net effect: everything except prices works offline, and the first visit downloads
 ~2.6 MB rather than 10 MB. The service worker precaches the catalogue and app shell,
@@ -339,6 +353,18 @@ cards that have no art — and badge them "No art yet" on the Sets page. Current
 203 sets are in that state; they fall back to showing card names. A couple of hundred
 cards in otherwise scanned sets (mostly promo sets) have no image on TCGdex at all and show
 their name for good.
+
+Basic energy is the exception, because it is the whole point of an energy card that you
+recognise it by its face. TCGdex has no scan for 161 basic energy printings — every
+Scarlet & Violet one included — so those show the type's card borrowed from
+pokemontcg.io, which does publish them: the current Scarlet & Violet printing of each
+type, plus the Sun & Moon Fairy Energy. It is the type's card rather than that exact
+printing, so a 2010 Trainer Kit Fire Energy shows *a* Basic Fire Energy; a printing
+TCGdex *has* scanned always keeps its own. Dragon and Colorless were never printed as a
+basic energy, so those (and any energy whose name points at no single type, like Rainbow
+Energy) fall through to a drawn card: the type's colour and a big pip. See
+[tcg/energy.ts](src/lib/tcg/energy.ts) and
+[EnergyCardArt.svelte](src/lib/components/EnergyCardArt.svelte).
 
 A card that *used* to show its name and now has art is a different story. The CDN marks
 its 404s cacheable for a year, so a browser that asked for a scan before it existed keeps
@@ -388,7 +414,7 @@ claude mcp add cardex -e CARDEX_DATA=/path/to/cardex-data.json -- npm run mcp --
 ```
 
 Tools: `get_overview`, `get_collection`, `export_readable`, `get_decks`, `get_deck`,
-`check_legality`, `search_cards`, `resolve_card`, `quick_add`, `create_deck`,
+`diff_decks`, `check_legality`, `search_cards`, `resolve_card`, `quick_add`, `create_deck`,
 `replace_deck_list`, `set_deck_card`, `update_deck`, `delete_deck`, `create_lot`.
 
 For agents that browse the deployed site, [static/llms.txt](static/llms.txt) describes the
@@ -426,7 +452,7 @@ sets is still four Charmander, and any printing you own counts toward what a dec
 | `npm run dev` | Dev server on :5173 |
 | `npm run build` | Static production build into `build/` |
 | `npm run preview` | Serve the production build |
-| `npm test` | Vitest — parser, resolver, quick add, exporter, legality, buylist, migration, merge, sync engine |
+| `npm test` | Vitest — parser, resolver, quick add, exporter, legality, buylist, deck diff, migration, merge, sync engine |
 | `npm run check` | `svelte-check` type checking |
 | `npm run build:catalogue` | Refresh `static/catalogue.json` from TCGdex |
 
@@ -438,7 +464,7 @@ src/lib/card-details.ts     bundled rules text per set, plus live prices per car
 src/lib/data/               user-data model, migration, pure mutations, repair, merge
 src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts revisions
 src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (flagged off)
-src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, format rules
+src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, deck stats & diff, energy types, format rules
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
 src/routes/                 dashboard, cards, sets, collection, wants, trades, lots, decks, formats, import, settings
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json

@@ -20,6 +20,7 @@
 	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import Download from '@lucide/svelte/icons/download';
 	import CopyPlus from '@lucide/svelte/icons/copy-plus';
+	import GitCompare from '@lucide/svelte/icons/git-compare';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -64,6 +65,10 @@
 	);
 
 	const href = (id: string | null) => `${base}/decks/${id ? `?folder=${id}` : ''}`;
+
+	/** The compare screen, optionally already pointed at one deck. */
+	const compareHref = (id?: string) =>
+		`${base}/decks/compare/${id ? `?a=${encodeURIComponent(id)}` : ''}`;
 
 	/** Import straight into a folder — the new deck lands here instead of at the top level. */
 	const importHref = (id: string | null) =>
@@ -174,6 +179,13 @@
 			<Download class="size-4" />
 			<span class="hidden sm:inline">Import decklist</span>
 		</Button>
+		<!-- Two versions of one archetype side by side. Pointless with fewer than two decks. -->
+		{#if store.decks.length >= 2}
+			<Button href={compareHref()} size="sm" variant="outline" aria-label="Compare two decks">
+				<GitCompare class="size-4" />
+				<span class="hidden sm:inline">Compare</span>
+			</Button>
+		{/if}
 		<Button size="sm" variant="outline" onclick={() => openFolderDialog()} aria-label="New folder">
 			<FolderPlus class="size-4" />
 			<span class="hidden sm:inline">New folder</span>
@@ -336,6 +348,13 @@
 												<DropdownMenu.Item onclick={() => openMove('deck', deck.id, deck.name, deck.folderId)}>
 													Move to…
 												</DropdownMenu.Item>
+												{#if store.decks.length >= 2}
+													<DropdownMenu.Item>
+														{#snippet child({ props })}
+															<a {...props} href={compareHref(deck.id)}>Compare with…</a>
+														{/snippet}
+													</DropdownMenu.Item>
+												{/if}
 												<DropdownMenu.Separator />
 												<DropdownMenu.Item
 													variant="destructive"

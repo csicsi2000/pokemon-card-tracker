@@ -17,7 +17,7 @@ export function normalizeName(input: string): string {
 }
 
 /** Energy symbol letter → full type name, as used in "Basic {R} Energy". */
-const ENERGY_SYMBOLS: Record<string, string> = {
+export const ENERGY_SYMBOLS: Record<string, string> = {
 	g: 'Grass',
 	r: 'Fire',
 	w: 'Water',

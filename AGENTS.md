@@ -26,6 +26,7 @@ npm run cardex -- help
 npm run cardex -- export            # whole collection as readable Markdown — read this first
 npm run cardex -- decks
 npm run cardex -- deck show "Zard test"
+npm run cardex -- deck diff "Zard test" "Zard test copy"   # two versions side by side
 npm run cardex -- buylist "Zard test"
 npm run cardex -- deck create "Lost Box" --from list.txt --folder Standard/2026
 npm run cardex -- deck set "Lost Box" "SVI 166" 4

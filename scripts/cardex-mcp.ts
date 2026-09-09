@@ -12,6 +12,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as api from '../src/lib/agent/api';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
+import { diffToText } from '../src/lib/tcg/deck-diff';
 import { CARD_VARIANTS, type CardVariant } from '../src/lib/types';
 import { loadCatalogueFromDisk, openData, resolveDataPath, saveData } from './agent-io';
 
@@ -138,6 +139,44 @@ server.registerTool(
 			cards: view.entries.map((entry) => ({ quantity: entry.quantity, owned: entry.owned, ...cardSummary(entry.card) })),
 			missing: view.buylist.rows.map((row) => ({ name: row.name, needed: row.needed, owned: row.owned, missing: row.missing, suggestion: api.describeCard(row.suggestion) })),
 			decklist: view.entries.map((entry) => `${entry.quantity} ${api.describeCard(entry.card)}`).join('\n')
+		};
+	})
+);
+
+server.registerTool(
+	'diff_decks',
+	{
+		title: 'Compare two decks',
+		description:
+			'Two decks side by side — what came in, what went out, what stayed, and how similar the lists are. Cards are matched by name, so a different printing of the same card is not a change (those are reported separately as reprint swaps). Use it to compare two versions of one archetype.',
+		inputSchema: { a: z.string().describe('The deck to compare from — name or id'), b: z.string().describe('The deck to compare to — name or id') }
+	},
+	guarded(({ a, b }) => {
+		const ctx = context();
+		const view = api.deckDiffView(ctx.data, ctx.catalogue, a, b);
+		const { diff } = view;
+		return {
+			a: view.a,
+			b: view.b,
+			similarity: diff.similarity,
+			changes: diff.changes,
+			reprintSwaps: diff.reprints,
+			copiesIn: diff.added,
+			copiesOut: diff.removed,
+			sections: diff.groups,
+			cards: diff.rows.map((row) => ({
+				name: row.name,
+				supertype: row.supertype,
+				status: row.status,
+				inA: row.a,
+				inB: row.b,
+				delta: row.delta,
+				reprintOnly: row.reprintOnly,
+				printings: { a: row.printings.a.map(api.describeCard), b: row.printings.b.map(api.describeCard) }
+			})),
+			changesAsText: diffToText(diff),
+			toBuy: view.toBuy.rows.map((row) => ({ name: row.name, needed: row.needed, owned: row.owned, missing: row.missing, suggestion: api.describeCard(row.suggestion) })),
+			toBuyTotal: view.toBuy.totalMissing
 		};
 	})
 );

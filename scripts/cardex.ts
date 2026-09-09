@@ -7,6 +7,7 @@
  *   npm run cardex -- deck show "Zard test"
  *   npm run cardex -- deck create "Lost Zone Box" --from list.txt --folder Standard/2026
  *   npm run cardex -- deck set "Zard test" "MEG 21" 2
+ *   npm run cardex -- deck diff "Zard test" "Zard v2"
  *   npm run cardex -- buylist "Zard test"
  *   npm run cardex -- search charizard --set OBF
  *   npm run cardex -- export --json > readable.json
@@ -55,6 +56,7 @@ Reading
   lots                             the lots, their folder and their sizes
   decks                            every deck with its folder path and owned %
   deck show <deck>                 one deck: list with owned/needed, missing cards
+  deck diff <deck> <deck>          two decks side by side: what came in, what went out
   buylist <deck>                   what to buy to complete a deck
   legality <deck>                  check the deck against its format (if it has one)
   search <query> [--set CODE]      find printings by name (up to 30)
@@ -87,6 +89,9 @@ const emit = (args: Args, json: unknown, text: () => string) =>
 	say(args.flags.json ? JSON.stringify(json, null, 2) : text());
 
 const pad = (value: string | number, width: number) => String(value).padEnd(width);
+
+/** "+2" / "-2" / "0" — a delta you can read at a glance in a column. */
+const signed = (delta: number) => (delta > 0 ? `+${delta}` : String(delta));
 
 function readListSource(source: string | undefined): string {
 	if (!source) throw new api.AgentError('Give a decklist with --from FILE or --from - (stdin).');
@@ -308,6 +313,75 @@ async function main(argv: string[]) {
 							].join('\n')
 					);
 				}
+				case 'diff': {
+					if (!rest[0] || !rest[1]) {
+						throw new api.AgentError('Usage: deck diff <deck> <deck>  (quote names containing spaces)');
+					}
+					const view = api.deckDiffView(ctx.data, catalogue, rest[0], rest[1]);
+					const { diff } = view;
+					return emit(
+						args,
+						{
+							a: view.a,
+							b: view.b,
+							similarity: diff.similarity,
+							changes: diff.changes,
+							reprints: diff.reprints,
+							copiesIn: diff.added,
+							copiesOut: diff.removed,
+							sections: diff.groups,
+							rows: diff.rows
+								.filter((row) => row.delta !== 0 || row.reprintOnly)
+								.map((row) => ({
+									name: row.name,
+									supertype: row.supertype,
+									status: row.status,
+									a: row.a,
+									b: row.b,
+									delta: row.delta,
+									reprintOnly: row.reprintOnly,
+									printings: {
+										a: row.printings.a.map(api.describeCard),
+										b: row.printings.b.map(api.describeCard)
+									}
+								})),
+							toBuy: view.toBuy
+						},
+						() => {
+							const lines = [
+								`${view.a.name}  →  ${view.b.name}`,
+								`${view.a.total} → ${view.b.total} cards · ${Math.round(diff.similarity * 100)}% the same list · ${diff.added} in, ${diff.removed} out${diff.reprints ? ` · ${diff.reprints} reprint swap${diff.reprints === 1 ? '' : 's'}` : ''}`,
+								'',
+								...diff.groups.map(
+									(group) => `${pad(group.label, 12)}${pad(`${group.a} → ${group.b}`, 12)}${signed(group.delta)}`
+								)
+							];
+							for (const supertype of ['Pokemon', 'Trainer', 'Energy'] as const) {
+								const rows = diff.rows.filter(
+									(row) => row.supertype === supertype && (row.delta !== 0 || row.reprintOnly)
+								);
+								if (!rows.length) continue;
+								lines.push('', diff.groups.find((g) => g.supertype === supertype)!.label);
+								for (const row of rows) {
+									const printings = row.reprintOnly
+										? `  (${row.printings.a.map(api.describeCard).join(', ')} → ${row.printings.b.map(api.describeCard).join(', ')})`
+										: '';
+									lines.push(
+										`  ${pad(row.delta === 0 ? '  =' : signed(row.delta), 5)}${pad(row.name, 34)}${row.a} → ${row.b}${printings}`
+									);
+								}
+							}
+							if (diff.changes === 0 && diff.reprints === 0) lines.push('', 'The two lists are identical.');
+							lines.push(
+								'',
+								view.toBuy.totalMissing
+									? `Switching to "${view.b.name}" needs ${view.toBuy.totalMissing} card${view.toBuy.totalMissing === 1 ? '' : 's'} you do not own: ${view.toBuy.rows.map((row) => `${row.missing}× ${row.name}`).join(', ')}`
+									: 'You own every card the switch would need.'
+							);
+							return lines.join('\n');
+						}
+					);
+				}
 				case 'create': {
 					if (!rest[0]) throw new api.AgentError('Usage: deck create <name> [--from FILE|-] [--folder A/B]');
 					const from = flagString(args, 'from');
@@ -345,7 +419,7 @@ async function main(argv: string[]) {
 					return emit(args, { deleted: deck.id }, () => `Deleted "${deck.name}".`);
 				}
 				default:
-					throw new api.AgentError('Usage: deck show|create|replace|set|move|rename|delete …');
+					throw new api.AgentError('Usage: deck show|diff|create|replace|set|move|rename|delete …');
 			}
 		}
 
