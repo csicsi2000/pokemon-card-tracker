@@ -11,9 +11,11 @@ import {
 	tradeKey,
 	wantKey,
 	BATTLE_RESULTS,
+	LOG_ENCODINGS,
 	WANT_PRIORITIES,
 	type BattleLog,
 	type BattleResult,
+	type LogEncoding,
 	type CollectionEntry,
 	type Deck,
 	type DeckCard,
@@ -130,6 +132,10 @@ function toDeck(value: unknown): Deck | null {
 const battleResult = (value: unknown): BattleResult =>
 	BATTLE_RESULTS.includes(value as BattleResult) ? (value as BattleResult) : 'unknown';
 
+/** Anything unrecognised is read as plain text: a wrong guess here would hide the log. */
+const logEncoding = (value: unknown): LogEncoding =>
+	LOG_ENCODINGS.includes(value as LogEncoding) ? (value as LogEncoding) : 'plain';
+
 /** A log with no text or no deck is not a replay, so it is dropped rather than defaulted. */
 function toBattleLog(value: unknown): BattleLog | null {
 	if (!isDict(value) || typeof value.id !== 'string') return null;
@@ -140,6 +146,7 @@ function toBattleLog(value: unknown): BattleLog | null {
 		id: value.id,
 		deckId: value.deckId,
 		text,
+		encoding: logEncoding(value.encoding),
 		player: str(value.player, ''),
 		opponent: str(value.opponent, ''),
 		result: battleResult(value.result),

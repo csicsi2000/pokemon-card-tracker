@@ -128,21 +128,31 @@ export type BattleResult = 'win' | 'loss' | 'tie' | 'unknown';
 
 export const BATTLE_RESULTS: BattleResult[] = ['win', 'loss', 'tie', 'unknown'];
 
+/** How a log's `text` is stored. See tcg/battle-log/storage.ts. */
+export type LogEncoding = 'plain' | 'gzip';
+
+export const LOG_ENCODINGS: LogEncoding[] = ['plain', 'gzip'];
+
 /**
  * A game played with one deck, kept as the log text the client produced plus the few
  * facts the user can correct. Everything else a replay shows — the board, the damage,
  * the prizes — is parsed out of `text` on demand by tcg/battle-log, never stored, so a
  * better parser improves every log already saved.
  *
- * The text is the bulky part of the payload (a long game runs to ~30 KB) and it syncs
- * with everything else, which is why mutations cap it; see MAX_BATTLE_LOG_CHARS.
+ * The text is by far the bulkiest thing this app stores — a long game is ~25,000
+ * characters, which localStorage bills at ~49 KB — and it rides along in every sync, so it
+ * is normally gzipped and base64-ed on the way in. Never read `text` directly: it is only
+ * the log itself when `encoding` says 'plain'. Use `unpackLogText` (or, in a component, the
+ * cache in lib/logs.svelte.ts) to get the game back out.
  */
 export type BattleLog = {
 	id: string;
 	/** The deck this game was played with. Deleting that deck deletes its logs. */
 	deckId: string;
-	/** The log exactly as pasted, minus surrounding whitespace. */
+	/** The log as pasted and trimmed, or its gzipped base64 — see `encoding`. */
 	text: string;
+	/** Absent from logs written before compression; migrate reads that as 'plain'. */
+	encoding: LogEncoding;
 	/** The handle in the log that is the user's side — guessed on import, editable after. */
 	player: string;
 	opponent: string;

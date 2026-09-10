@@ -306,6 +306,7 @@ describe('battleRecord', () => {
 		id: `log-${result}-${opponentDeck ?? ''}-${Math.random()}`,
 		deckId: 'deck-1',
 		text: 'Setup',
+		encoding: 'plain',
 		player: 'me',
 		opponent: 'them',
 		result,

@@ -22,6 +22,7 @@ import {
 	type BattleLog,
 	type BattleResult,
 	type CollectionEntry,
+	type LogEncoding,
 	type Deck,
 	type DeckFolder,
 	type Folder,
@@ -723,14 +724,16 @@ export function setDeckQuantity(
 // -- battle logs ------------------------------------------------------------
 
 /**
- * A paste longer than this is a mistake rather than a game — the sample logs of a long
- * match run to about 30 KB, and everything here rides along in every sync.
+ * The text arrives already packed by tcg/battle-log/storage.ts — gzipped and base64-ed
+ * unless that would not help — because compressing needs the platform's async
+ * CompressionStream and every reducer here is pure and synchronous. Nothing in this file
+ * may reshape `text`: by the time it lands here, trimming or slicing it would corrupt
+ * base64 rather than tidy a paste.
  */
-export const MAX_BATTLE_LOG_CHARS = 200_000;
-
 export type BattleLogInput = {
 	deckId: string;
 	text: string;
+	encoding: LogEncoding;
 	player: string;
 	opponent: string;
 	result?: BattleResult;
@@ -751,7 +754,8 @@ export function createBattleLog(
 	const log: BattleLog = {
 		id: newId(),
 		deckId: input.deckId,
-		text: input.text.trim().slice(0, MAX_BATTLE_LOG_CHARS),
+		text: input.text,
+		encoding: input.encoding,
 		player: input.player.trim(),
 		opponent: input.opponent.trim(),
 		result: input.result ?? 'unknown',
@@ -764,6 +768,7 @@ export function createBattleLog(
 	return { data: { ...data, battleLogs: [log, ...data.battleLogs] }, log };
 }
 
+/** Changing the text means changing `encoding` with it — they are one value in two fields. */
 export function updateBattleLog(
 	data: UserData,
 	clock: Clock,
@@ -772,13 +777,10 @@ export function updateBattleLog(
 ): UserData {
 	if (!data.battleLogs.some((log) => log.id === id)) return data;
 	const now = clock.next();
-	const text = changes.text?.trim().slice(0, MAX_BATTLE_LOG_CHARS);
 	return {
 		...data,
 		battleLogs: data.battleLogs.map((log) =>
-			log.id === id
-				? { ...log, ...changes, ...(text === undefined ? {} : { text }), updatedAt: now }
-				: log
+			log.id === id ? { ...log, ...changes, updatedAt: now } : log
 		)
 	};
 }

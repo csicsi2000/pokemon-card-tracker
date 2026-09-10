@@ -347,8 +347,8 @@ server.registerTool(
 			'How a deck has actually performed: its win-loss record, how it has gone against each opponent deck the owner named, and one row per saved game. Read this before suggesting changes — a deck losing to one archetype needs different advice from one that is simply short of cards.',
 		inputSchema: { deck: z.string() }
 	},
-	guarded(({ deck }) => {
-		const view = battles.battlesView(context().data, deck);
+	guarded(async ({ deck }) => {
+		const view = await battles.battlesView(context().data, deck);
 		return {
 			deck: view.deck,
 			record: { ...view.record, label: view.label },
@@ -377,8 +377,8 @@ server.registerTool(
 			"One saved game replayed as text: the result, every card the opponent put into play, and a turn-by-turn transcript of the attacks, knockouts and prizes. Takes a log id, or a deck name for that deck's most recent game.",
 		inputSchema: { log: z.string().describe('A battle log id, or a deck name for its latest game') }
 	},
-	guarded(({ log }) => {
-		const game = battles.findBattleLog(context().data, log);
+	guarded(async ({ log }) => {
+		const game = await battles.findBattleLog(context().data, log);
 		return {
 			id: game.log.id,
 			playedOn: game.log.playedOn,
@@ -419,9 +419,9 @@ server.registerTool(
 			note: z.string().optional()
 		}
 	},
-	guarded(({ deck, text: log, player, result, playedOn, opponentDeck, note }) => {
+	guarded(async ({ deck, text: log, player, result, playedOn, opponentDeck, note }) => {
 		const ctx = context();
-		const saved = battles.saveBattleLog(ctx, deck, {
+		const saved = await battles.saveBattleLog(ctx, deck, {
 			text: log,
 			player,
 			result,

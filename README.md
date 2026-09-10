@@ -191,8 +191,11 @@ plays it back, the slider scrubs, and clicking any line in the log jumps to it. 
 a line every time a stadium ability checks a benched Pokémon — about a third of a real game —
 so those are folded away by default, with a switch to show every line.
 
-Nothing is derived and stored: the board is parsed out of the log text each time, so the log
-you saved today replays better as the parser improves. Two things the log itself limits — it
+Logs are stored **gzipped**. A game is about 25,000 characters, which localStorage bills at
+~49 KB and which rides along in every sync of your whole collection; compressed it costs
+about 6 KB, so a few hundred games fit where a hundred would not. Nothing else is derived and
+stored: the board is parsed out of the log text each time, so the log you saved today replays
+better as the parser improves. Two things the log itself limits — it
 attributes effect targets to whoever is acting, even for the opponent's Pokémon (Cardex looks
 up the real owner on the board instead), and it never reveals both hands, so hands and deck
 counts are not tracked at all rather than shown wrong.

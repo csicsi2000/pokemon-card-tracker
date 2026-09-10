@@ -108,6 +108,7 @@ export function makeBattleLog(overrides: Partial<BattleLog> & { id: string }): B
 	return {
 		deckId: 'deck-1',
 		text: 'Setup\nAlice chose tails for the opening coin flip.',
+		encoding: 'plain',
 		player: 'Alice',
 		opponent: 'Bob',
 		result: 'unknown',

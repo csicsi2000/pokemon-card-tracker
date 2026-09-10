@@ -30,6 +30,7 @@ import {
 import * as mutate from './data/mutations';
 import { repair } from './data/repair';
 import { DEFAULT_RULES } from './tcg/format-rules';
+import { packLogText } from './tcg/battle-log/storage';
 
 export const STORAGE_KEY = 'cardex:data:v2';
 /** Where v1 builds kept their data; read once and left untouched. */
@@ -367,18 +368,28 @@ class Store {
 		return battleLogsFor(this.#data, deckId);
 	}
 
-	/** Null when the deck is gone — nothing to file the game under. */
-	saveBattleLog(input: mutate.BattleLogInput): BattleLog | null {
-		const { data, log } = mutate.createBattleLog(this.#data, this.clock, input);
+	/**
+	 * Save a game. Async because the log is gzipped on the way in — a game is the bulkiest
+	 * thing this app stores, and the platform's compressor is stream-based. Null when the
+	 * deck is gone: nothing to file the game under.
+	 */
+	async saveBattleLog(input: Omit<mutate.BattleLogInput, 'encoding'>): Promise<BattleLog | null> {
+		const packed = await packLogText(input.text);
+		const { data, log } = mutate.createBattleLog(this.#data, this.clock, { ...input, ...packed });
 		this.#commit(data);
 		return log;
 	}
 
-	updateBattleLog(
+	/** Pass `text` as the log itself; it is packed here, like a save. */
+	async updateBattleLog(
 		id: string,
-		changes: Partial<Omit<BattleLog, 'id' | 'deckId' | 'createdAt' | 'updatedAt'>>
+		changes: Partial<Omit<BattleLog, 'id' | 'deckId' | 'text' | 'encoding' | 'createdAt' | 'updatedAt'>> & {
+			text?: string;
+		}
 	) {
-		this.#commit(mutate.updateBattleLog(this.#data, this.clock, id, changes));
+		const { text, ...rest } = changes;
+		const packed = text === undefined ? {} : await packLogText(text);
+		this.#commit(mutate.updateBattleLog(this.#data, this.clock, id, { ...rest, ...packed }));
 	}
 
 	deleteBattleLog(id: string) {

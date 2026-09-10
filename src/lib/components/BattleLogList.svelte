@@ -18,6 +18,7 @@
 	import { toast } from 'svelte-sonner';
 	import BattleLogDialog from './BattleLogDialog.svelte';
 	import StatTile from './StatTile.svelte';
+	import { logTexts } from '$lib/logs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { battleRecord, matchups, recordLabel } from '$lib/tcg/battle-log/record';
 	import { buildReplay, parseBattleLog, summarize } from '$lib/tcg/battle-log';
@@ -50,11 +51,17 @@
 		dialogOpen = true;
 	}
 
-	/** Turn count and prize score per log — the two numbers worth showing in a list. */
+	/**
+	 * Turn count and prize score per log. The text has to be decompressed first, so a row
+	 * renders without these and gains them a moment later — the rest of the row is real
+	 * record data and does not wait for anything.
+	 */
 	const facts = $derived.by(() => {
 		const out = new Map<string, { turns: number; prizes: string }>();
 		for (const log of logs) {
-			const summary = summarize(buildReplay(parseBattleLog(log.text)), log.player);
+			const text = logTexts.text(log);
+			if (text === null) continue;
+			const summary = summarize(buildReplay(parseBattleLog(text)), log.player);
 			out.set(log.id, {
 				turns: summary.turns,
 				prizes: `${summary.you?.prizesTaken ?? 0}–${summary.them?.prizesTaken ?? 0}`

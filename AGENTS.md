@@ -46,7 +46,9 @@ For Claude Code: `claude mcp add cardex -e CARDEX_DATA=<path> -- npm run mcp --p
 
 Battle logs are pasted TCG Live text saved against a deck; everything a replay shows is parsed
 from that text on demand by `src/lib/tcg/battle-log/` (parse → replay → summary), never stored.
-Read a deck's record before advising on it — `cardex export` includes it.
+Read a deck's record before advising on it — `cardex export` includes it. The text itself is
+gzipped at rest (`battle-log/storage.ts`), so never read `log.text` directly: it is only the
+log when `log.encoding` is `'plain'`. Use `unpackLogText`, or `logTexts` in a component.
 
 Coaching guidance (formats, rules to check, how to answer): `docs/deck-coach-prompt.md`.
 Card facts: `static/catalogue.json` (schema in `src/lib/catalogue-format.ts`) and

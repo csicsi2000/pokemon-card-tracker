@@ -17,6 +17,7 @@
 	import { toast } from 'svelte-sonner';
 	import ClipboardPaste from '@lucide/svelte/icons/clipboard-paste';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import { logTexts } from '$lib/logs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { buildReplay, detectPlayer, parseBattleLog, summarize } from '$lib/tcg/battle-log';
 	import { BATTLE_RESULTS, type BattleLog, type BattleResult } from '$lib/data/model';
@@ -54,9 +55,12 @@
 
 	const today = () => new Date().toISOString().slice(0, 10);
 
+	/** An existing log is stored compressed, so its text arrives a tick after the dialog. */
+	const existingText = $derived(existing ? logTexts.text(existing) : '');
+
 	$effect(() => {
 		if (!open) return;
-		text = existing?.text ?? '';
+		text = existingText ?? '';
 		player = existing?.player ?? '';
 		result = existing?.result ?? 'unknown';
 		playedOn = existing?.playedOn ?? today();
@@ -107,9 +111,11 @@
 		}
 	}
 
-	function save(event: SubmitEvent) {
+	let saving = $state(false);
+
+	async function save(event: SubmitEvent) {
 		event.preventDefault();
-		if (!parsed) return;
+		if (!parsed || saving) return;
 
 		const changes = {
 			text,
@@ -121,15 +127,16 @@
 			note: note.trim() || null
 		};
 
+		saving = true;
 		try {
 			if (existing) {
-				store.updateBattleLog(existing.id, changes);
+				await store.updateBattleLog(existing.id, changes);
 				open = false;
-				onsaved?.({ ...existing, ...changes });
+				onsaved?.({ ...existing, ...changes, encoding: existing.encoding });
 				return;
 			}
 
-			const log = store.saveBattleLog({ deckId, ...changes });
+			const log = await store.saveBattleLog({ deckId, ...changes });
 			if (!log) {
 				toast.error('That deck no longer exists.');
 				return;
@@ -137,9 +144,11 @@
 			open = false;
 			onsaved?.(log);
 		} catch (error) {
-			// A full game is tens of kilobytes, so this is the one write that can plausibly
-			// hit the browser's storage quota.
+			// Even compressed, a game is a few kilobytes, so this is the write most likely to
+			// meet the browser's storage quota.
 			toast.error((error as Error).message);
+		} finally {
+			saving = false;
 		}
 	}
 </script>
@@ -286,7 +295,7 @@
 			</div>
 
 			<Dialog.Footer>
-				<Button type="submit" disabled={!text.trim()}>
+				<Button type="submit" disabled={!text.trim() || saving}>
 					{existing ? 'Save changes' : 'Save log'}
 				</Button>
 			</Dialog.Footer>

@@ -10,11 +10,12 @@ import type { Clock } from '$lib/data/clock';
 import { battleLogsFor, type BattleLog, type BattleResult, type UserData } from '$lib/data/model';
 import * as mutate from '$lib/data/mutations';
 import { buildReplay, parseBattleLog } from '$lib/tcg/battle-log';
+import { packLogText, unpackLogText } from '$lib/tcg/battle-log/storage';
 import { battleRecord, matchups, recordLabel, type BattleRecord } from '$lib/tcg/battle-log/record';
 import { detectPlayer, summarize, type BattleSummary } from '$lib/tcg/battle-log/summary';
 import { AgentError, findDeck } from './api';
 
-export type BattleLogView = { log: BattleLog; summary: BattleSummary };
+export type BattleLogView = { log: BattleLog; text: string; summary: BattleSummary };
 
 export type BattlesView = {
 	deck: { id: string; name: string };
@@ -24,13 +25,14 @@ export type BattlesView = {
 	games: BattleLogView[];
 };
 
-const view = (log: BattleLog): BattleLogView => ({
-	log,
-	summary: summarize(buildReplay(parseBattleLog(log.text)), log.player)
-});
+/** Logs are stored compressed, so reading one is asynchronous all the way up. */
+async function view(log: BattleLog): Promise<BattleLogView> {
+	const text = await unpackLogText(log);
+	return { log, text, summary: summarize(buildReplay(parseBattleLog(text)), log.player) };
+}
 
 /** One deck's games, newest first, each parsed for its turn count and prize score. */
-export function battlesView(data: UserData, ref: string): BattlesView {
+export async function battlesView(data: UserData, ref: string): Promise<BattlesView> {
 	const deck = findDeck(data, ref);
 	const logs = battleLogsFor(data, deck.id);
 	const record = battleRecord(logs);
@@ -39,12 +41,12 @@ export function battlesView(data: UserData, ref: string): BattlesView {
 		record,
 		label: recordLabel(record),
 		matchups: matchups(logs),
-		games: logs.map(view)
+		games: await Promise.all(logs.map(view))
 	};
 }
 
 /** A log by id, or the deck's most recent game when given a deck. */
-export function findBattleLog(data: UserData, ref: string): BattleLogView {
+export function findBattleLog(data: UserData, ref: string): Promise<BattleLogView> {
 	const byId = data.battleLogs.find((log) => log.id === ref.trim());
 	if (byId) return view(byId);
 
@@ -58,7 +60,7 @@ export function findBattleLog(data: UserData, ref: string): BattleLogView {
  * read a match without replaying it board by board. Bookkeeping lines are left out.
  */
 export function battleTranscript(entry: BattleLogView): string[] {
-	const replay = buildReplay(parseBattleLog(entry.log.text));
+	const replay = buildReplay(parseBattleLog(entry.text));
 	const out: string[] = [];
 	let section = '';
 
@@ -94,11 +96,11 @@ export type SaveBattleLogInput = {
  * own list, and refusing rather than guessing wrong is the right call: a log filed under
  * the wrong side reports every win as a loss.
  */
-export function saveBattleLog(
+export async function saveBattleLog(
 	ctx: { data: UserData; clock: Clock; catalogue: { byId: Map<string, { name: string }> } },
 	ref: string,
 	input: SaveBattleLogInput
-): { data: UserData; log: BattleLog; summary: BattleSummary } {
+): Promise<{ data: UserData; log: BattleLog; summary: BattleSummary }> {
 	const deck = findDeck(ctx.data, ref);
 	const text = input.text.trim();
 	if (!text) throw new AgentError('The log is empty');
@@ -129,7 +131,7 @@ export function saveBattleLog(
 	const summary = summarize(buildReplay(parsed), player);
 	const { data, log } = mutate.createBattleLog(ctx.data, ctx.clock, {
 		deckId: deck.id,
-		text,
+		...(await packLogText(text)),
 		player,
 		opponent: parsed.players.find((name) => name !== player) ?? '',
 		result: input.result ?? summary.outcome,

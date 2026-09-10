@@ -226,7 +226,7 @@ async function main(argv: string[]) {
 
 		case 'battles': {
 			if (!sub) throw new api.AgentError('Usage: battles <deck>');
-			const view = battles.battlesView(ctx.data, [sub, ...rest].join(' '));
+			const view = await battles.battlesView(ctx.data, [sub, ...rest].join(' '));
 			return emit(
 				args,
 				{
@@ -266,7 +266,7 @@ async function main(argv: string[]) {
 			switch (sub) {
 				case 'show': {
 					if (!rest[0]) throw new api.AgentError('Usage: battle show <deck|logId>');
-					const game = battles.findBattleLog(ctx.data, rest.join(' '));
+					const game = await battles.findBattleLog(ctx.data, rest.join(' '));
 					const transcript = battles.battleTranscript(game);
 					return emit(
 						args,
@@ -288,7 +288,7 @@ async function main(argv: string[]) {
 					if (!from) throw new api.AgentError('battle add needs --from FILE (or "-" for stdin)');
 					const text = from === '-' ? readFileSync(0, 'utf8') : readFileSync(from, 'utf8');
 					const result = flagString(args, 'result');
-					const { data, log, summary } = battles.saveBattleLog(ctx, rest.join(' '), {
+					const { data, log, summary } = await battles.saveBattleLog(ctx, rest.join(' '), {
 						text,
 						player: flagString(args, 'player'),
 						result: result as BattleResult | undefined,

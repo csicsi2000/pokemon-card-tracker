@@ -28,6 +28,7 @@
 	import Play from '@lucide/svelte/icons/play';
 	import Pause from '@lucide/svelte/icons/pause';
 	import Swords from '@lucide/svelte/icons/swords';
+	import { logTexts } from '$lib/logs.svelte';
 	import { prefs } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
 	import { buildLogCardIndex } from '$lib/tcg/battle-log/artwork';
@@ -41,7 +42,11 @@
 	const deck = $derived(store.deck(deckId));
 	const log = $derived(store.battleLog(logId));
 
-	const replay = $derived(log ? buildReplay(parseBattleLog(log.text)) : null);
+	/** Null for the moment it takes to decompress the log; see lib/logs.svelte.ts. */
+	const text = $derived(log ? logTexts.text(log) : null);
+	const unreadable = $derived(log ? logTexts.error(log) : null);
+
+	const replay = $derived(text === null ? null : buildReplay(parseBattleLog(text)));
 	const summary = $derived(replay && log ? summarize(replay, log.player) : null);
 
 	/** The deck's printings, so the board shows the cards the user actually owns. */
@@ -168,11 +173,19 @@
 <svelte:head><title>Replay · {deck?.name ?? 'Deck'} · Cardex</title></svelte:head>
 <svelte:window {onkeydown} />
 
-{#if !log || !deck || !replay || !board}
+{#if !log || !deck}
 	<div class="flex flex-col items-center gap-3 py-24 text-center">
 		<p class="text-muted-foreground text-sm">This battle log does not exist in this browser.</p>
 		<Button href="{base}/decks/{deckId}">Back to the deck</Button>
 	</div>
+{:else if unreadable}
+	<div class="flex flex-col items-center gap-3 py-24 text-center">
+		<p class="text-muted-foreground max-w-md text-sm">{unreadable}</p>
+		<Button href="{base}/decks/{deckId}">Back to the deck</Button>
+	</div>
+{:else if !replay || !board}
+	<!-- One frame, while the log is decompressed. -->
+	<p class="text-muted-foreground py-24 text-center text-sm">Reading the log…</p>
 {:else}
 	<PageHeader
 		title="{log.player || 'You'} vs {log.opponentDeck || log.opponent || 'unknown deck'}"

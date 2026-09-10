@@ -18,14 +18,17 @@ describe('battle log mutations', () => {
 
 		const { data, log } = mutate.createBattleLog(makeUserData({ decks: [deck] }), clock, {
 			deckId: 'deck-1',
-			text: '  Setup\nAlice won the coin toss.  ',
+			text: 'Setup\nAlice won the coin toss.',
+			encoding: 'plain',
 			player: 'Alice',
 			opponent: 'Bob'
 		});
 
 		expect(log).toMatchObject({ deckId: 'deck-1', result: 'unknown', playedOn: '2026-09-10' });
-		// The paste is trimmed but never reflowed — the parser needs the lines as they came.
+		// Stored exactly as handed over: the text is already packed by the caller, and
+		// trimming or slicing base64 here would destroy a log rather than tidy it.
 		expect(log!.text).toBe('Setup\nAlice won the coin toss.');
+		expect(log!.encoding).toBe('plain');
 		expect(log!.createdAt).toBe(log!.updatedAt);
 		expect(data.battleLogs).toHaveLength(1);
 	});
@@ -35,23 +38,13 @@ describe('battle log mutations', () => {
 		const { data, log } = mutate.createBattleLog(start, fixedClock(), {
 			deckId: 'nope',
 			text: 'Setup',
+			encoding: 'plain',
 			player: 'Alice',
 			opponent: 'Bob'
 		});
 
 		expect(log).toBeNull();
 		expect(data).toBe(start);
-	});
-
-	it('caps an absurd paste rather than syncing it', () => {
-		const { log } = mutate.createBattleLog(makeUserData({ decks: [deck] }), fixedClock(), {
-			deckId: 'deck-1',
-			text: 'x'.repeat(mutate.MAX_BATTLE_LOG_CHARS + 5000),
-			player: 'Alice',
-			opponent: 'Bob'
-		});
-
-		expect(log!.text).toHaveLength(mutate.MAX_BATTLE_LOG_CHARS);
 	});
 
 	it('stamps an edit and keeps createdAt', () => {
