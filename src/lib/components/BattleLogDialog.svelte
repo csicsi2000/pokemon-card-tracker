@@ -21,23 +21,37 @@
 	import { store } from '$lib/store.svelte';
 	import { buildReplay, detectPlayer, parseBattleLog, summarize } from '$lib/tcg/battle-log';
 	import { BATTLE_RESULTS, type BattleLog, type BattleResult } from '$lib/data/model';
-	import type { Card } from '$lib/types';
+	import type { Catalogue } from '$lib/catalogue';
 
 	let {
 		open = $bindable(false),
-		deckId,
-		/** The deck's cards, for guessing which side of the log is the user's. */
-		deckCards,
+		deckId = null,
+		catalogue,
 		/** Editing an existing log instead of adding one: the text is then already there. */
 		existing = null,
 		onsaved
 	}: {
 		open?: boolean;
-		deckId: string;
-		deckCards: Card[];
+		/** The deck to file the game under. Null on the Battles page, which asks instead. */
+		deckId?: string | null;
+		/** Used to read the deck's card names, which is how the user's side is guessed. */
+		catalogue: Catalogue;
 		existing?: BattleLog | null;
 		onsaved?: (log: BattleLog) => void;
 	} = $props();
+
+	/** Only used when no deck was given and we are not editing one. */
+	let chosenDeck = $state('');
+	const targetDeck = $derived(existing?.deckId ?? deckId ?? chosenDeck);
+	const deck = $derived(targetDeck ? store.deck(targetDeck) : undefined);
+
+	/** The deck's card names — a log's sides are told apart by which one played them. */
+	const deckCardNames = $derived(
+		(deck?.cards ?? []).flatMap((row) => {
+			const card = catalogue.byId.get(row.cardId);
+			return card ? [card.name] : [];
+		})
+	);
 
 	let text = $state('');
 	let player = $state('');
@@ -68,13 +82,12 @@
 		note = existing?.note ?? '';
 		pickedPlayer = Boolean(existing);
 		pickedResult = Boolean(existing);
+		chosenDeck = '';
 	});
 
 	/** Re-parsed as the user types; a full log is ~500 lines, which is nothing. */
 	const parsed = $derived(text.trim() ? parseBattleLog(text) : null);
-	const guess = $derived(
-		parsed ? detectPlayer(parsed, deckCards.map((card) => card.name)) : null
-	);
+	const guess = $derived(parsed ? detectPlayer(parsed, deckCardNames) : null);
 
 	// The guess fills the field until the user overrides it.
 	$effect(() => {
@@ -116,6 +129,10 @@
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
 		if (!parsed || saving) return;
+		if (!targetDeck) {
+			toast.error('Pick which deck you played.');
+			return;
+		}
 
 		const changes = {
 			text,
@@ -136,7 +153,7 @@
 				return;
 			}
 
-			const log = await store.saveBattleLog({ deckId, ...changes });
+			const log = await store.saveBattleLog({ deckId: targetDeck, ...changes });
 			if (!log) {
 				toast.error('That deck no longer exists.');
 				return;
@@ -164,6 +181,35 @@
 		</Dialog.Header>
 
 		<form onsubmit={save} class="flex flex-col gap-4">
+			<!-- Reached from the Battles page rather than from a deck: ask which deck this was.
+			     It is the one thing that cannot be read out of the log, and it decides both
+			     where the game is filed and which side of it is the user's. -->
+			{#if !deckId && !existing}
+				<div class="flex flex-col gap-2">
+					<Label for="battle-log-deck">Deck you played</Label>
+					{#if store.decks.length === 0}
+						<p class="text-muted-foreground text-sm">
+							No decks yet — a game is saved against the deck you played it with.
+						</p>
+					{:else}
+						<Select.Root
+							type="single"
+							value={chosenDeck}
+							onValueChange={(value) => (chosenDeck = value)}
+						>
+							<Select.Trigger id="battle-log-deck">
+								{deck?.name ?? 'Pick a deck'}
+							</Select.Trigger>
+							<Select.Content>
+								{#each store.decks as option (option.id)}
+									<Select.Item value={option.id}>{option.name}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					{/if}
+				</div>
+			{/if}
+
 			<div class="flex flex-col gap-2">
 				<div class="flex items-center justify-between">
 					<Label for="battle-log-text">Log</Label>
@@ -236,7 +282,11 @@
 							{/each}
 						</Select.Content>
 					</Select.Root>
-					{#if guess && !guess.confident && parsed?.players.length}
+					{#if !targetDeck && parsed?.players.length}
+						<p class="text-muted-foreground text-xs">
+							Pick the deck you played and Cardex will work out which of these is you.
+						</p>
+					{:else if guess && !guess.confident && parsed?.players.length}
 						<p class="text-muted-foreground text-xs">
 							Could not tell the sides apart from this deck's list — pick yours.
 						</p>
@@ -295,7 +345,7 @@
 			</div>
 
 			<Dialog.Footer>
-				<Button type="submit" disabled={!text.trim() || saving}>
+				<Button type="submit" disabled={!text.trim() || !targetDeck || saving}>
 					{existing ? 'Save changes' : 'Save log'}
 				</Button>
 			</Dialog.Footer>

@@ -528,7 +528,7 @@
 				     log. Kept per deck because that is the question they answer — is *this*
 				     build winning, and against what. -->
 				<Tabs.Content value="battles" class="pt-3">
-					<BattleLogList {deckId} deckCards={entries.map((entry) => entry.card)} />
+					<BattleLogList {deckId} catalogue={data.catalogue} />
 				</Tabs.Content>
 
 				<!-- Free text about the deck: the plan, what to swap in, what it loses to. It

@@ -13,6 +13,7 @@
  * of data that already lives in the store.
  */
 import type { BattleLog } from './data/model';
+import { buildReplay, parseBattleLog, summarize } from './tcg/battle-log';
 import { LogDecodeError, unpackLogText } from './tcg/battle-log/storage';
 
 type Entry = { text: string | null; error: string | null };
@@ -66,3 +67,25 @@ class LogTexts {
 }
 
 export const logTexts = new LogTexts();
+
+/** The two numbers a list of games shows per row. */
+export type LogFacts = { turns: number; prizes: string };
+
+/**
+ * Turn count and prize score for each log whose text has decoded so far — the rest fill in
+ * on a later pass, as their decodes land. Re-parsed rather than stored: a long game takes
+ * about half a millisecond, and nothing derived can then go stale against a better parser.
+ */
+export function logFacts(logs: BattleLog[]): Map<string, LogFacts> {
+	const out = new Map<string, LogFacts>();
+	for (const log of logs) {
+		const text = logTexts.text(log);
+		if (text === null) continue;
+		const summary = summarize(buildReplay(parseBattleLog(text)), log.player);
+		out.set(log.id, {
+			turns: summary.turns,
+			prizes: `${summary.you?.prizesTaken ?? 0}–${summary.them?.prizesTaken ?? 0}`
+		});
+	}
+	return out;
+}

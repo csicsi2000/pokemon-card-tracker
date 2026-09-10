@@ -11,6 +11,7 @@
 	import Library from '@lucide/svelte/icons/library';
 	import Search from '@lucide/svelte/icons/search';
 	import Layers from '@lucide/svelte/icons/layers';
+	import Swords from '@lucide/svelte/icons/swords';
 	import Heart from '@lucide/svelte/icons/heart';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
@@ -28,6 +29,7 @@
 		{ href: '/collection', label: 'Collection', icon: Library },
 		{ href: '/cards', label: 'Cards', icon: Search },
 		{ href: '/decks', label: 'Decks', icon: Layers },
+		{ href: '/battles', label: 'Battles', icon: Swords },
 		{ href: '/wants', label: 'Wants', icon: Heart },
 		{ href: '/trades', label: 'Trade binder', icon: ArrowLeftRight },
 		{ href: '/lots', label: 'Lots', icon: Package },

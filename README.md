@@ -177,11 +177,16 @@ replace the list of an existing deck.
 
 ### Battle logs and replays
 
-A deck's **Battles** tab keeps the games you played with it. Paste a log out of Pokémon TCG
-Live's log panel and Cardex reads it: both handles, who went first, who won, how long it ran,
-and every card each side put into play. Which side of the log is yours is worked out by
-matching what each player played against the deck's own list, and shown as a guess you can
-change. Add what the opponent was playing and you get a **matchup table**, worst first —
+The **Battles** page in the sidebar is every game you have saved: your overall record, which
+archetype keeps beating you whatever you bring, a filter by deck, and the place to paste a log
+when you have just finished a game and are not already looking at the deck you played (it asks
+which deck that was). Each deck also has its own **Battles** tab with the same view scoped to
+that build.
+
+Paste a log out of Pokémon TCG Live's log panel and Cardex reads it: both handles, who went
+first, who won, how long it ran, and every card each side put into play. Which side of the log
+is yours is worked out by matching what each player played against the deck's own list, and
+shown as a guess you can change. Add what the opponent was playing and you get a **matchup table**, worst first —
 which is the question a pile of logs is kept to answer.
 
 **Replay** steps through the whole game with the board reconstructed at every line: active and
@@ -492,7 +497,7 @@ src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV 
 src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, deck stats & diff, energy types, format rules
 src/lib/tcg/battle-log/     TCG Live log parser, board replay, match summary and record
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
-src/routes/                 dashboard, cards, sets, collection, wants, trades, lots, decks, formats, import, settings
+src/routes/                 dashboard, cards, sets, collection, wants, trades, lots, decks, battles, formats, import, settings
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json
 tests/                      unit tests for the pure logic above
 ```
