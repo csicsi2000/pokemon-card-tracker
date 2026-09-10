@@ -1,0 +1,610 @@
+Setup
+Csicsi20 chose tails for the opening coin flip.
+Marcelolevi won the coin toss.
+Marcelolevi decided to go first.
+Csicsi20 drew 7 cards for the opening hand.
+- 7 drawn cards.
+   • Poké Pad, Dudunsparce, Eri, Abra, Hilda, Enhanced Hammer, Hilda
+Marcelolevi drew 7 cards for the opening hand.
+- 7 drawn cards.
+Csicsi20 played Abra to the Active Spot.
+Marcelolevi played Yveltal to the Active Spot.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi played Buddy-Buddy Poffin.
+- Marcelolevi drew 2 cards and played them to the Bench.
+   • Marnie's Impidimp, Snorunt
+- Marcelolevi shuffled their deck.
+Marcelolevi played Spikemuth Gym to the Stadium spot.
+Marcelolevi played Spikemuth Gym.
+- Marcelolevi drew Marnie's Impidimp.
+- Marcelolevi shuffled their deck.
+Marcelolevi played Marnie's Impidimp to the Bench.
+Marcelolevi ended their turn.
+
+Csicsi20's Turn
+Csicsi20 drew Sacred Ash.
+Csicsi20 played Poké Pad.
+- Csicsi20 drew Dunsparce.
+- Csicsi20 shuffled their deck.
+Csicsi20 played Dunsparce to the Bench.
+Csicsi20 played Hilda.
+- Csicsi20 drew 2 cards.
+   • Kadabra, Telepathic Psychic Energy
+- Csicsi20 shuffled their deck.
+Csicsi20 attached Telepathic Psychic Energy to Abra in the Active Spot.
+Telepathic Psychic Energy was activated.
+- Csicsi20 drew 2 cards and played them to the Bench.
+   • Abra, Abra
+- Csicsi20 shuffled their deck.
+Csicsi20's Abra used Teleportation Attack on Marcelolevi’s Yveltal for 10 damage.
+- Csicsi20's Dunsparce was switched with Csicsi20's Abra to become the Active Pokémon.
+Csicsi20's Dunsparce is now in the Active Spot.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi played Spikemuth Gym.
+- Marcelolevi drew Marnie's Morgrem.
+- Marcelolevi shuffled their deck.
+Marcelolevi evolved Marnie's Impidimp to Marnie's Morgrem on the Bench.
+Marcelolevi played Lillie's Determination.
+- Marcelolevi shuffled 5 cards into their deck.
+- Marcelolevi drew 8 cards.
+Marcelolevi played Snorunt to the Bench.
+Marcelolevi played Poké Pad.
+- Marcelolevi drew Munkidori.
+- Marcelolevi shuffled their deck.
+Marcelolevi played Munkidori to the Bench.
+Marcelolevi attached Basic Darkness Energy to Munkidori on the Bench.
+Marcelolevi played Rare Candy.
+- Marcelolevi evolved Marnie's Impidimp to Marnie's Grimmsnarl ex on the Bench.
+Marcelolevi's Marnie's Grimmsnarl ex used Punk Up.
+- Marcelolevi attached Basic Darkness Energy to Marnie's Morgrem on the Bench.
+- Marcelolevi attached Basic Darkness Energy to Marnie's Grimmsnarl ex on the Bench.
+- Marcelolevi attached Basic Darkness Energy to Marnie's Grimmsnarl ex on the Bench.
+- Marcelolevi attached Basic Darkness Energy to Marnie's Morgrem on the Bench.
+- Marcelolevi shuffled their deck.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved a damage counter from Marcelolevi's Yveltal to Marcelolevi's Abra.
+Marcelolevi retreated Yveltal to the Bench.
+Marcelolevi's Marnie's Grimmsnarl ex is now in the Active Spot.
+Marcelolevi's Marnie's Grimmsnarl ex used Shadow Bullet on Csicsi20’s Dunsparce for 180 damage.
+- Csicsi20's Abra took 30 damage.
+Csicsi20's Dunsparce was Knocked Out!
+Marcelolevi took a Prize card.
+A card was added to Marcelolevi's hand.
+Csicsi20's Abra is now in the Active Spot.
+
+Csicsi20's Turn
+Csicsi20 drew Boss's Orders.
+Csicsi20 evolved Abra to Kadabra on the Bench.
+Csicsi20's Kadabra used Psychic Draw.
+- Csicsi20 drew 2 cards.
+   • Buddy-Buddy Poffin, Dawn
+Csicsi20 played Buddy-Buddy Poffin.
+- Csicsi20 drew 2 cards and played them to the Bench.
+   • Dunsparce, Dunsparce
+- Csicsi20 shuffled their deck.
+Csicsi20 played Hilda.
+- Csicsi20 drew 2 cards.
+   • Kadabra, Enriching Energy
+- Csicsi20 shuffled their deck.
+Csicsi20 evolved Abra to Kadabra on the Bench.
+Csicsi20's Kadabra used Psychic Draw.
+- Csicsi20 drew 2 cards.
+   • Genesect, Battle Cage
+Csicsi20 attached Enriching Energy to Dunsparce on the Bench.
+Enriching Energy was activated.
+- Csicsi20 drew 4 cards.
+   • Dawn, Air Balloon, Telepathic Psychic Energy, Alakazam
+Csicsi20 played Battle Cage to the Stadium spot.
+- Marcelolevi discarded Spikemuth Gym.
+Csicsi20 ended their turn.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi evolved Snorunt to Froslass on the Bench.
+Marcelolevi attached Basic Darkness Energy to Yveltal on the Bench.
+Marcelolevi played Team Rocket's Petrel.
+- Marcelolevi drew Air Balloon.
+- Marcelolevi shuffled their deck.
+Marcelolevi attached Air Balloon to Marnie's Grimmsnarl ex in the Active Spot.
+Marcelolevi retreated Marnie's Grimmsnarl ex to the Bench.
+Marcelolevi's Yveltal is now in the Active Spot.
+Marcelolevi's Yveltal used Clutch on Csicsi20’s Abra for 40 damage. Csicsi20's Abra took 20 more damage because of Darkness Weakness.
+- Damage breakdown:
+   • Base damage: 20 damage
+   • Weakness to Darkness: 20 damage
+   • Total damage: 40 damage
+
+Csicsi20's Abra was Knocked Out!
+Telepathic Psychic Energy was discarded from Csicsi20's Abra.
+Marcelolevi took a Prize card.
+A card was added to Marcelolevi's hand.
+Csicsi20's Kadabra is now in the Active Spot.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Marnie's Grimmsnarl ex.
+- Marcelolevi put a damage counter on Marcelolevi's Kadabra.
+Battle Cage was activated.
+- Damage to Kadabra was prevented.
+
+Csicsi20's Turn
+Csicsi20 drew Dedenne.
+Csicsi20 evolved Kadabra to Alakazam in the Active Spot.
+Csicsi20's Alakazam used Psychic Draw.
+- Csicsi20 drew 3 cards.
+   • Xerosic's Machinations, Battle Cage, Lillie's Pearl
+Csicsi20 attached Telepathic Psychic Energy to Alakazam in the Active Spot.
+Telepathic Psychic Energy was activated.
+- Csicsi20 drew Lillie's Clefairy ex and played it to the Bench.
+- Csicsi20 shuffled their deck.
+Csicsi20 evolved Dunsparce to Dudunsparce on the Bench.
+Csicsi20 played Dudunsparce.
+- Csicsi20 drew 3 cards.
+   • Fezandipiti ex, Poké Pad, Poké Pad
+- Csicsi20 shuffled 3 cards into their deck.
+   • Dudunsparce, Enriching Energy, Dunsparce
+Csicsi20 played Fezandipiti ex to the Bench.
+Csicsi20's Fezandipiti ex used Flip the Script.
+- Csicsi20 drew 3 cards.
+   • Enriching Energy, Lana's Aid, Dawn
+Csicsi20 played Boss's Orders.
+- Marcelolevi's Marnie's Grimmsnarl ex was switched with Marcelolevi's Yveltal to become the Active Pokémon.
+Marcelolevi's Marnie's Grimmsnarl ex is now in the Active Spot.
+Csicsi20's Alakazam used Powerful Hand.
+- Csicsi20 put 32 damage counters on Csicsi20's Marnie's Grimmsnarl ex.
+Marcelolevi's Marnie's Grimmsnarl ex was Knocked Out!
+- 4 cards were discarded from Marcelolevi's Marnie's Grimmsnarl ex.
+   • Basic Darkness Energy, Basic Darkness Energy, Marnie's Impidimp, Air Balloon
+Csicsi20 took 2 Prize cards.
+Battle Cage was added to Csicsi20's hand.
+Abra was added to Csicsi20's hand.
+Marcelolevi's Marnie's Morgrem is now in the Active Spot.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Alakazam.
+Battle Cage was activated.
+- Damage to Kadabra was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Fezandipiti ex was prevented.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi evolved Marnie's Morgrem to Marnie's Grimmsnarl ex in the Active Spot.
+Marcelolevi played Lillie's Determination.
+- Marcelolevi shuffled 2 cards into their deck.
+- Marcelolevi drew 6 cards.
+Marcelolevi evolved Snorunt to Froslass on the Bench.
+Marcelolevi played Marnie's Impidimp to the Bench.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi's Munkidori was healed for 20 damage.
+Battle Cage was activated.
+- Damage to Dunsparce was prevented.
+Battle Cage was activated.
+- Damage to Kadabra was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Fezandipiti ex was prevented.
+Marcelolevi's Marnie's Grimmsnarl ex used Shadow Bullet on Csicsi20’s Alakazam for 360 damage. Csicsi20's Alakazam took 180 more damage because of Darkness Weakness.
+- Damage breakdown:
+   • Base damage: 180 damage
+   • Weakness to Darkness: 180 damage
+   • Total damage: 360 damage
+
+- Csicsi20's Lillie's Clefairy ex took 30 damage.
+Csicsi20's Alakazam was Knocked Out!
+- 3 cards were discarded from Csicsi20's Alakazam.
+   • Telepathic Psychic Energy, Kadabra, Abra
+Marcelolevi took a Prize card.
+A card was added to Marcelolevi's hand.
+Csicsi20's Kadabra is now in the Active Spot.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Marcelolevi put a damage counter on Marcelolevi's Marnie's Grimmsnarl ex.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Kadabra.
+- Marcelolevi put a damage counter on Marcelolevi's Marnie's Grimmsnarl ex.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Kadabra.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Fezandipiti ex was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Fezandipiti ex was prevented.
+
+Csicsi20's Turn
+Csicsi20 drew Boss's Orders.
+Csicsi20 played Abra to the Bench.
+Csicsi20 attached Lillie's Pearl to Lillie's Clefairy ex on the Bench.
+Csicsi20's Fezandipiti ex used Flip the Script.
+- Csicsi20 drew 3 cards.
+   • Dunsparce, Rare Candy, Dudunsparce
+Csicsi20 evolved Dunsparce to Dudunsparce on the Bench.
+Csicsi20 played Poké Pad.
+- Csicsi20 drew Alakazam.
+- Csicsi20 shuffled their deck.
+Csicsi20 evolved Kadabra to Alakazam in the Active Spot.
+Csicsi20's Alakazam used Psychic Draw.
+- Csicsi20 drew 3 cards.
+   • Basic Psychic Energy, Night Stretcher, Telepathic Psychic Energy
+Csicsi20 attached Basic Psychic Energy to Alakazam in the Active Spot.
+Csicsi20 played Genesect to the Bench.
+Csicsi20 attached Air Balloon to Genesect on the Bench.
+Csicsi20 played Sacred Ash.
+- Csicsi20 shuffled 4 cards into their deck.
+   • Kadabra, Alakazam, Abra, Abra
+Csicsi20 played Eri.
+Csicsi20's Alakazam used Powerful Hand.
+- Csicsi20 put 32 damage counters on Csicsi20's Marnie's Grimmsnarl ex.
+Marcelolevi's Marnie's Grimmsnarl ex was Knocked Out!
+- 4 cards were discarded from Marcelolevi's Marnie's Grimmsnarl ex.
+   • Basic Darkness Energy, Basic Darkness Energy, Marnie's Morgrem, Marnie's Impidimp
+Csicsi20 took 2 Prize cards.
+Hilda was added to Csicsi20's hand.
+Telepathic Psychic Energy was added to Csicsi20's hand.
+Marcelolevi's Yveltal is now in the Active Spot.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Alakazam.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Alakazam.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Fezandipiti ex was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Fezandipiti ex was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi played Poké Pad.
+- Marcelolevi drew Munkidori.
+- Marcelolevi shuffled their deck.
+Marcelolevi played Munkidori to the Bench.
+Marcelolevi attached Basic Darkness Energy to Munkidori on the Bench.
+Marcelolevi played Boss's Orders.
+- Csicsi20's Fezandipiti ex was switched with Csicsi20's Alakazam to become the Active Pokémon.
+Csicsi20's Fezandipiti ex is now in the Active Spot.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved 3 damage counters from Marcelolevi's Munkidori to Marcelolevi's Fezandipiti ex.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Abra was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved a damage counter from Marcelolevi's Munkidori to Marcelolevi's Fezandipiti ex.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Abra was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Marcelolevi's Yveltal used Clutch on Csicsi20’s Fezandipiti ex for 20 damage.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Fezandipiti ex.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Fezandipiti ex.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+
+Csicsi20's Turn
+Csicsi20 drew Buddy-Buddy Poffin.
+Csicsi20 played Night Stretcher.
+- Csicsi20 moved Csicsi20's Dunsparce to their hand.
+Csicsi20 played Boss's Orders.
+- Marcelolevi's Marnie's Impidimp was switched with Marcelolevi's Yveltal to become the Active Pokémon.
+Marcelolevi's Marnie's Impidimp is now in the Active Spot.
+Csicsi20 attached Telepathic Psychic Energy to Fezandipiti ex in the Active Spot.
+Csicsi20 ended their turn.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Fezandipiti ex.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Fezandipiti ex.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi attached Basic Darkness Energy to Marnie's Impidimp in the Active Spot.
+Marcelolevi played Night Stretcher.
+- Marcelolevi moved Marcelolevi's Basic Darkness Energy to their hand.
+Marcelolevi played Lillie's Determination.
+- Marcelolevi shuffled 2 cards into their deck.
+- Marcelolevi drew 6 cards.
+Marcelolevi retreated Marnie's Impidimp to the Bench.
+- Basic Darkness Energy was discarded from Marcelolevi's Marnie's Impidimp.
+Marcelolevi's Yveltal is now in the Active Spot.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi's Munkidori was healed for 30 damage.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Abra was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi's Munkidori was healed for 30 damage.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Abra was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Marcelolevi's Yveltal used Clutch on Csicsi20’s Fezandipiti ex for 20 damage.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Fezandipiti ex.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Fezandipiti ex.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+
+Csicsi20's Turn
+Csicsi20 drew Kadabra.
+Csicsi20 evolved Abra to Kadabra on the Bench.
+Csicsi20 played Xerosic's Machinations.
+- Marcelolevi discarded 3 cards.
+   • Buddy-Buddy Poffin, Froslass, Munkidori
+Csicsi20 attached Enriching Energy to Fezandipiti ex in the Active Spot.
+Enriching Energy was activated.
+- Csicsi20 drew 4 cards.
+   • Alakazam, Kadabra, Air Balloon, Kadabra
+Csicsi20 ended their turn.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Fezandipiti ex.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Fezandipiti ex.
+Battle Cage was activated.
+- Damage to Kadabra was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Kadabra was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi attached Basic Darkness Energy to Marnie's Impidimp on the Bench.
+Marcelolevi played Team Rocket's Petrel.
+- Marcelolevi drew Spikemuth Gym.
+- Marcelolevi shuffled their deck.
+Marcelolevi played Spikemuth Gym to the Stadium spot.
+- Csicsi20 discarded Battle Cage.
+Marcelolevi played Spikemuth Gym.
+- Marcelolevi drew Marnie's Grimmsnarl ex.
+- Marcelolevi shuffled their deck.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved 3 damage counters from Marcelolevi's Munkidori to Marcelolevi's Fezandipiti ex.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved 3 damage counters from Marcelolevi's Munkidori to Marcelolevi's Alakazam.
+Marcelolevi's Yveltal used Clutch on Csicsi20’s Fezandipiti ex for 20 damage.
+Csicsi20's Fezandipiti ex was Knocked Out!
+- 2 cards were discarded from Csicsi20's Fezandipiti ex.
+   • Telepathic Psychic Energy, Enriching Energy
+Marcelolevi took 2 Prize cards.
+A card was added to Marcelolevi's hand.
+A card was added to Marcelolevi's hand.
+Csicsi20's Alakazam is now in the Active Spot.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Alakazam.
+- Marcelolevi put a damage counter on Marcelolevi's Lillie's Clefairy ex.
+- Marcelolevi put a damage counter on Marcelolevi's Dudunsparce.
+- Marcelolevi put a damage counter on Marcelolevi's Genesect.
+- Marcelolevi put a damage counter on Marcelolevi's Kadabra.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Munkidori.
+- Marcelolevi put a damage counter on Marcelolevi's Alakazam.
+- Marcelolevi put a damage counter on Marcelolevi's Lillie's Clefairy ex.
+- Marcelolevi put a damage counter on Marcelolevi's Dudunsparce.
+- Marcelolevi put a damage counter on Marcelolevi's Genesect.
+- Marcelolevi put a damage counter on Marcelolevi's Kadabra.
+
+Csicsi20's Turn
+Csicsi20 drew Buddy-Buddy Poffin.
+Csicsi20 played Battle Cage to the Stadium spot.
+- Marcelolevi discarded Spikemuth Gym.
+Csicsi20 attached Air Balloon to Alakazam in the Active Spot.
+Csicsi20 retreated Alakazam to the Bench.
+Csicsi20's Kadabra is now in the Active Spot.
+Csicsi20 evolved Kadabra to Alakazam in the Active Spot.
+Csicsi20 attached Telepathic Psychic Energy to Alakazam in the Active Spot.
+Telepathic Psychic Energy was activated.
+- Csicsi20 shuffled their deck.
+Csicsi20's Alakazam used Powerful Hand.
+- Csicsi20 put 32 damage counters on Csicsi20's Yveltal.
+Marcelolevi's Yveltal was Knocked Out!
+Basic Darkness Energy was discarded from Marcelolevi's Yveltal.
+Csicsi20 took a Prize card.
+Enhanced Hammer was added to Csicsi20's hand.
+Marcelolevi's Marnie's Impidimp is now in the Active Spot.
+
+Pokémon Checkup
+Marcelolevi's Froslass used Freezing Shroud.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Alakazam.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Munkidori.
+- Csicsi20 put a damage counter on Marcelolevi's Alakazam.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+
+Marcelolevi's Turn
+Marcelolevi drew a card.
+Marcelolevi played Team Rocket's Petrel.
+- Marcelolevi drew Rare Candy.
+- Marcelolevi shuffled their deck.
+Marcelolevi played Rare Candy.
+- Marcelolevi evolved Marnie's Impidimp to Marnie's Grimmsnarl ex in the Active Spot.
+Marcelolevi's Marnie's Grimmsnarl ex used Punk Up.
+- Marcelolevi attached Basic Darkness Energy to Marnie's Grimmsnarl ex in the Active Spot.
+- Marcelolevi shuffled their deck.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved 3 damage counters from Marcelolevi's Munkidori to Marcelolevi's Alakazam.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Marcelolevi's Munkidori used Adrena-Brain.
+- Marcelolevi moved 3 damage counters from Marcelolevi's Munkidori to Marcelolevi's Alakazam.
+Battle Cage was activated.
+- Damage to Lillie's Clefairy ex was prevented.
+Battle Cage was activated.
+- Damage to Dudunsparce was prevented.
+Battle Cage was activated.
+- Damage to Genesect was prevented.
+Battle Cage was activated.
+- Damage to Alakazam was prevented.
+Marcelolevi played Budew to the Bench.
+Marcelolevi's Marnie's Grimmsnarl ex used Shadow Bullet on Csicsi20’s Alakazam for 360 damage. Csicsi20's Alakazam took 180 more damage because of Darkness Weakness.
+- Damage breakdown:
+   • Base damage: 180 damage
+   • Weakness to Darkness: 180 damage
+   • Total damage: 360 damage
+
+- Csicsi20's Alakazam took 30 damage.
+Csicsi20's Alakazam was Knocked Out!
+- 3 cards were discarded from Csicsi20's Alakazam.
+   • Telepathic Psychic Energy, Kadabra, Abra
+Marcelolevi took a Prize card.
+A card was added to Marcelolevi's hand.
+Opponent took all of their Prize cards. Marcelolevi wins.

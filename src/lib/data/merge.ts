@@ -97,6 +97,7 @@ export function merge(left: UserData, right: UserData): UserData {
 		lotFolders: alive('lotFolder', mergeRecords(left.lotFolders, right.lotFolders, id)),
 		folders: alive('folder', mergeRecords(left.folders, right.folders, id)),
 		decks: alive('deck', mergeRecords(left.decks, right.decks, id)),
+		battleLogs: alive('battleLog', mergeRecords(left.battleLogs, right.battleLogs, id)),
 		formats: alive('format', mergeRecords(left.formats, right.formats, id)),
 		tombstones: [...tombstones.values()]
 	};
@@ -119,6 +120,7 @@ function canonical(data: UserData) {
 		lotFolders: byKey(data.lotFolders, id),
 		folders: byKey(data.folders, id),
 		decks: byKey(data.decks, id),
+		battleLogs: byKey(data.battleLogs, id),
 		formats: byKey(data.formats, id),
 		tombstones: byKey(data.tombstones, tombstoneKey)
 	};

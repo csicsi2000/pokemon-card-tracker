@@ -93,6 +93,8 @@ export type Card = {
 // The shapes live in data/model.ts next to the code that migrates and merges them;
 // re-exported here so the rest of the app keeps one import path for domain types.
 export type {
+	BattleLog,
+	BattleResult,
 	CollectionEntry,
 	Deck,
 	DeckCard,

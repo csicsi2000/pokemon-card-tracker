@@ -33,6 +33,7 @@
 	import CardTile from '$lib/components/CardTile.svelte';
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
 	import DeckSummary from '$lib/components/DeckSummary.svelte';
+	import BattleLogList from '$lib/components/BattleLogList.svelte';
 	import ResolveMissing, { wantMissing } from '$lib/components/ResolveMissing.svelte';
 	import { folderPath } from '$lib/data/folders';
 	import { prefs, DECK_VIEW_LABELS, type DeckView } from '$lib/prefs.svelte';
@@ -40,6 +41,7 @@
 	import { parseRules } from '$lib/tcg/format-rules';
 	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
 	import { buildBuylist } from '$lib/tcg/buylist';
+	import { battleRecord, recordLabel } from '$lib/tcg/battle-log/record';
 	import { toPtcglText, toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
 	import { cn } from '$lib/utils';
 	import type { Card as CardType } from '$lib/types';
@@ -104,6 +106,9 @@
 			})
 		)
 	);
+
+	/** The deck's match record, for the Battles tab's badge. */
+	const record = $derived(battleRecord(store.battleLogsFor(deckId)));
 
 	const ptcglText = $derived(toPtcglText(entries));
 	const missingText = $derived(
@@ -285,6 +290,12 @@
 						Missing
 						{#if buylist.totalMissing > 0}
 							<Badge variant="secondary" class="ml-1.5">{buylist.totalMissing}</Badge>
+						{/if}
+					</Tabs.Trigger>
+					<Tabs.Trigger value="battles">
+						Battles
+						{#if record.played > 0}
+							<Badge variant="secondary" class="ml-1.5">{recordLabel(record)}</Badge>
 						{/if}
 					</Tabs.Trigger>
 					<Tabs.Trigger value="notes">
@@ -511,6 +522,13 @@
 							{/each}
 						</div>
 					{/if}
+				</Tabs.Content>
+
+				<!-- Games played with this deck: the record, the matchups, and a replay of each
+				     log. Kept per deck because that is the question they answer — is *this*
+				     build winning, and against what. -->
+				<Tabs.Content value="battles" class="pt-3">
+					<BattleLogList {deckId} deckCards={entries.map((entry) => entry.card)} />
 				</Tabs.Content>
 
 				<!-- Free text about the deck: the plan, what to swap in, what it loses to. It

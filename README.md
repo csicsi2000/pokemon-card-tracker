@@ -175,6 +175,28 @@ page shows the same have/missing summary for a pasted list *before* you save any
 can import into a new deck (in a chosen folder), into your collection (into a chosen lot), or
 replace the list of an existing deck.
 
+### Battle logs and replays
+
+A deck's **Battles** tab keeps the games you played with it. Paste a log out of Pokémon TCG
+Live's log panel and Cardex reads it: both handles, who went first, who won, how long it ran,
+and every card each side put into play. Which side of the log is yours is worked out by
+matching what each player played against the deck's own list, and shown as a guess you can
+change. Add what the opponent was playing and you get a **matchup table**, worst first —
+which is the question a pile of logs is kept to answer.
+
+**Replay** steps through the whole game with the board reconstructed at every line: active and
+benched Pokémon with their evolution stacks, damage counters against printed HP, attached
+energy and tools, prizes left, the stadium in play. Arrow keys step and change turn, space
+plays it back, the slider scrubs, and clicking any line in the log jumps to it. TCG Live emits
+a line every time a stadium ability checks a benched Pokémon — about a third of a real game —
+so those are folded away by default, with a switch to show every line.
+
+Nothing is derived and stored: the board is parsed out of the log text each time, so the log
+you saved today replays better as the parser improves. Two things the log itself limits — it
+attributes effect targets to whoever is acting, even for the opponent's Pokémon (Cardex looks
+up the real owner on the board instead), and it never reveals both hands, so hands and deck
+counts are not tracked at all rather than shown wrong.
+
 ### Comparing two decks
 
 **Compare** (on the Decks page, on a deck, or in a deck's ⋯ menu) puts two lists side by
@@ -465,13 +487,14 @@ src/lib/data/               user-data model, migration, pure mutations, repair, 
 src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts revisions
 src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (flagged off)
 src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, deck stats & diff, energy types, format rules
+src/lib/tcg/battle-log/     TCG Live log parser, board replay, match summary and record
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
 src/routes/                 dashboard, cards, sets, collection, wants, trades, lots, decks, formats, import, settings
 scripts/build-catalogue.ts  TCGdex → static/catalogue.json
 tests/                      unit tests for the pure logic above
 ```
 
-`/decks/[id]`, `/lots/[id]` and `/formats/[id]` cannot be prerendered — their ids only exist in your
+`/decks/[id]`, `/decks/[id]/battles/[logId]`, `/lots/[id]` and `/formats/[id]` cannot be prerendered — their ids only exist in your
 own browser — so the build emits a `404.html` that GitHub Pages serves as an SPA
 fallback for them.
 

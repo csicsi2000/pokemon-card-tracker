@@ -6,6 +6,8 @@
  */
 import type { Catalogue } from '$lib/catalogue-index';
 import type { Card, CardVariant, Deck, UserData, WantPriority } from '$lib/types';
+import { battleLogsFor } from '$lib/data/model';
+import { battleRecord, matchups, recordLabel } from '$lib/tcg/battle-log/record';
 import { folderPath } from '$lib/data/folders';
 import { buildBuylist } from '$lib/tcg/buylist';
 import { exportSetCode } from '$lib/tcg/set-code-overrides';
@@ -259,6 +261,31 @@ export function toReadableMarkdown(
 				.join(' · ')
 		);
 		if (deck.description) out.push(''), out.push(deck.description);
+
+		// How the deck has actually gone. A coach reading this should weigh a 1-4 record
+		// against Grimmsnarl far more heavily than anything the list alone suggests.
+		const logs = battleLogsFor(data, deck.id);
+		if (logs.length) {
+			const record = battleRecord(logs);
+			out.push('');
+			out.push(
+				`Record: ${recordLabel(record)} over ${record.played} logged game${
+					record.played === 1 ? '' : 's'
+				}${record.winRate === null ? '' : ` (${Math.round(record.winRate * 100)}% of decided)`}`
+			);
+			for (const matchup of matchups(logs)) {
+				out.push(`- vs ${matchup.label}: ${recordLabel(matchup.record)}`);
+			}
+			const notes = logs.filter((log) => log.note);
+			if (notes.length) {
+				out.push('');
+				out.push('Notes from those games:');
+				for (const log of notes) {
+					out.push(`- ${log.playedOn ?? log.createdAt.slice(0, 10)} vs ${log.opponentDeck ?? log.opponent}: ${log.note}`);
+				}
+			}
+		}
+
 		out.push('');
 		out.push('```');
 		out.push(...deckLines(deck, catalogue));
@@ -365,6 +392,16 @@ export function toReadableJson(data: UserData, catalogue: Catalogue) {
 				description: deck.description,
 				cards: entries.map(({ card, quantity }) => ({ quantity, ...describe(card) })),
 				ownedCoverage: buylist.coverage,
+				record: battleRecord(battleLogsFor(data, deck.id)),
+				matchups: matchups(battleLogsFor(data, deck.id)),
+				battleLogs: battleLogsFor(data, deck.id).map((log) => ({
+					id: log.id,
+					playedOn: log.playedOn,
+					result: log.result,
+					opponent: log.opponent,
+					opponentDeck: log.opponentDeck,
+					note: log.note
+				})),
 				missing: buylist.rows.map((row) => ({
 					name: row.name,
 					needed: row.needed,

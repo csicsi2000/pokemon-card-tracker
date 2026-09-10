@@ -11,8 +11,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import * as api from '../src/lib/agent/api';
+import * as battles from '../src/lib/agent/battles';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
 import { diffToText } from '../src/lib/tcg/deck-diff';
+import { BATTLE_RESULTS, type BattleResult } from '../src/lib/data/model';
 import { CARD_VARIANTS, type CardVariant } from '../src/lib/types';
 import { loadCatalogueFromDisk, openData, resolveDataPath, saveData } from './agent-io';
 
@@ -334,6 +336,123 @@ server.registerTool(
 		const result = api.moveLot(ctx, lot, folder);
 		saveData(dataPath, api.finalize(result.data));
 		return { lot: result.lot.name, folder: result.folder?.name ?? null };
+	})
+);
+
+server.registerTool(
+	'get_battles',
+	{
+		title: "A deck's match record",
+		description:
+			'How a deck has actually performed: its win-loss record, how it has gone against each opponent deck the owner named, and one row per saved game. Read this before suggesting changes — a deck losing to one archetype needs different advice from one that is simply short of cards.',
+		inputSchema: { deck: z.string() }
+	},
+	guarded(({ deck }) => {
+		const view = battles.battlesView(context().data, deck);
+		return {
+			deck: view.deck,
+			record: { ...view.record, label: view.label },
+			matchups: view.matchups,
+			games: view.games.map((game) => ({
+				id: game.log.id,
+				playedOn: game.log.playedOn,
+				result: game.log.result,
+				opponent: game.log.opponent,
+				opponentDeck: game.log.opponentDeck,
+				turns: game.summary.turns,
+				wentFirst: game.summary.wentFirst,
+				prizesTaken: game.summary.you?.prizesTaken ?? 0,
+				prizesGiven: game.summary.them?.prizesTaken ?? 0,
+				note: game.log.note
+			}))
+		};
+	})
+);
+
+server.registerTool(
+	'get_battle_log',
+	{
+		title: 'Read one game',
+		description:
+			"One saved game replayed as text: the result, every card the opponent put into play, and a turn-by-turn transcript of the attacks, knockouts and prizes. Takes a log id, or a deck name for that deck's most recent game.",
+		inputSchema: { log: z.string().describe('A battle log id, or a deck name for its latest game') }
+	},
+	guarded(({ log }) => {
+		const game = battles.findBattleLog(context().data, log);
+		return {
+			id: game.log.id,
+			playedOn: game.log.playedOn,
+			result: game.log.result,
+			player: game.log.player,
+			opponent: game.log.opponent,
+			opponentDeck: game.log.opponentDeck,
+			note: game.log.note,
+			summary: {
+				turns: game.summary.turns,
+				wentFirst: game.summary.wentFirst,
+				prizes: {
+					taken: game.summary.you?.prizesTaken ?? 0,
+					given: game.summary.them?.prizesTaken ?? 0
+				},
+				yourPokemon: game.summary.you?.pokemon ?? [],
+				theirPokemon: game.summary.them?.pokemon ?? [],
+				theirCards: game.summary.them?.cards ?? []
+			},
+			transcript: battles.battleTranscript(game)
+		};
+	})
+);
+
+server.registerTool(
+	'save_battle_log',
+	{
+		title: 'Save a battle log',
+		description:
+			"Save a game the owner played, pasted straight out of Pokémon TCG Live. Which side of the log is theirs is worked out from the deck's list; pass `player` only if that fails. The result is read from the log unless given.",
+		inputSchema: {
+			deck: z.string(),
+			text: z.string().describe('The whole log, from "Setup" to the last line'),
+			player: z.string().optional().describe("The owner's handle in the log, if the guess is wrong"),
+			result: z.enum(BATTLE_RESULTS as [BattleResult, ...BattleResult[]]).optional(),
+			playedOn: z.string().optional().describe('YYYY-MM-DD; defaults to today'),
+			opponentDeck: z.string().optional().describe('What the opponent was playing — drives the matchup table'),
+			note: z.string().optional()
+		}
+	},
+	guarded(({ deck, text: log, player, result, playedOn, opponentDeck, note }) => {
+		const ctx = context();
+		const saved = battles.saveBattleLog(ctx, deck, {
+			text: log,
+			player,
+			result,
+			playedOn,
+			opponentDeck,
+			note
+		});
+		saveData(dataPath, api.finalize(saved.data));
+		return {
+			id: saved.log.id,
+			result: saved.log.result,
+			player: saved.log.player,
+			opponent: saved.log.opponent,
+			turns: saved.summary.turns,
+			theirPokemon: saved.summary.them?.pokemon.map((entry) => entry.name) ?? []
+		};
+	})
+);
+
+server.registerTool(
+	'delete_battle_log',
+	{
+		title: 'Delete a battle log',
+		description: 'Delete one saved game by id. Remembered as a deletion so it syncs to other devices.',
+		inputSchema: { log: z.string().describe('The battle log id') }
+	},
+	guarded(({ log }) => {
+		const ctx = context();
+		const result = battles.deleteBattleLog(ctx, log);
+		saveData(dataPath, api.finalize(result.data));
+		return { deleted: result.log.id };
 	})
 );
 

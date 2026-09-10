@@ -123,6 +123,41 @@ export type Deck = {
 	updatedAt: string;
 };
 
+/** How a match ended, from the point of view of the deck the log is filed under. */
+export type BattleResult = 'win' | 'loss' | 'tie' | 'unknown';
+
+export const BATTLE_RESULTS: BattleResult[] = ['win', 'loss', 'tie', 'unknown'];
+
+/**
+ * A game played with one deck, kept as the log text the client produced plus the few
+ * facts the user can correct. Everything else a replay shows — the board, the damage,
+ * the prizes — is parsed out of `text` on demand by tcg/battle-log, never stored, so a
+ * better parser improves every log already saved.
+ *
+ * The text is the bulky part of the payload (a long game runs to ~30 KB) and it syncs
+ * with everything else, which is why mutations cap it; see MAX_BATTLE_LOG_CHARS.
+ */
+export type BattleLog = {
+	id: string;
+	/** The deck this game was played with. Deleting that deck deletes its logs. */
+	deckId: string;
+	/** The log exactly as pasted, minus surrounding whitespace. */
+	text: string;
+	/** The handle in the log that is the user's side — guessed on import, editable after. */
+	player: string;
+	opponent: string;
+	/** Parsed from the log when it names a winner, and overridable: ties and
+	 *  disconnects never make it into the text. */
+	result: BattleResult;
+	/** YYYY-MM-DD, defaulting to the day it was saved. */
+	playedOn: string | null;
+	/** What the opponent was playing — free text, since only the user can name it. */
+	opponentDeck: string | null;
+	note: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
 export type FormatPoolCard = { cardId: string; quantity: number };
 
 export type Format = {
@@ -145,6 +180,7 @@ export type TombstoneKind =
 	| 'lotFolder'
 	| 'folder'
 	| 'deck'
+	| 'battleLog'
 	| 'format';
 
 /** A record that was deleted; lets a merge tell "deleted here" from "never seen there". */
@@ -163,6 +199,8 @@ export type UserData = {
 	lotFolders: LotFolder[];
 	folders: DeckFolder[];
 	decks: Deck[];
+	/** Saved battle logs. Absent from files written before replays existed; migrate defaults it. */
+	battleLogs: BattleLog[];
 	formats: Format[];
 	tombstones: Tombstone[];
 };
@@ -180,6 +218,15 @@ export type LegacyUserDataV1 = {
  * anything real, so a genuine edit anywhere always wins over it.
  */
 export const SENTINEL = '1970-01-01T00:00:00.000Z';
+
+/**
+ * One deck's battle logs, newest game first — the order both the deck page and the CLI
+ * want. Sorted by when the game was played, falling back to when it was saved.
+ */
+export const battleLogsFor = (data: UserData, deckId: string): BattleLog[] =>
+	data.battleLogs
+		.filter((log) => log.deckId === deckId)
+		.sort((a, b) => (b.playedOn ?? b.createdAt).localeCompare(a.playedOn ?? a.createdAt));
 
 /** Identity of a collection row: one printing, one finish, one lot. */
 export const rowKey = (entry: { cardId: string; variant: string; lotId: string | null }) =>
@@ -203,6 +250,7 @@ export const emptyData = (): UserData => ({
 	lotFolders: [],
 	folders: [],
 	decks: [],
+	battleLogs: [],
 	formats: [],
 	tombstones: []
 });

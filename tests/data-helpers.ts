@@ -1,6 +1,7 @@
 import { createClock, type Clock } from '../src/lib/data/clock';
 import {
 	emptyData,
+	type BattleLog,
 	type CollectionEntry,
 	type Deck,
 	type Folder,
@@ -97,6 +98,22 @@ export function makeDeck(overrides: Partial<Deck> & { id: string }): Deck {
 		formatId: null,
 		folderId: null,
 		cards: [],
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+		...overrides
+	};
+}
+
+export function makeBattleLog(overrides: Partial<BattleLog> & { id: string }): BattleLog {
+	return {
+		deckId: 'deck-1',
+		text: 'Setup\nAlice chose tails for the opening coin flip.',
+		player: 'Alice',
+		opponent: 'Bob',
+		result: 'unknown',
+		playedOn: '2026-01-01',
+		opponentDeck: null,
+		note: null,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides

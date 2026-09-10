@@ -28,6 +28,9 @@ npm run cardex -- decks
 npm run cardex -- deck show "Zard test"
 npm run cardex -- deck diff "Zard test" "Zard test copy"   # two versions side by side
 npm run cardex -- buylist "Zard test"
+npm run cardex -- battles "Zard test"                      # record, matchups, saved games
+npm run cardex -- battle show "Zard test"                  # the latest game as a transcript
+npm run cardex -- battle add "Zard test" --from log.txt --opponent-deck "Grimmsnarl ex"
 npm run cardex -- deck create "Lost Box" --from list.txt --folder Standard/2026
 npm run cardex -- deck set "Lost Box" "SVI 166" 4
 npm run cardex -- add "3 MEG 21 rh" --lot "july.2 lot" --create-lot
@@ -41,6 +44,10 @@ npm run cardex -- lot move "july.2 lot" --folder 2026
 MCP (stdio), same operations: `CARDEX_DATA=/path/to/cardex-data.json npm run mcp`.
 For Claude Code: `claude mcp add cardex -e CARDEX_DATA=<path> -- npm run mcp --prefix <repo>`.
 
+Battle logs are pasted TCG Live text saved against a deck; everything a replay shows is parsed
+from that text on demand by `src/lib/tcg/battle-log/` (parse → replay → summary), never stored.
+Read a deck's record before advising on it — `cardex export` includes it.
+
 Coaching guidance (formats, rules to check, how to answer): `docs/deck-coach-prompt.md`.
 Card facts: `static/catalogue.json` (schema in `src/lib/catalogue-format.ts`) and
 `static/details/<setId>.json`; `npm run cardex -- search <name>` is the quick way in.
@@ -50,7 +57,8 @@ Card facts: `static/catalogue.json` (schema in `src/lib/catalogue-format.ts`) an
 - `npm test` (vitest), `npm run check` (svelte-check), `npm run build` (static build). CI runs
   test + build on push to `master` and deploys to GitHub Pages.
 - Pure logic lives in `src/lib/data` (model, migrate, mutations, repair, merge),
-  `src/lib/tcg` (parser, resolver, quick-add, card-query, buylist, legality, exporter) and
+  `src/lib/tcg` (parser, resolver, quick-add, card-query, buylist, legality, exporter,
+  battle-log) and
   `src/lib/agent` (readable export, agent API). Test those with plain vitest; Svelte
   components are not unit-tested.
 - Display choices that describe the browser rather than the collection (which shell a card

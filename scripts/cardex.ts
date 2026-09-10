@@ -17,9 +17,11 @@
  */
 import { readFileSync } from 'node:fs';
 import * as api from '../src/lib/agent/api';
+import * as battles from '../src/lib/agent/battles';
+import { recordLabel } from '../src/lib/tcg/battle-log/record';
 import { folderPath } from '../src/lib/data/folders';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
-import { VARIANT_LABELS, type CardVariant } from '../src/lib/types';
+import { VARIANT_LABELS, type BattleResult, type CardVariant } from '../src/lib/types';
 import { loadCatalogueFromDisk, openData, resolveDataPath, saveData } from './agent-io';
 
 // -- tiny argv parser ---------------------------------------------------------
@@ -59,6 +61,8 @@ Reading
   deck diff <deck> <deck>          two decks side by side: what came in, what went out
   buylist <deck>                   what to buy to complete a deck
   legality <deck>                  check the deck against its format (if it has one)
+  battles <deck>                   the deck's match record, matchups and saved games
+  battle show <deck|logId>         one game: summary, what the opponent showed, transcript
   search <query> [--set CODE]      find printings by name (up to 30)
   resolve <spec>                   what "MEG 21", "me01-021" or "Charizard ex" points to
   export [--json]                  the whole collection in readable Markdown (or JSON)
@@ -75,6 +79,10 @@ Writing (every write is timestamped and merges cleanly into the app on next sync
   deck move <deck> --folder A/B    move a deck (folders are created as needed)
   deck rename <deck> <new name>
   deck delete <deck>
+  battle add <deck> --from FILE|-  save a TCG Live battle log ("-" reads stdin)
+                                   [--player HANDLE] [--result win|loss|tie] [--date YYYY-MM-DD]
+                                   [--opponent-deck TEXT] [--note TEXT]
+  battle delete <logId>
 
 Options
   --file PATH   data file (default: $CARDEX_DATA or ./cardex-data.json)
@@ -214,6 +222,94 @@ async function main(argv: string[]) {
 								.join('\n')
 						: 'No decks yet.'
 			);
+		}
+
+		case 'battles': {
+			if (!sub) throw new api.AgentError('Usage: battles <deck>');
+			const view = battles.battlesView(ctx.data, [sub, ...rest].join(' '));
+			return emit(
+				args,
+				{
+					deck: view.deck,
+					record: view.record,
+					matchups: view.matchups,
+					games: view.games.map((game) => ({
+						id: game.log.id,
+						playedOn: game.log.playedOn,
+						result: game.log.result,
+						opponent: game.log.opponent,
+						opponentDeck: game.log.opponentDeck,
+						turns: game.summary.turns,
+						prizesTaken: game.summary.you?.prizesTaken ?? 0,
+						prizesGiven: game.summary.them?.prizesTaken ?? 0,
+						note: game.log.note
+					}))
+				},
+				() =>
+					[
+						`${view.deck.name}: ${view.label} over ${view.record.played} game${view.record.played === 1 ? '' : 's'}`,
+						...(view.matchups.length
+							? ['', 'By opponent deck:', ...view.matchups.map((m) => `  ${pad(m.label, 30)}${recordLabel(m.record)}`)]
+							: []),
+						'',
+						...(view.games.length
+							? view.games.map(
+									(game) =>
+										`${pad(game.log.playedOn ?? game.log.createdAt.slice(0, 10), 12)}${pad(game.log.result, 8)}${pad(`vs ${game.log.opponentDeck ?? game.log.opponent}`, 28)}${pad(`${game.summary.turns} turns`, 10)}${pad(`prizes ${game.summary.you?.prizesTaken ?? 0}-${game.summary.them?.prizesTaken ?? 0}`, 14)}${game.log.id}`
+								)
+							: ['No games saved for this deck yet.'])
+					].join('\n')
+			);
+		}
+
+		case 'battle': {
+			switch (sub) {
+				case 'show': {
+					if (!rest[0]) throw new api.AgentError('Usage: battle show <deck|logId>');
+					const game = battles.findBattleLog(ctx.data, rest.join(' '));
+					const transcript = battles.battleTranscript(game);
+					return emit(
+						args,
+						{ log: { ...game.log, text: undefined }, summary: game.summary, transcript },
+						() =>
+							[
+								`${game.log.player} vs ${game.log.opponentDeck ?? game.log.opponent} — ${game.log.result}`,
+								`${game.summary.turns} turns · prizes ${game.summary.you?.prizesTaken ?? 0}-${game.summary.them?.prizesTaken ?? 0}${game.summary.wentFirst ? ` · ${game.summary.wentFirst} went first` : ''}`,
+								...(game.log.note ? ['', `Note: ${game.log.note}`] : []),
+								'',
+								`They showed: ${game.summary.them?.cards.map((entry) => (entry.count > 1 ? `${entry.name} x${entry.count}` : entry.name)).join(', ') ?? '(unknown)'}`,
+								...transcript
+							].join('\n')
+					);
+				}
+				case 'add': {
+					if (!rest[0]) throw new api.AgentError('Usage: battle add <deck> --from FILE|-');
+					const from = flagString(args, 'from');
+					if (!from) throw new api.AgentError('battle add needs --from FILE (or "-" for stdin)');
+					const text = from === '-' ? readFileSync(0, 'utf8') : readFileSync(from, 'utf8');
+					const result = flagString(args, 'result');
+					const { data, log, summary } = battles.saveBattleLog(ctx, rest.join(' '), {
+						text,
+						player: flagString(args, 'player'),
+						result: result as BattleResult | undefined,
+						playedOn: flagString(args, 'date'),
+						opponentDeck: flagString(args, 'opponent-deck'),
+						note: flagString(args, 'note')
+					});
+					commit(data);
+					return emit(args, { log: { ...log, text: undefined }, summary }, () =>
+						`Saved a ${log.result} against ${log.opponentDeck ?? log.opponent} — ${summary.turns} turns, prizes ${summary.you?.prizesTaken ?? 0}-${summary.them?.prizesTaken ?? 0} (${log.id})`
+					);
+				}
+				case 'delete': {
+					if (!rest[0]) throw new api.AgentError('Usage: battle delete <logId>');
+					const { data, log } = battles.deleteBattleLog(ctx, rest[0]);
+					commit(data);
+					return emit(args, { deleted: log.id }, () => `Deleted the game against ${log.opponent}.`);
+				}
+				default:
+					throw new api.AgentError('Usage: battle show|add|delete …');
+			}
 		}
 
 		case 'buylist':

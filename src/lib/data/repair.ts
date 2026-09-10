@@ -71,6 +71,7 @@ function untangle<T extends Folder>(tree: T[]): T[] {
 
 export function repair(data: UserData, options: RepairOptions): UserData {
 	const lotIds = new Set(data.lots.map((lot) => lot.id));
+	const deckIds = new Set(data.decks.map((deck) => deck.id));
 	const wantListIds = new Set(data.wantLists.map((list) => list.id));
 	const formatIds = new Set(data.formats.map((format) => format.id));
 
@@ -112,6 +113,10 @@ export function repair(data: UserData, options: RepairOptions): UserData {
 				? deck
 				: { ...deck, folderId, formatId };
 		}),
+		// A log belongs to its deck and shows up nowhere else, so one whose deck the other
+		// device deleted goes with it. Deleting a deck buries its logs too, so this only
+		// catches the race where a log was written while the deck was being deleted.
+		battleLogs: data.battleLogs.filter((log) => deckIds.has(log.deckId)),
 		formats: data.formats,
 		tombstones: pruneTombstones(data.tombstones, options)
 	};

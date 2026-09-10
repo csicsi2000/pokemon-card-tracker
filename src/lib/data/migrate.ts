@@ -10,7 +10,10 @@ import {
 	SENTINEL,
 	tradeKey,
 	wantKey,
+	BATTLE_RESULTS,
 	WANT_PRIORITIES,
+	type BattleLog,
+	type BattleResult,
 	type CollectionEntry,
 	type Deck,
 	type DeckCard,
@@ -124,6 +127,30 @@ function toDeck(value: unknown): Deck | null {
 	};
 }
 
+const battleResult = (value: unknown): BattleResult =>
+	BATTLE_RESULTS.includes(value as BattleResult) ? (value as BattleResult) : 'unknown';
+
+/** A log with no text or no deck is not a replay, so it is dropped rather than defaulted. */
+function toBattleLog(value: unknown): BattleLog | null {
+	if (!isDict(value) || typeof value.id !== 'string') return null;
+	if (typeof value.deckId !== 'string' || !value.deckId) return null;
+	const text = typeof value.text === 'string' ? value.text.trim() : '';
+	if (!text) return null;
+	return {
+		id: value.id,
+		deckId: value.deckId,
+		text,
+		player: str(value.player, ''),
+		opponent: str(value.opponent, ''),
+		result: battleResult(value.result),
+		playedOn: strOrNull(value.playedOn),
+		opponentDeck: strOrNull(value.opponentDeck),
+		note: strOrNull(value.note),
+		createdAt: stamp(value.createdAt),
+		updatedAt: stamp(value.updatedAt)
+	};
+}
+
 function toFormat(value: unknown): Format | null {
 	if (!isDict(value) || typeof value.id !== 'string') return null;
 	return {
@@ -181,6 +208,7 @@ const TOMBSTONE_KINDS = new Set([
 	'lotFolder',
 	'folder',
 	'deck',
+	'battleLog',
 	'format'
 ]);
 
@@ -251,6 +279,7 @@ export function migrate(value: unknown): UserData {
 		lotFolders: uniqueById(compact(arr(data.lotFolders).map(toFolder))),
 		folders: uniqueById(compact(arr(data.folders).map(toFolder))),
 		decks: uniqueById(compact(arr(data.decks).map(toDeck))),
+		battleLogs: uniqueById(compact(arr(data.battleLogs).map(toBattleLog))),
 		formats: uniqueById(compact(arr(data.formats).map(toFormat))),
 		tombstones: compact(arr(data.tombstones).map(toTombstone))
 	};

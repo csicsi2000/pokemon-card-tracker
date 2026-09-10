@@ -50,6 +50,15 @@ type Preferences = {
 	 * lot). A half-sorted stack is usually finished over several sittings.
 	 */
 	lotAddSets: Record<string, string>;
+	/**
+	 * Whether a replay skips the log's bookkeeping lines — a stadium ability firing once
+	 * per benched Pokémon, and the damage it prevents. In the sample games that is a third
+	 * of every line, so most people want it off, and the ones debugging a rules
+	 * interaction want it on.
+	 */
+	replayHideNoise: boolean;
+	/** Milliseconds between steps when a replay is playing itself. */
+	replaySpeed: number;
 };
 
 const defaults = (): Preferences => ({
@@ -60,7 +69,9 @@ const defaults = (): Preferences => ({
 	tradeView: 'detailed',
 	collectionSort: 'name',
 	collectionSortDir: 'asc',
-	lotAddSets: {}
+	lotAddSets: {},
+	replayHideNoise: true,
+	replaySpeed: 700
 });
 
 class Prefs {
@@ -118,6 +129,20 @@ class Prefs {
 	}
 	set collectionSortDir(value: SortDirection) {
 		this.#commit({ ...this.#values, collectionSortDir: value });
+	}
+
+	get replayHideNoise() {
+		return this.#values.replayHideNoise;
+	}
+	set replayHideNoise(value: boolean) {
+		this.#commit({ ...this.#values, replayHideNoise: value });
+	}
+
+	get replaySpeed() {
+		return this.#values.replaySpeed;
+	}
+	set replaySpeed(value: number) {
+		this.#commit({ ...this.#values, replaySpeed: value });
 	}
 
 	/** The set id pinned for quick add in one lot, or '' for none. */

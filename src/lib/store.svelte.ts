@@ -11,10 +11,12 @@ import type { CardVariant } from './types';
 import { createClock } from './data/clock';
 import { migrate } from './data/migrate';
 import {
+	battleLogsFor,
 	emptyData,
 	rowKey,
 	tradeKey,
 	wantKey,
+	type BattleLog,
 	type Deck,
 	type DeckFolder,
 	type Format,
@@ -64,6 +66,9 @@ class Store {
 	}
 	get decks() {
 		return this.#data.decks;
+	}
+	get battleLogs() {
+		return this.#data.battleLogs;
 	}
 	get formats() {
 		return this.#data.formats;
@@ -349,6 +354,35 @@ class Store {
 
 	setDeckQuantity(deckId: string, cardId: string, quantity: number) {
 		this.#commit(mutate.setDeckQuantity(this.#data, this.clock, deckId, cardId, quantity));
+	}
+
+	// -- battle logs --------------------------------------------------------
+
+	battleLog(id: string) {
+		return this.#data.battleLogs.find((log) => log.id === id);
+	}
+
+	/** One deck's saved games, newest first. */
+	battleLogsFor(deckId: string) {
+		return battleLogsFor(this.#data, deckId);
+	}
+
+	/** Null when the deck is gone — nothing to file the game under. */
+	saveBattleLog(input: mutate.BattleLogInput): BattleLog | null {
+		const { data, log } = mutate.createBattleLog(this.#data, this.clock, input);
+		this.#commit(data);
+		return log;
+	}
+
+	updateBattleLog(
+		id: string,
+		changes: Partial<Omit<BattleLog, 'id' | 'deckId' | 'createdAt' | 'updatedAt'>>
+	) {
+		this.#commit(mutate.updateBattleLog(this.#data, this.clock, id, changes));
+	}
+
+	deleteBattleLog(id: string) {
+		this.#commit(mutate.deleteBattleLog(this.#data, this.clock, id));
 	}
 
 	// -- formats ------------------------------------------------------------

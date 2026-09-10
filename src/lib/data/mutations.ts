@@ -19,6 +19,8 @@ import {
 	rowKey,
 	tradeKey,
 	wantKey,
+	type BattleLog,
+	type BattleResult,
 	type CollectionEntry,
 	type Deck,
 	type DeckFolder,
@@ -686,12 +688,19 @@ export function duplicateDeck(
 	return { data: { ...data, decks }, deck };
 }
 
+/** The deck and its battle logs: a replay of a deck that no longer exists has no home. */
 export function deleteDeck(data: UserData, clock: Clock, id: string): UserData {
 	if (!data.decks.some((deck) => deck.id === id)) return data;
+	const now = clock.next();
+	const logs = data.battleLogs.filter((log) => log.deckId === id);
+	let tombstones = bury(data, 'deck', id, now);
+	for (const log of logs) tombstones = bury({ ...data, tombstones }, 'battleLog', log.id, now);
+
 	return {
 		...data,
 		decks: data.decks.filter((deck) => deck.id !== id),
-		tombstones: bury(data, 'deck', id, clock.next())
+		battleLogs: data.battleLogs.filter((log) => log.deckId !== id),
+		tombstones
 	};
 }
 
@@ -709,6 +718,78 @@ export function setDeckQuantity(
 	return updateDeck(data, clock, deckId, {
 		cards: next > 0 ? [...rest, { cardId, quantity: next }] : rest
 	});
+}
+
+// -- battle logs ------------------------------------------------------------
+
+/**
+ * A paste longer than this is a mistake rather than a game — the sample logs of a long
+ * match run to about 30 KB, and everything here rides along in every sync.
+ */
+export const MAX_BATTLE_LOG_CHARS = 200_000;
+
+export type BattleLogInput = {
+	deckId: string;
+	text: string;
+	player: string;
+	opponent: string;
+	result?: BattleResult;
+	/** YYYY-MM-DD; left out, the day the log was saved. */
+	playedOn?: string | null;
+	opponentDeck?: string | null;
+	note?: string | null;
+};
+
+/** Null when the deck is gone — a log with no deck would be unreachable and get repaired away. */
+export function createBattleLog(
+	data: UserData,
+	clock: Clock,
+	input: BattleLogInput
+): { data: UserData; log: BattleLog | null } {
+	if (!data.decks.some((deck) => deck.id === input.deckId)) return { data, log: null };
+	const now = clock.next();
+	const log: BattleLog = {
+		id: newId(),
+		deckId: input.deckId,
+		text: input.text.trim().slice(0, MAX_BATTLE_LOG_CHARS),
+		player: input.player.trim(),
+		opponent: input.opponent.trim(),
+		result: input.result ?? 'unknown',
+		playedOn: input.playedOn ?? now.slice(0, 10),
+		opponentDeck: input.opponentDeck ?? null,
+		note: input.note ?? null,
+		createdAt: now,
+		updatedAt: now
+	};
+	return { data: { ...data, battleLogs: [log, ...data.battleLogs] }, log };
+}
+
+export function updateBattleLog(
+	data: UserData,
+	clock: Clock,
+	id: string,
+	changes: Partial<Omit<BattleLog, 'id' | 'deckId' | 'createdAt' | 'updatedAt'>>
+): UserData {
+	if (!data.battleLogs.some((log) => log.id === id)) return data;
+	const now = clock.next();
+	const text = changes.text?.trim().slice(0, MAX_BATTLE_LOG_CHARS);
+	return {
+		...data,
+		battleLogs: data.battleLogs.map((log) =>
+			log.id === id
+				? { ...log, ...changes, ...(text === undefined ? {} : { text }), updatedAt: now }
+				: log
+		)
+	};
+}
+
+export function deleteBattleLog(data: UserData, clock: Clock, id: string): UserData {
+	if (!data.battleLogs.some((log) => log.id === id)) return data;
+	return {
+		...data,
+		battleLogs: data.battleLogs.filter((log) => log.id !== id),
+		tombstones: bury(data, 'battleLog', id, clock.next())
+	};
 }
 
 // -- formats ----------------------------------------------------------------
@@ -819,6 +900,7 @@ export function restore(data: UserData, clock: Clock, incoming: UserData): UserD
 		...missing(data.lotFolders, incoming.lotFolders, id, 'lotFolder'),
 		...missing(data.folders, incoming.folders, id, 'folder'),
 		...missing(data.decks, incoming.decks, id, 'deck'),
+		...missing(data.battleLogs, incoming.battleLogs, id, 'battleLog'),
 		...missing(data.formats, incoming.formats, id, 'format')
 	];
 
@@ -832,6 +914,7 @@ export function restore(data: UserData, clock: Clock, incoming: UserData): UserD
 		lotFolders: stampAll(incoming.lotFolders),
 		folders: stampAll(incoming.folders),
 		decks: stampAll(incoming.decks),
+		battleLogs: stampAll(incoming.battleLogs),
 		formats: stampAll(incoming.formats),
 		tombstones
 	};
