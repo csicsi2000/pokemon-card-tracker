@@ -189,12 +189,15 @@ is yours is worked out by matching what each player played against the deck's ow
 shown as a guess you can change. Add what the opponent was playing and you get a **matchup table**, worst first —
 which is the question a pile of logs is kept to answer.
 
-**Replay** steps through the whole game with the board reconstructed at every line: active and
+**Replay** steps through the whole game with the table reconstructed at every line: both
+hands (your own cards face up, since the log names your draws; the opponent's as a count),
+deck and discard-pile counts with the discarded cards listed on tap, prizes, active and
 benched Pokémon with their evolution stacks, damage counters against printed HP, attached
-energy and tools, prizes left, the stadium in play. Arrow keys step and change turn, space
-plays it back, the slider scrubs, and clicking any line in the log jumps to it. TCG Live emits
-a line every time a stadium ability checks a benched Pokémon — about a third of a real game —
-so those are folded away by default, with a switch to show every line.
+energy as pips, special conditions, the stadium in play and the turn counter. Arrow keys step
+and change turn, space plays it back at 0.25× to 4×, the slider scrubs with a mark at every
+knockout, clicking any line in the log jumps to it, and tapping any card opens its details.
+TCG Live emits a line every time a stadium ability checks a benched Pokémon — about a third
+of a real game — so those are folded away by default, with a switch to show every line.
 
 Logs are stored **gzipped**. A game is about 25,000 characters, which localStorage bills at
 ~49 KB and which rides along in every sync of your whole collection; compressed it costs
@@ -202,8 +205,9 @@ about 6 KB, so a few hundred games fit where a hundred would not. Nothing else i
 stored: the board is parsed out of the log text each time, so the log you saved today replays
 better as the parser improves. Two things the log itself limits — it
 attributes effect targets to whoever is acting, even for the opponent's Pokémon (Cardex looks
-up the real owner on the board instead), and it never reveals both hands, so hands and deck
-counts are not tracked at all rather than shown wrong.
+up the real owner on the board instead), and it never reveals the opponent's hand, so their
+hand and deck are shown as counts worked out from what the log says moved, exact as long as
+every card that changed zones was narrated.
 
 ### Comparing two decks
 

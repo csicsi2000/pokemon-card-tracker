@@ -2,7 +2,7 @@
 export { findPlayers, parseBattleLog } from './parse';
 export type { LogAction, LogEvent, LogSection, ParsedLog, Ref, SectionKind, Spot } from './parse';
 
-export { buildReplay, finalState, findTarget, isBookkeeping } from './replay';
+export { buildReplay, cardNames, finalState, findTarget, isBookkeeping } from './replay';
 export type { BoardState, InPlay, Replay, ReplayStep, SideState } from './replay';
 
 export { buildLogCardIndex, hpOf } from './artwork';

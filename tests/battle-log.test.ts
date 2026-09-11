@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { buildLogCardIndex } from '../src/lib/tcg/battle-log/artwork';
 import { parseBattleLog, type LogAction } from '../src/lib/tcg/battle-log/parse';
 import { battleRecord, matchups, recordLabel } from '../src/lib/tcg/battle-log/record';
-import { buildReplay, finalState, isBookkeeping } from '../src/lib/tcg/battle-log/replay';
+import {
+	buildReplay,
+	cardNames,
+	finalState,
+	isBookkeeping,
+	type BoardState
+} from '../src/lib/tcg/battle-log/replay';
 import { detectPlayer, summarize } from '../src/lib/tcg/battle-log/summary';
 import type { BattleLog } from '../src/lib/data/model';
 import { makeCard, makeCatalogue, makeSet } from './helpers';
@@ -178,7 +184,9 @@ describe('buildReplay', () => {
 		expect(grimmsnarl.active?.name).toBe("Marnie's Grimmsnarl ex");
 		// 320 from Powerful Hand on top of the counter Freezing Shroud left on it.
 		expect(grimmsnarl.active?.damage).toBe(330);
-		expect(step!.state.sides.Csicsi20.active?.damage).toBe(0);
+		// Your Alakazam carries only the one counter Adrena-Brain moved onto its Abra on turn 3:
+		// the 30 from Shadow Bullet went to the Abra that Clutch then finished at exactly 70.
+		expect(step!.state.sides.Csicsi20.active?.damage).toBe(10);
 	});
 
 	it('heals and moves counters without going below zero', () => {
@@ -342,5 +350,191 @@ describe('battleRecord', () => {
 		]);
 		expect(table.map((row) => row.label)).toEqual(['Grimmsnarl ex', 'Gardevoir ex']);
 		expect(table[0].record).toMatchObject({ losses: 2, played: 2 });
+	});
+});
+
+describe('buildReplay zones', () => {
+	/** The board once the fixture has been read up to and including a 1-based line. */
+	const after = (line: number): BoardState => {
+		const step = [...replay.steps].reverse().find((item) => item.event.line <= line - 1);
+		if (!step) throw new Error(`no event on or before line ${line}`);
+		return step.state;
+	};
+
+	it('deals the opening hands and sets the prizes aside', () => {
+		const them = after(8).sides.Marcelolevi;
+		expect(them.hand.count).toBe(7);
+		expect(them.deck).toBe(60 - 7 - 6);
+		expect(them.prizesLeft).toBe(6);
+	});
+
+	it('knows the cards in your hand when the log revealed them', () => {
+		// "7 drawn cards." with the • line under it.
+		expect(after(6).sides.Csicsi20.hand.known).toEqual([
+			'Poké Pad',
+			'Dudunsparce',
+			'Eri',
+			'Abra',
+			'Hilda',
+			'Enhanced Hammer',
+			'Hilda'
+		]);
+		// Playing Abra takes it out of the hand, and only one of the two Hildas would go.
+		const you = after(10).sides.Csicsi20;
+		expect(you.hand.count).toBe(6);
+		expect(you.hand.known).not.toContain('Abra');
+		expect(you.hand.known.filter((card) => card === 'Hilda')).toHaveLength(2);
+	});
+
+	it('learns nothing about a hand the log kept hidden', () => {
+		expect(after(9).sides.Marcelolevi.hand.known).toEqual([]);
+	});
+
+	it('follows a card from hand to the discard pile and the bench draws from the deck', () => {
+		const them = after(16).sides.Marcelolevi;
+		expect(them.discard).toEqual(['Buddy-Buddy Poffin']);
+		expect(them.hand.count).toBe(6);
+		// Poffin's two Pokémon came off the deck, not out of the hand.
+		expect(them.deck).toBe(47 - 1 - 2);
+	});
+
+	it('shuffles a hand away and draws a new one', () => {
+		expect(after(52).sides.Marcelolevi.hand.count).toBe(0);
+		expect(after(53).sides.Marcelolevi.hand.count).toBe(8);
+	});
+
+	it('discards a replaced stadium once, though the log says it twice', () => {
+		const before = after(100).sides.Marcelolevi;
+		const played = after(101).sides.Marcelolevi;
+		const restated = after(102).sides.Marcelolevi;
+		expect(played.discard.filter((card) => card === 'Spikemuth Gym')).toHaveLength(
+			before.discard.filter((card) => card === 'Spikemuth Gym').length + 1
+		);
+		expect(restated.discard).toEqual(played.discard);
+		expect(restated.hand.count).toBe(played.hand.count);
+	});
+
+	it('puts a knocked-out stack and its energy in the discard pile', () => {
+		const you = finalState(replay).sides.Csicsi20;
+		expect(you.discard).toContain('Fezandipiti ex');
+		expect(you.discard).toContain('Alakazam');
+		expect(you.discard).toContain('Telepathic Psychic Energy');
+	});
+
+	it('counts a prize into the hand once, not again on the "added to hand" line', () => {
+		const took = after(75).sides.Marcelolevi;
+		const added = after(76).sides.Marcelolevi;
+		expect(took.hand.count).toBe(after(74).sides.Marcelolevi.hand.count + 1);
+		expect(added.hand.count).toBe(took.hand.count);
+		// Two prizes, two "added to hand" lines — still two cards, and both names learned.
+		const before = after(162).sides.Csicsi20;
+		const two = after(165).sides.Csicsi20;
+		expect(two.hand.count).toBe(before.hand.count + 2);
+		expect(two.hand.known.slice(-2)).toEqual(['Battle Cage', 'Abra']);
+	});
+
+	it('discards a knocked-out stack once: the top card here, the rest on the line after', () => {
+		const before = after(159).sides.Marcelolevi.discard;
+		const knockedOut = after(160).sides.Marcelolevi.discard;
+		const emptied = after(161).sides.Marcelolevi.discard;
+		expect(knockedOut).toEqual([...before, "Marnie's Grimmsnarl ex"]);
+		expect(emptied).toEqual([
+			...knockedOut,
+			'Basic Darkness Energy',
+			'Basic Darkness Energy',
+			"Marnie's Impidimp",
+			'Air Balloon'
+		]);
+	});
+
+	it('returns Sacred Ash’s Pokémon from the discard pile to the deck', () => {
+		const before = after(246).sides.Csicsi20;
+		const ashed = after(247).sides.Csicsi20;
+		expect(ashed.deck).toBe(before.deck + 4);
+		expect(ashed.hand.count).toBe(before.hand.count);
+		expect(ashed.discard.filter((card) => card === 'Abra')).toHaveLength(
+			before.discard.filter((card) => card === 'Abra').length - 2
+		);
+	});
+
+	it('accounts for all 60 of your cards at the end of the game', () => {
+		const you = finalState(replay).sides.Csicsi20;
+		const inPlay = [you.active, ...you.bench].reduce(
+			(sum, mon) => sum + (mon ? mon.stack.length + mon.attached.length : 0),
+			0
+		);
+		const stadium = finalState(replay).stadium?.player === 'Csicsi20' ? 1 : 0;
+		expect(
+			you.hand.count + you.deck + you.discard.length + you.discardUnknown + you.prizesLeft + inPlay + stadium
+		).toBe(60);
+	});
+
+	it('never loses or invents a card on the side whose draws the log spells out', () => {
+		const inPlay = (side: BoardState['sides'][string]) =>
+			[side.active, ...side.bench].reduce(
+				(sum, mon) => sum + (mon ? mon.stack.length + mon.attached.length : 0),
+				0
+			);
+		for (const step of replay.steps) {
+			const you = step.state.sides.Csicsi20;
+			// Until the opening hand is drawn the prizes are still in the deck.
+			if (you.deck === 60) continue;
+			const stadium = step.state.stadium?.player === 'Csicsi20' ? 1 : 0;
+			const total =
+				you.hand.count +
+				you.deck +
+				you.discard.length +
+				you.discardUnknown +
+				you.prizesLeft +
+				inPlay(you) +
+				stadium;
+			expect(total, `line ${step.event.line + 1}`).toBeLessThanOrEqual(60);
+			expect(you.hand.count).toBeGreaterThanOrEqual(you.hand.known.length);
+		}
+	});
+
+	it('tracks special conditions until the Pokémon leaves the Active Spot', () => {
+		const text = [
+			'Setup',
+			'Ash drew 7 cards for the opening hand.',
+			'Gary drew 7 cards for the opening hand.',
+			'Ash played Pikachu to the Active Spot.',
+			'Ash played Eevee to the Bench.',
+			'Gary played Koffing to the Active Spot.',
+			'',
+			"Gary's Turn",
+			"Gary's Koffing used Poison Gas on Ash's Pikachu for 10 damage.",
+			"Ash's Pikachu is now Poisoned.",
+			'',
+			'Pokémon Checkup',
+			"Ash's Pikachu took 10 damage.",
+			'',
+			"Ash's Turn",
+			'Ash retreated Pikachu to the Bench.',
+			"Ash's Eevee is now in the Active Spot."
+		].join('\n');
+		const game = buildReplay(parseBattleLog(text));
+		const poisoned = game.steps.find((step) => step.event.action.kind === 'status')!;
+		expect(poisoned.state.sides.Ash.active?.conditions).toEqual(['Poisoned']);
+		const final = finalState(game).sides.Ash;
+		expect(final.active?.name).toBe('Eevee');
+		expect(final.bench.find((mon) => mon.name === 'Pikachu')?.conditions).toEqual([]);
+		expect(final.bench.find((mon) => mon.name === 'Pikachu')?.damage).toBe(20);
+	});
+});
+
+describe('cardNames', () => {
+	const names = cardNames(parsed);
+
+	it('lists every card the log mentions, once each', () => {
+		expect(names).toContain('Abra');
+		expect(names).toContain('Spikemuth Gym');
+		expect(names).toContain("Marnie's Grimmsnarl ex");
+		expect(names).toContain('Basic Darkness Energy');
+		expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(names.length);
+	});
+
+	it('starts with the opening hand, so art loads in the order it is needed', () => {
+		expect(names[0]).toBe('Poké Pad');
 	});
 });

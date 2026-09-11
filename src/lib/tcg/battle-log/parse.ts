@@ -33,7 +33,14 @@ export type LogAction =
 	| { kind: 'coin-toss'; player: string }
 	| { kind: 'go-first'; player: string }
 	| { kind: 'draw'; player: string; count: number; opening: boolean; toBench: boolean }
-	| { kind: 'play'; player: string; card: string; to: 'active' | 'bench' | 'stadium' | null }
+	/** `from` is where the card came from: the hand, or the deck for "drew X and played it". */
+	| {
+			kind: 'play';
+			player: string;
+			card: string;
+			to: 'active' | 'bench' | 'stadium' | null;
+			from: 'hand' | 'deck';
+	  }
 	| { kind: 'evolve'; player: string; from: string; to: string; spot: Spot }
 	| { kind: 'attach'; player: string; card: string; target: Ref; spot: Spot }
 	/** One "used": an attack when it names damage or a target, an ability otherwise. */
@@ -59,7 +66,10 @@ export type LogAction =
 	| { kind: 'discard'; player: string; count: number; card: string | null }
 	| { kind: 'shuffle-in'; player: string; count: number }
 	| { kind: 'shuffle'; player: string }
-	| { kind: 'to-hand'; player: string; card: string | null }
+	/** `from` is 'deck' for "drew X"; 'other' for "X was added to hand" (a prize, a search). */
+	| { kind: 'to-hand'; player: string; card: string | null; from: 'deck' | 'other' }
+	/** "X is now Poisoned." / "X is no longer Asleep." */
+	| { kind: 'status'; target: Ref; condition: string; on: boolean }
 	| { kind: 'to-hand-from-play'; player: string; target: Ref }
 	| { kind: 'activated'; card: string }
 	/** "7 drawn cards." — the • line under it names them, when the log reveals them. */
@@ -201,6 +211,14 @@ function pokemonSubject(player: string, rest: string, ctx: Ctx): LogAction | nul
 	if ((match = /^(.+?) is now in the Active Spot/.exec(rest))) {
 		return { kind: 'promote', target: { player, name: clean(match[1]) } };
 	}
+	if ((match = /^(.+?) is (now|no longer) (Poisoned|Asleep|Paralyzed|Confused|Burned)/.exec(rest))) {
+		return {
+			kind: 'status',
+			target: { player, name: clean(match[1]) },
+			condition: match[3],
+			on: match[2] === 'now'
+		};
+	}
 	if ((match = /^(.+?) was Knocked Out/.exec(rest))) {
 		return { kind: 'knockout', target: { player, name: clean(match[1]) } };
 	}
@@ -242,22 +260,22 @@ function playerSubject(player: string, rest: string, ctx: Ctx): LogAction | null
 	}
 	// The singular form names the card outright instead of listing it on a • line.
 	if ((match = /^drew (.+?) and played (?:it|them) to the Bench/.exec(rest))) {
-		return { kind: 'play', player, card: clean(match[1]), to: 'bench' };
+		return { kind: 'play', player, card: clean(match[1]), to: 'bench', from: 'deck' };
 	}
 	if ((match = /^drew (a|\d+) cards?\.?$/.exec(rest))) {
 		return { kind: 'draw', player, count: count(match[1]), opening: false, toBench: false };
 	}
 	// "drew Sacred Ash." — a named draw is still one card, and the name is worth keeping.
 	if ((match = /^drew (.+?)\.?$/.exec(rest))) {
-		return { kind: 'to-hand', player, card: clean(match[1]) };
+		return { kind: 'to-hand', player, card: clean(match[1]), from: 'deck' };
 	}
 
 	if ((match = /^played (.+?) to the (Active Spot|Bench|Stadium spot)/.exec(rest))) {
 		const to = match[2].startsWith('Active') ? 'active' : match[2] === 'Bench' ? 'bench' : 'stadium';
-		return { kind: 'play', player, card: clean(match[1]), to };
+		return { kind: 'play', player, card: clean(match[1]), to, from: 'hand' };
 	}
 	if ((match = /^played (.+?)\.?$/.exec(rest))) {
-		return { kind: 'play', player, card: clean(match[1]), to: null };
+		return { kind: 'play', player, card: clean(match[1]), to: null, from: 'hand' };
 	}
 
 	if ((match = /^evolved (.+?) to (.+?) (?:on the (Bench)|in the (Active) Spot)/.exec(rest))) {
@@ -336,7 +354,12 @@ function subjectless(line: string, ctx: Ctx): LogAction | null {
 	}
 	if ((match = new RegExp(String.raw`^(.+?) was added to (.+?)${APOS}s hand\.?$`).exec(line))) {
 		const card = clean(match[1]);
-		return { kind: 'to-hand', player: match[2], card: /^A card$/i.test(card) ? null : card };
+		return {
+			kind: 'to-hand',
+			player: match[2],
+			card: /^A card$/i.test(card) ? null : card,
+			from: 'other'
+		};
 	}
 	// "Opponent took all of their Prize cards. Marcelolevi wins."
 	if ((match = /(?:^|\s)(\S+) wins\.?$/.exec(line))) {
