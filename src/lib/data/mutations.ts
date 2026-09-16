@@ -33,6 +33,7 @@ import {
 	type Tombstone,
 	type TradeEntry,
 	type UserData,
+	type WantCounting,
 	type WantEntry,
 	type WantList,
 	type WantPriority
@@ -154,6 +155,8 @@ export type WantInput = {
 	quantity: number;
 	/** `null`, or left out, is the default list. */
 	listId?: string | null;
+	/** Left out, a brand-new want counts copies still to find; see WantCounting. */
+	counting?: WantCounting;
 	priority?: WantPriority;
 	note?: string | null;
 };
@@ -188,6 +191,7 @@ export function setWant(data: UserData, clock: Clock, input: WantInput): UserDat
 		variant: input.variant,
 		quantity: next,
 		listId,
+		counting: input.counting ?? existing?.counting ?? 'extra',
 		priority: input.priority ?? existing?.priority ?? 'normal',
 		note: input.note !== undefined ? input.note : (existing?.note ?? null),
 		createdAt: existing?.createdAt ?? now,
@@ -207,7 +211,7 @@ export function updateWant(
 	data: UserData,
 	clock: Clock,
 	ref: WantRef,
-	changes: Partial<Pick<WantEntry, 'quantity' | 'priority' | 'note'>>
+	changes: Partial<Pick<WantEntry, 'quantity' | 'counting' | 'priority' | 'note'>>
 ): UserData {
 	const existing = data.wants.find((want) => wantKey(want) === keyOfRef(ref));
 	if (!existing) return data;
@@ -240,6 +244,7 @@ export function moveWant(
 		variant: source.variant,
 		quantity: Math.max(source.quantity, target?.quantity ?? 0),
 		listId: toListId,
+		counting: source.counting,
 		priority: source.priority,
 		note: source.note ?? target?.note ?? null
 	});

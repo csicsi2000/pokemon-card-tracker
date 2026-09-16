@@ -83,3 +83,57 @@ describe('migrate', () => {
 		expect(migrate(42).version).toBe(2);
 	});
 });
+
+/**
+ * TCGdex renamed the four Sword & Shield Trainer Galleries (swsh9.5tg → swsh9tg, and so
+ * on). Every saved id pointing at the old set names a card that no longer exists.
+ */
+describe('renamed sets', () => {
+	it('rewrites card ids everywhere they are stored', () => {
+		const result = migrate({
+			version: 2,
+			collection: [{ cardId: 'swsh11.5tg-TG24', variant: 'holo', quantity: 1 }],
+			wants: [{ cardId: 'swsh9.5tg-TG01', variant: 'normal', quantity: 2 }],
+			trades: [{ cardId: 'swsh10.5tg-TG05', variant: 'normal', quantity: 1 }],
+			decks: [{ id: 'd1', name: 'Hide n Seak', cards: [{ cardId: 'swsh11.5tg-TG24', quantity: 2 }] }],
+			formats: [{ id: 'f1', name: 'Gallery', pool: [{ cardId: 'swsh12.5tg-TG10', quantity: 1 }] }]
+		});
+
+		expect(result.collection[0].cardId).toBe('swsh11tg-TG24');
+		expect(result.wants[0].cardId).toBe('swsh9tg-TG01');
+		expect(result.trades[0].cardId).toBe('swsh10tg-TG05');
+		expect(result.decks[0].cards[0]).toEqual({ cardId: 'swsh11tg-TG24', quantity: 2 });
+		expect(result.formats[0].pool[0]).toEqual({ cardId: 'swsh12tg-TG10', quantity: 1 });
+	});
+
+	it('renames the tombstone with the row, so a delete keeps matching', () => {
+		const result = migrate({
+			version: 2,
+			tombstones: [
+				{ kind: 'collection', key: 'swsh11.5tg-TG24|holo|', deletedAt: '2026-01-01T00:00:00.000Z' },
+				{ kind: 'trade', key: 'swsh9.5tg-TG01|normal', deletedAt: '2026-01-01T00:00:00.000Z' },
+				{ kind: 'lot', key: 'swsh11.5tg-not-a-card', deletedAt: '2026-01-01T00:00:00.000Z' }
+			]
+		});
+
+		expect(result.tombstones.map((tombstone) => tombstone.key)).toEqual([
+			'swsh11tg-TG24|holo|',
+			'swsh9tg-TG01|normal',
+			// A lot id is not a card id and must be left exactly as it was.
+			'swsh11.5tg-not-a-card'
+		]);
+	});
+
+	it('leaves ids from sets that were not renamed alone, and is idempotent', () => {
+		const once = migrate({
+			version: 2,
+			collection: [
+				{ cardId: 'sv03-125', variant: 'holo', quantity: 1 },
+				{ cardId: 'swsh11.5tg-TG24', variant: 'holo', quantity: 1 }
+			]
+		});
+		const twice = migrate(once);
+
+		expect(twice.collection.map((row) => row.cardId)).toEqual(['sv03-125', 'swsh11tg-TG24']);
+	});
+});

@@ -33,7 +33,13 @@
 	import { prefs } from '$lib/prefs.svelte';
 	import { rowKey, store } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
-	import { sortVariants, VARIANT_LABELS, type Card, type CardVariant } from '$lib/types';
+	import {
+		sortVariants,
+		UNLISTED_VARIANTS,
+		VARIANT_LABELS,
+		type Card,
+		type CardVariant
+	} from '$lib/types';
 
 	let {
 		card = $bindable(),
@@ -143,13 +149,15 @@
 	);
 
 	// Offer the finishes this printing exists in, plus any the user already recorded —
-	// so nothing becomes uneditable if the catalogue changes under them.
+	// so nothing becomes uneditable if the catalogue changes under them. Event stamps are
+	// offered on every card: no database says which cards exist stamped, so the only way
+	// to record one is to let the collector say so.
 	const variants = $derived.by(() => {
 		if (!card) return [] as CardVariant[];
 		const recorded = store.collection
 			.filter((entry) => entry.cardId === card!.id)
 			.map((entry) => entry.variant);
-		const all = new Set<CardVariant>([...card.variants, ...recorded]);
+		const all = new Set<CardVariant>([...card.variants, ...recorded, ...UNLISTED_VARIANTS]);
 		return all.size ? sortVariants([...all]) : (['normal'] as CardVariant[]);
 	});
 

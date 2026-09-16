@@ -15,6 +15,7 @@
 	import Import from '@lucide/svelte/icons/import';
 	import { folderPath } from '$lib/data/folders';
 	import { store } from '$lib/store.svelte';
+	import { catalogueSync } from '$lib/catalogue-sync.svelte';
 
 	let { data } = $props();
 
@@ -23,6 +24,15 @@
 		printings: new Set(store.collection.map((entry) => entry.cardId)).size,
 		decks: store.decks.length,
 		catalogue: data.catalogue.cards.length
+	});
+
+	// The build date is the honest answer for where the catalogue came from, but once the
+	// background check has topped it up, saying so is more honest still.
+	const catalogueHint = $derived.by(() => {
+		const built = `TCGdex, ${data.catalogue.generatedAt}`;
+		if (catalogueSync.status === 'checking') return `${built} · checking…`;
+		if (catalogueSync.status === 'updated') return `${built} · +${catalogueSync.added} since`;
+		return built;
 	});
 
 	const recentDecks = $derived(
@@ -70,11 +80,7 @@
 		<StatTile label="Cards owned" value={stats.owned} />
 		<StatTile label="Unique printings" value={stats.printings} />
 		<StatTile label="Decks" value={stats.decks} />
-		<StatTile
-			label="Cards in catalogue"
-			value={stats.catalogue}
-			hint={`TCGdex, ${data.catalogue.generatedAt}`}
-		/>
+		<StatTile label="Cards in catalogue" value={stats.catalogue} hint={catalogueHint} />
 	</div>
 
 	<!-- Two columns even on a phone: eight full-width cards would push the recent decks

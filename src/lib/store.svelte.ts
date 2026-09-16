@@ -12,10 +12,12 @@ import { createClock } from './data/clock';
 import { migrate } from './data/migrate';
 import {
 	battleLogsFor,
+	copiesToFind,
 	emptyData,
 	rowKey,
 	tradeKey,
 	wantKey,
+	wantProgress,
 	type BattleLog,
 	type Deck,
 	type DeckFolder,
@@ -25,7 +27,8 @@ import {
 	type TradeEntry,
 	type UserData,
 	type WantEntry,
-	type WantList
+	type WantList,
+	type WantProgress
 } from './data/model';
 import * as mutate from './data/mutations';
 import { repair } from './data/repair';
@@ -156,6 +159,14 @@ class Store {
 			: this.#data.wants.filter((want) => want.listId === listId);
 	}
 
+	/**
+	 * How far along every want is, keyed by `wantKey`. Always over every list, so that a
+	 * copy counted towards one list's want is not counted towards another's as well.
+	 */
+	wantProgress() {
+		return wantProgress(this.#data.wants, (cardId, variant) => this.ownedOf(cardId, variant));
+	}
+
 	/** Copies wanted of one printing across every finish and list. */
 	wantedTotal(cardId: string) {
 		return this.#data.wants
@@ -170,7 +181,7 @@ class Store {
 
 	updateWant(
 		ref: mutate.WantRef,
-		changes: Partial<Pick<WantEntry, 'quantity' | 'priority' | 'note'>>
+		changes: Partial<Pick<WantEntry, 'quantity' | 'counting' | 'priority' | 'note'>>
 	) {
 		this.#commit(mutate.updateWant(this.#data, this.clock, ref, changes));
 	}
@@ -456,4 +467,4 @@ class Store {
 }
 
 export const store = new Store();
-export { rowKey, tradeKey, wantKey };
+export { copiesToFind, rowKey, tradeKey, wantKey, type WantProgress };

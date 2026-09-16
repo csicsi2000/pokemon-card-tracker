@@ -47,6 +47,20 @@ export type WantPriority = 'low' | 'normal' | 'high';
 
 export const WANT_PRIORITIES: WantPriority[] = ['high', 'normal', 'low'];
 
+/**
+ * What a want's `quantity` counts.
+ *
+ *   * `extra` — copies to go and find, whatever is already in the collection. Wanting a
+ *     second Charizard when one is already in a binder is an ordinary thing to want, so
+ *     this is what a newly added want gets.
+ *   * `total` — copies to end up owning; the ones already owned count towards it. This
+ *     is the "finish the playset" reading, and what every want written before the
+ *     choice existed meant.
+ */
+export type WantCounting = 'extra' | 'total';
+
+export const WANT_COUNTINGS: WantCounting[] = ['extra', 'total'];
+
 /** A named wants list — "Trade targets", "Charizard binder", "Christmas". */
 export type WantList = {
 	id: string;
@@ -64,10 +78,12 @@ export type WantList = {
 export type WantEntry = {
 	cardId: string;
 	variant: CardVariant;
-	/** How many copies the user wants to end up owning. */
+	/** How many copies are wanted — read against the collection as `counting` says. */
 	quantity: number;
 	/** Which list it sits on. `null` is the default "Main list". */
 	listId: string | null;
+	/** Whether copies already owned count towards `quantity`. See WantCounting. */
+	counting: WantCounting;
 	priority: WantPriority;
 	note: string | null;
 	createdAt: string;
@@ -241,6 +257,77 @@ export const battleLogsFor = (data: UserData, deckId: string): BattleLog[] =>
 /** Identity of a collection row: one printing, one finish, one lot. */
 export const rowKey = (entry: { cardId: string; variant: string; lotId: string | null }) =>
 	`${entry.cardId}|${entry.variant}|${entry.lotId ?? ''}`;
+
+/**
+ * Copies of a want still to be found, given how many of that printing and finish count
+ * towards it. The one place the two counting modes differ. Callers with a whole wants
+ * list should go through `wantProgress`, which decides how many copies each want gets
+ * when several lists want the same card; this is the arithmetic for one want on its own.
+ */
+export const copiesToFind = (
+	want: Pick<WantEntry, 'quantity' | 'counting'>,
+	owned: number
+): number => (want.counting === 'extra' ? want.quantity : Math.max(0, want.quantity - owned));
+
+/** How far along one want is. `owned` is every copy of that finish; `counted` is its share. */
+export type WantProgress = {
+	/** Copies of the printing and finish in the collection, whichever list they serve. */
+	owned: number;
+	/** The copies that count towards this want — never more than its quantity. */
+	counted: number;
+	/** Copies still to find; the same number `copiesToFind` gives for `counted`. */
+	missing: number;
+};
+
+const PRIORITY_RANK = new Map(WANT_PRIORITIES.map((priority, index) => [priority, index]));
+
+/**
+ * Which want gets the copies first when several want the same card: the most wanted,
+ * then the one that has been waiting longest. Ends on the key so the order is total and
+ * two devices agree on it.
+ */
+const byClaim = (a: WantEntry, b: WantEntry) =>
+	PRIORITY_RANK.get(a.priority)! - PRIORITY_RANK.get(b.priority)! ||
+	a.createdAt.localeCompare(b.createdAt) ||
+	wantKey(a).localeCompare(wantKey(b));
+
+/**
+ * The progress of every want, keyed by `wantKey`, with the copies owned shared out
+ * between the wants for one printing and finish rather than counted towards each of
+ * them in turn. Wanting one Charizard for a deck and one for a binder is wanting two;
+ * owning one should tick off one list, not both.
+ *
+ * Only wants that count "copies to own" take a share — a "copies to find" want is
+ * asking for more whatever is in the binder, so it leaves the copies for the others.
+ * Everything that shows a wants list, prices it or ticks it off reads from here, and the
+ * answer does not depend on which list is being looked at.
+ */
+export function wantProgress(
+	wants: readonly WantEntry[],
+	ownedOf: (cardId: string, variant: CardVariant) => number
+): Map<string, WantProgress> {
+	const progress = new Map<string, WantProgress>();
+	const owned = new Map<string, number>();
+	const unclaimed = new Map<string, number>();
+
+	for (const want of [...wants].sort(byClaim)) {
+		const finish = `${want.cardId}|${want.variant}`;
+		if (!owned.has(finish)) {
+			const copies = ownedOf(want.cardId, want.variant);
+			owned.set(finish, copies);
+			unclaimed.set(finish, copies);
+		}
+		const counted =
+			want.counting === 'total' ? Math.min(want.quantity, unclaimed.get(finish)!) : 0;
+		unclaimed.set(finish, unclaimed.get(finish)! - counted);
+		progress.set(wantKey(want), {
+			owned: owned.get(finish)!,
+			counted,
+			missing: copiesToFind(want, counted)
+		});
+	}
+	return progress;
+}
 
 /** Identity of a want: one printing, one finish, one list. */
 export const wantKey = (entry: { cardId: string; variant: string; listId: string | null }) =>

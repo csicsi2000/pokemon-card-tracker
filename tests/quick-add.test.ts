@@ -210,12 +210,46 @@ describe('pickVariant', () => {
 
 describe('variant ordering', () => {
 	it('sorts plainest first and never mutates the input', () => {
-		const input: CardVariant[] = ['reverse', 'firstEdition', 'holo', 'normal', 'promo'];
-		expect(sortVariants(input)).toEqual(['normal', 'holo', 'reverse', 'firstEdition', 'promo']);
+		const input: CardVariant[] = ['reverse', 'firstEdition', 'holo', 'normal', 'promo', 'play'];
+		expect(sortVariants(input)).toEqual([
+			'normal',
+			'holo',
+			'reverse',
+			'firstEdition',
+			'promo',
+			'play'
+		]);
 		expect(input[0]).toBe('reverse');
 		expect(plainestVariant(['reverse', 'holo'])).toBe('holo');
 		expect(plainestVariant(['holo', 'firstEdition'])).toBe('holo');
 		expect(plainestVariant([])).toBe('normal');
+	});
+});
+
+describe('event-stamped copies', () => {
+	it('reads the stamp markers on a quick-add line', () => {
+		for (const marker of ['play', 'stamp', 'pp']) {
+			expect(parseQuickAddLine(`MEG 21 ${marker}`, 1)?.variant).toBe('play');
+		}
+	});
+
+	/**
+	 * No card database lists event stamps, so `card.variants` can never contain one. The
+	 * usual "fall back to the plainest finish this printing exists in" rule would quietly
+	 * turn a stamped card into an ordinary one.
+	 */
+	it('records a stamp even though no printing declares it', () => {
+		const charizard = catalogue.byName.get('charizard')![0];
+		expect(charizard.variants).not.toContain('play');
+		expect(pickVariant(charizard, 'play', 'normal')).toBe('play');
+
+		const tinkaton = catalogue.byName.get('tinkaton ex')![0];
+		expect(pickVariant(tinkaton, 'play', 'normal')).toBe('play');
+	});
+
+	it('still falls back for finishes the catalogue does describe', () => {
+		const charizard = catalogue.byName.get('charizard')![0];
+		expect(pickVariant(charizard, 'firstEdition', 'normal')).toBe('normal');
 	});
 });
 

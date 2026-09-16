@@ -4,6 +4,7 @@
  * a phone may well want the side sheet while a desktop wants the big centred dialog.
  */
 import { browser } from '$app/environment';
+import type { PriceSource } from './card-details';
 import type { CollectionSort, SortDirection } from './tcg/collection-view';
 
 /** Where a card opens: the sheet sliding in from the right, or a centred dialog with bigger art. */
@@ -42,6 +43,13 @@ type Preferences = {
 	wantList: string;
 	/** How the trade binder is drawn; the same three views as wants. */
 	tradeView: WantView;
+	/**
+	 * Which marketplace the wants list prices against. Two quotes in two currencies
+	 * cannot be added up, so a total has to pick one.
+	 */
+	priceSource: PriceSource;
+	/** Whether the wants list looks prices up at all. Off means no network calls. */
+	showPrices: boolean;
 	/** How the collection grid is ordered. The filters beside it are not remembered. */
 	collectionSort: CollectionSort;
 	collectionSortDir: SortDirection;
@@ -67,6 +75,8 @@ const defaults = (): Preferences => ({
 	deckView: 'list',
 	wantList: '*',
 	tradeView: 'detailed',
+	priceSource: 'Cardmarket',
+	showPrices: true,
 	collectionSort: 'name',
 	collectionSortDir: 'asc',
 	lotAddSets: {},
@@ -115,6 +125,20 @@ class Prefs {
 	}
 	set tradeView(value: WantView) {
 		this.#commit({ ...this.#values, tradeView: value });
+	}
+
+	get priceSource() {
+		return this.#values.priceSource;
+	}
+	set priceSource(value: PriceSource) {
+		this.#commit({ ...this.#values, priceSource: value });
+	}
+
+	get showPrices() {
+		return this.#values.showPrices;
+	}
+	set showPrices(value: boolean) {
+		this.#commit({ ...this.#values, showPrices: value });
 	}
 
 	get collectionSort() {

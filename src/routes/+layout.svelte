@@ -9,6 +9,7 @@
 	import { sync } from '$lib/sync/engine.svelte';
 	import { install } from '$lib/pwa/install.svelte';
 	import { dropRetiredCaches } from '$lib/pwa/caches';
+	import { catalogueSync } from '$lib/catalogue-sync.svelte';
 
 	let { children } = $props();
 
@@ -20,6 +21,9 @@
 		// Reclaim the space held by caches this build stopped using. Not awaited: nothing
 		// on the page depends on it.
 		void dropRetiredCaches(globalThis.caches);
+		// Top the catalogue up with anything TCGdex has published since this build. Also
+		// not awaited: the static catalogue is already on screen, this only adds to it.
+		void catalogueSync.start();
 		// Catch Chromium's deferred install prompt so the app can offer its own button.
 		return install.listen();
 	});

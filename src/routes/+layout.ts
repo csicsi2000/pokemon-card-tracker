@@ -1,4 +1,4 @@
-import { loadCatalogue } from '$lib/catalogue';
+import { CATALOGUE_DEP, loadCatalogue } from '$lib/catalogue';
 import { prefs } from '$lib/prefs.svelte';
 import { store } from '$lib/store.svelte';
 import type { LayoutLoad } from './$types';
@@ -9,7 +9,11 @@ export const ssr = false;
 export const prerender = true;
 export const trailingSlash = 'always';
 
-export const load: LayoutLoad = async ({ fetch }) => {
+export const load: LayoutLoad = async ({ fetch, depends }) => {
+	// The background refresh invalidates this once it has merged newer TCGdex data, which
+	// re-runs the load and hands every page the updated catalogue. See catalogue-sync.
+	depends(CATALOGUE_DEP);
+
 	store.load();
 	prefs.load();
 	return { catalogue: await loadCatalogue(fetch) };

@@ -121,10 +121,12 @@ one printing in one finish plus how many copies you are after, a priority (high 
 low) and a free note — where to look, the price you will pay. The heart on any card's detail
 sheet puts one on the list without leaving the page you are on.
 
-Each row shows how many of that finish you already own, so `2/4` means two still to find;
-the counters and the **Cards to find** tile always count the gap rather than the wish. When
-the cards arrive, **Got it** adds exactly the missing copies to the lot chosen in the panel
-on the right and clears the want. **Copy list** puts everything still missing on the
+Each want says what its quantity counts. **Copies to find** (the default for a new want)
+is copies on top of whatever you already own, shown as `+2`; **Copies to own** is the
+total you want to end up with, shown as `2/4` — two owned, two still to find. The counters
+and the **Cards to find** tile always count the gap rather than the wish. When the cards
+arrive, **Got it** adds exactly the missing copies to the lot chosen in the panel on the
+right and clears the want. **Copy list** puts everything still missing on the
 clipboard as a decklist, ready to paste into a shop's mass-entry box or a trade thread.
 
 **Several lists.** Wants that name no list sit on the **Main list**; make as many more as
@@ -133,7 +135,10 @@ completing. The picker at the top switches between them (and **All lists** shows
 filters the stats and the Copy list button with it, and decides where new wants land. The
 `⋯` on any row moves it to another list. Deleting a list keeps its wants, folding them back
 onto the Main list. The same card can sit on two lists at once with a different count on
-each — one hunt does not disturb the other.
+each — one hunt does not disturb the other. Wanting one for a deck and one for a binder
+is wanting two: the copies you own are shared out between the lists (the highest
+priority first, then the want that has waited longest) rather than counted towards each
+of them, so owning one ticks off one list and leaves the other still looking.
 
 **Three views**, switched top right and remembered per browser:
 

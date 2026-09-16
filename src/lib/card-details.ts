@@ -10,6 +10,7 @@
  *     the network is unavailable this is the only part that goes missing.
  */
 import { base } from '$app/paths';
+import { getCatalogueDelta } from './catalogue';
 import { detailUrl, type CardDetailRow, type SetDetailFile } from './catalogue-format';
 import { cleanText } from './tcg/text';
 
@@ -30,13 +31,27 @@ export type CardText = {
 };
 
 export type MarketPrice = {
-	source: 'Cardmarket' | 'TCGplayer';
+	source: PriceSource;
 	currency: 'EUR' | 'USD';
 	/** The headline number: trend for Cardmarket, market price for TCGplayer. */
 	price: number;
 	low: number | null;
 	updated: string | null;
 };
+
+/** Which marketplace a price came from. Cardmarket quotes EUR, TCGplayer USD. */
+export type PriceSource = 'Cardmarket' | 'TCGplayer';
+
+export const PRICE_SOURCES: PriceSource[] = ['Cardmarket', 'TCGplayer'];
+
+export const PRICE_SOURCE_LABELS: Record<PriceSource, string> = {
+	Cardmarket: 'Cardmarket (€)',
+	TCGplayer: 'TCGplayer ($)'
+};
+
+/** The quote from one marketplace, or null when that marketplace has no price. */
+export const priceFrom = (prices: MarketPrice[] | undefined, source: PriceSource) =>
+	prices?.find((price) => price.source === source) ?? null;
 
 const EMPTY_TEXT: CardText = {
 	illustrator: null,
@@ -90,6 +105,14 @@ async function loadSetDetail(setId: string) {
 		}
 
 		const byLocalId = new Map(rows.map((row) => [row.localId, row]));
+
+		// A set the background refresh re-fetched has newer text than the bundled file —
+		// and a set published since the build has no bundled file at all, so this is the
+		// only place its rules text comes from. Either way the fresher rows win.
+		for (const row of getCatalogueDelta()?.sets[setId]?.details ?? []) {
+			byLocalId.set(row.localId, row);
+		}
+
 		setFiles.set(setId, byLocalId);
 		return byLocalId;
 	})();
@@ -100,6 +123,15 @@ async function loadSetDetail(setId: string) {
 	} finally {
 		setRequests.delete(setId);
 	}
+}
+
+/**
+ * Forget the per-set files already parsed, so the next read picks up newer rows. Called
+ * after a catalogue refresh merges a set — the map built before it would still hold the
+ * bundled text.
+ */
+export function clearCardTextCache() {
+	setFiles.clear();
 }
 
 export async function loadCardText(setId: string, localId: string): Promise<CardText> {
@@ -157,12 +189,80 @@ function readPrices(pricing: ApiPricing | undefined): MarketPrice[] {
 	return prices;
 }
 
-const priceCache = new Map<string, MarketPrice[]>();
+/**
+ * Prices are the one thing on a card that goes stale, and pricing a whole wants list is
+ * one REST call per card — so what comes back is kept in this browser for half a day
+ * rather than fetched again every time the list is drawn. Display data, like prefs: its
+ * own key, never merged, never synced. The cap keeps it from crowding the collection out
+ * of localStorage; the oldest quotes go first.
+ */
+const PRICE_KEY = 'cardex:prices:v1';
+const PRICE_TTL_MS = 12 * 60 * 60 * 1000;
+const PRICE_CACHE_MAX = 1500;
+
+type CachedPrice = { at: number; prices: MarketPrice[] };
+
+let priceCache: Map<string, CachedPrice> | null = null;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cache(): Map<string, CachedPrice> {
+	if (priceCache) return priceCache;
+	priceCache = new Map();
+	try {
+		const raw = localStorage.getItem(PRICE_KEY);
+		const saved = raw ? (JSON.parse(raw) as Record<string, CachedPrice>) : {};
+		for (const [cardId, entry] of Object.entries(saved ?? {})) {
+			if (typeof entry?.at === 'number' && Array.isArray(entry.prices)) {
+				priceCache.set(cardId, entry);
+			}
+		}
+	} catch {
+		// No storage, or junk in it: start empty and refetch. Never fatal.
+	}
+	return priceCache;
+}
+
+function persist() {
+	persistTimer = null;
+	const entries = [...cache().entries()]
+		.sort((a, b) => b[1].at - a[1].at)
+		.slice(0, PRICE_CACHE_MAX);
+	priceCache = new Map(entries);
+	try {
+		localStorage.setItem(PRICE_KEY, JSON.stringify(Object.fromEntries(entries)));
+	} catch {
+		// A price that fails to stick just gets fetched again next time.
+	}
+}
+
+/** Pricing a list writes once per card; batch those into one serialization. */
+function schedulePersist() {
+	if (persistTimer !== null) return;
+	persistTimer = setTimeout(persist, 1000);
+}
+
+/** Wipe the stored quotes — the "refresh prices" button, and a settings escape hatch. */
+export function clearPriceCache() {
+	priceCache = new Map();
+	if (persistTimer !== null) clearTimeout(persistTimer);
+	persistTimer = null;
+	try {
+		localStorage.removeItem(PRICE_KEY);
+	} catch {
+		// Nothing to clear if there is no storage.
+	}
+}
+
+/** How old the freshest quote in the cache is, for "prices from 2 hours ago". */
+export function pricesCachedAt(cardId: string): number | null {
+	return cache().get(cardId)?.at ?? null;
+}
+
 const priceRequests = new Map<string, Promise<MarketPrice[]>>();
 
 export async function loadPrices(cardId: string): Promise<MarketPrice[]> {
-	const cached = priceCache.get(cardId);
-	if (cached) return cached;
+	const cached = cache().get(cardId);
+	if (cached && Date.now() - cached.at < PRICE_TTL_MS) return cached.prices;
 
 	const existing = priceRequests.get(cardId);
 	if (existing) return existing;
@@ -180,7 +280,8 @@ export async function loadPrices(cardId: string): Promise<MarketPrice[]> {
 			.find(Boolean);
 
 		const prices = readPrices(raw.pricing ?? variantPricing);
-		priceCache.set(cardId, prices);
+		cache().set(cardId, { at: Date.now(), prices });
+		schedulePersist();
 		return prices;
 	})();
 
@@ -211,11 +312,19 @@ export const TYPE_COLORS: Record<string, string> = {
 
 export const typeColor = (type: string) => TYPE_COLORS[type] ?? 'bg-neutral-500';
 
-export const formatPrice = (price: MarketPrice, amount = price.price) =>
-	new Intl.NumberFormat(price.currency === 'EUR' ? 'de-DE' : 'en-US', {
+export const CURRENCY_OF: Record<PriceSource, 'EUR' | 'USD'> = {
+	Cardmarket: 'EUR',
+	TCGplayer: 'USD'
+};
+
+export const formatMoney = (currency: 'EUR' | 'USD', amount: number) =>
+	new Intl.NumberFormat(currency === 'EUR' ? 'de-DE' : 'en-US', {
 		style: 'currency',
-		currency: price.currency
+		currency
 	}).format(amount);
+
+export const formatPrice = (price: MarketPrice, amount = price.price) =>
+	formatMoney(price.currency, amount);
 
 /** Re-exported so callers repairing live API text do not need a second import. */
 export { cleanText };

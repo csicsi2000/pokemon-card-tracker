@@ -1,9 +1,16 @@
-import type { WantPriority } from './data/model';
+import type { WantCounting, WantPriority } from './data/model';
 
 export type Supertype = 'Pokemon' | 'Trainer' | 'Energy';
-export type CardVariant = 'normal' | 'reverse' | 'holo' | 'firstEdition' | 'promo';
+export type CardVariant = 'normal' | 'reverse' | 'holo' | 'firstEdition' | 'promo' | 'play';
 
-export const CARD_VARIANTS: CardVariant[] = ['normal', 'reverse', 'holo', 'firstEdition', 'promo'];
+export const CARD_VARIANTS: CardVariant[] = [
+	'normal',
+	'reverse',
+	'holo',
+	'firstEdition',
+	'promo',
+	'play'
+];
 
 /**
  * Finishes from plainest to most special. Holo comes before reverse on purpose: for a
@@ -15,8 +22,22 @@ export const VARIANTS_PLAINEST_FIRST: CardVariant[] = [
 	'holo',
 	'reverse',
 	'firstEdition',
-	'promo'
+	'promo',
+	'play'
 ];
+
+/**
+ * Finishes no card database describes, because they are not printings — they are the
+ * same printing with an event stamp applied afterwards: Play! Pokémon Prize Pack cards,
+ * and the Winner / Finalist / Staff / Competitor stamps from Regionals and Worlds.
+ *
+ * TCGdex has no concept of them, so they will never appear in a card's `variants` and
+ * the app cannot infer which cards exist stamped. They are offered on every card instead
+ * and taken on the collector's word — see `pickVariant`.
+ */
+export const UNLISTED_VARIANTS: ReadonlySet<CardVariant> = new Set<CardVariant>(['play']);
+
+export const isUnlistedVariant = (variant: CardVariant) => UNLISTED_VARIANTS.has(variant);
 
 const VARIANT_RANK = new Map(VARIANTS_PLAINEST_FIRST.map((variant, index) => [variant, index]));
 
@@ -33,13 +54,25 @@ export const VARIANT_LABELS: Record<CardVariant, string> = {
 	reverse: 'Reverse holo',
 	holo: 'Holo',
 	firstEdition: '1st edition',
-	promo: 'Promo'
+	promo: 'Promo',
+	play: 'Play! stamp'
 };
 
 export const WANT_PRIORITY_LABELS: Record<WantPriority, string> = {
 	high: 'High',
 	normal: 'Normal',
 	low: 'Low'
+};
+
+/** What the quantity on a want means. See WantCounting in data/model.ts. */
+export const WANT_COUNTING_LABELS: Record<WantCounting, string> = {
+	extra: 'Copies to find',
+	total: 'Copies to own'
+};
+
+export const WANT_COUNTING_HINTS: Record<WantCounting, string> = {
+	extra: 'Copies to go and find, on top of any you already own',
+	total: 'Copies to end up owning — the ones you have count towards it'
 };
 
 // ---------------------------------------------------------------------------
@@ -107,6 +140,7 @@ export type {
 	Tombstone,
 	TradeEntry,
 	UserData,
+	WantCounting,
 	WantEntry,
 	WantList,
 	WantPriority

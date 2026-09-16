@@ -6,6 +6,7 @@
  *   meg 021 x2        case and zero-padding do not matter
  *   PR-SW 92          promo sets by their PTCGL code
  *   sv03 125          a raw TCGdex set id also works
+ *   MEP 93 play       an event-stamped copy (Prize Pack, Worlds, Regionals)
  *
  * With a default set pinned (sorting a stack that is all one set), the code can be left
  * off and the collector number alone is enough:
@@ -18,7 +19,13 @@
  * to do with the resolved cards.
  */
 import type { Catalogue } from '$lib/catalogue';
-import { plainestVariant, type Card, type CardSet, type CardVariant } from '$lib/types';
+import {
+	isUnlistedVariant,
+	plainestVariant,
+	type Card,
+	type CardSet,
+	type CardVariant
+} from '$lib/types';
 import { findByNumber, setForCode } from './resolver';
 
 export type QuickAddEntry = {
@@ -49,7 +56,11 @@ const VARIANT_MARKERS: Record<string, CardVariant> = {
 	'1st': 'firstEdition',
 	first: 'firstEdition',
 	promo: 'promo',
-	p: 'promo'
+	p: 'promo',
+	play: 'play',
+	stamp: 'play',
+	// The stamped Prize Pack cards are what most people mean by "pp".
+	pp: 'play'
 };
 
 /**
@@ -164,6 +175,10 @@ export const resolveQuickAddAll = (catalogue: Catalogue, entries: QuickAddEntry[
 /**
  * The finish to record: the marker if the printing exists in it, else the plainest finish
  * it does exist in — holo for a rare that comes as holo + reverse, normal for a common.
+ *
+ * Event stamps are the exception. No card database lists them, so "does the printing
+ * exist in it" has no answer and the fallback would quietly downgrade a stamped card to
+ * a plain one. Those are taken at face value instead.
  */
 export function pickVariant(
 	card: Card,
@@ -171,6 +186,7 @@ export function pickVariant(
 	fallback: CardVariant
 ): CardVariant {
 	const wanted = requested ?? fallback;
+	if (isUnlistedVariant(wanted)) return wanted;
 	if (card.variants.includes(wanted)) return wanted;
 	return plainestVariant(card.variants);
 }

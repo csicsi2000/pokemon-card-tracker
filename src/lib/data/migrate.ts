@@ -12,6 +12,7 @@ import {
 	wantKey,
 	BATTLE_RESULTS,
 	LOG_ENCODINGS,
+	WANT_COUNTINGS,
 	WANT_PRIORITIES,
 	type BattleLog,
 	type BattleResult,
@@ -27,6 +28,7 @@ import {
 	type TradeEntry,
 	type UserData,
 	type WantEntry,
+	type WantCounting,
 	type WantList,
 	type WantPriority
 } from './model';
@@ -48,12 +50,40 @@ const positiveInt = (value: unknown) => {
 const variant = (value: unknown): CardVariant =>
 	CARD_VARIANTS.includes(value as CardVariant) ? (value as CardVariant) : 'normal';
 
+/**
+ * Set ids TCGdex has renamed, old → new.
+ *
+ * A card id is `<setId>-<collector number>`, so a renamed set silently orphans every row
+ * pointing at it: the cards are still in the catalogue, under ids nothing refers to any
+ * more. The rename cannot be detected after the fact — the old id is simply gone — so
+ * each one is recorded here as it is noticed, and rewritten on load.
+ *
+ * Rewriting on load rather than as a versioned migration is deliberate: a device that
+ * has not run this build yet will keep syncing the old ids over, and this has to keep
+ * correcting them. It is idempotent, so that costs nothing.
+ */
+const RENAMED_SETS: Record<string, string> = {
+	// The four Sword & Shield Trainer Galleries, renamed some time before 2026-09-12.
+	'swsh9.5tg': 'swsh9tg',
+	'swsh10.5tg': 'swsh10tg',
+	'swsh11.5tg': 'swsh11tg',
+	'swsh12.5tg': 'swsh12tg'
+};
+
+export function renameCardId(cardId: string): string {
+	const split = cardId.lastIndexOf('-');
+	if (split <= 0) return cardId;
+
+	const renamed = RENAMED_SETS[cardId.slice(0, split)];
+	return renamed ? `${renamed}${cardId.slice(split)}` : cardId;
+}
+
 function toRow(value: unknown): CollectionEntry | null {
 	if (!isDict(value) || typeof value.cardId !== 'string') return null;
 	const quantity = positiveInt(value.quantity);
 	if (quantity === 0) return null;
 	return {
-		cardId: value.cardId,
+		cardId: renameCardId(value.cardId),
 		variant: variant(value.variant),
 		quantity,
 		lotId: strOrNull(value.lotId),
@@ -64,15 +94,23 @@ function toRow(value: unknown): CollectionEntry | null {
 const priority = (value: unknown): WantPriority =>
 	WANT_PRIORITIES.includes(value as WantPriority) ? (value as WantPriority) : 'normal';
 
+/**
+ * Wants written before the field existed counted the copies already owned towards the
+ * quantity, so a missing value has to read as 'total' or an old list silently doubles.
+ */
+const counting = (value: unknown): WantCounting =>
+	WANT_COUNTINGS.includes(value as WantCounting) ? (value as WantCounting) : 'total';
+
 function toWant(value: unknown): WantEntry | null {
 	if (!isDict(value) || typeof value.cardId !== 'string') return null;
 	const quantity = positiveInt(value.quantity);
 	if (quantity === 0) return null;
 	return {
-		cardId: value.cardId,
+		cardId: renameCardId(value.cardId),
 		variant: variant(value.variant),
 		quantity,
 		listId: strOrNull(value.listId),
+		counting: counting(value.counting),
 		priority: priority(value.priority),
 		note: strOrNull(value.note),
 		createdAt: stamp(value.createdAt),
@@ -85,7 +123,7 @@ function toTrade(value: unknown): TradeEntry | null {
 	const quantity = positiveInt(value.quantity);
 	if (quantity === 0) return null;
 	return {
-		cardId: value.cardId,
+		cardId: renameCardId(value.cardId),
 		variant: variant(value.variant),
 		quantity,
 		note: strOrNull(value.note),
@@ -110,7 +148,8 @@ function toCards(value: unknown): DeckCard[] {
 	for (const item of arr(value)) {
 		if (!isDict(item) || typeof item.cardId !== 'string') continue;
 		const quantity = positiveInt(item.quantity);
-		if (quantity) merged.set(item.cardId, (merged.get(item.cardId) ?? 0) + quantity);
+		const cardId = renameCardId(item.cardId);
+		if (quantity) merged.set(cardId, (merged.get(cardId) ?? 0) + quantity);
 	}
 	return [...merged].map(([cardId, quantity]) => ({ cardId, quantity }));
 }
@@ -219,10 +258,22 @@ const TOMBSTONE_KINDS = new Set([
 	'format'
 ]);
 
+/** The tombstone kinds whose key starts with a card id — see rowKey/wantKey/tradeKey. */
+const CARD_KEYED_KINDS = new Set(['collection', 'want', 'trade']);
+
 function toTombstone(value: unknown): Tombstone | null {
 	if (!isDict(value) || typeof value.key !== 'string') return null;
 	if (!TOMBSTONE_KINDS.has(value.kind as string)) return null;
-	return { kind: value.kind as Tombstone['kind'], key: value.key, deletedAt: stamp(value.deletedAt) };
+
+	// A renamed row needs its tombstone renamed with it, or the delete stops matching and
+	// the row comes back on the next sync.
+	let key = value.key;
+	if (CARD_KEYED_KINDS.has(value.kind as string)) {
+		const split = key.indexOf('|');
+		if (split > 0) key = `${renameCardId(key.slice(0, split))}${key.slice(split)}`;
+	}
+
+	return { kind: value.kind as Tombstone['kind'], key, deletedAt: stamp(value.deletedAt) };
 }
 
 const compact = <T>(items: (T | null)[]) => items.filter((item): item is T => item !== null);

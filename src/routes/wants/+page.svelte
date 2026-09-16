@@ -30,24 +30,41 @@
 	import List from '@lucide/svelte/icons/list';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Coins from '@lucide/svelte/icons/coins';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { cardQuery } from '$lib/tcg/card-query';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { toPtcglText } from '$lib/tcg/exporter';
+	import {
+		clearPriceCache,
+		formatMoney,
+		formatPrice,
+		priceFrom,
+		CURRENCY_OF,
+		PRICE_SOURCES,
+		PRICE_SOURCE_LABELS,
+		type MarketPrice,
+		type PriceSource
+	} from '$lib/card-details';
+	import { priceBook } from '$lib/prices.svelte';
 	import { prefs, WANT_VIEW_LABELS, type WantView } from '$lib/prefs.svelte';
-	import { store } from '$lib/store.svelte';
+	import { store, wantKey, type WantProgress } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
 	import {
 		VARIANT_LABELS,
+		WANT_COUNTING_HINTS,
+		WANT_COUNTING_LABELS,
 		WANT_PRIORITY_LABELS,
 		type Card as CardType,
 		type CardVariant,
+		type WantCounting,
 		type WantEntry,
 		type WantPriority
 	} from '$lib/types';
 
 	let { data } = $props();
 
-	type Row = { want: WantEntry; card: CardType; owned: number; missing: number; list: string };
+	type Row = WantProgress & { want: WantEntry; card: CardType; list: string };
 
 	let query = $state('');
 	let priorityFilter = $state<WantPriority | ''>('');
@@ -60,6 +77,7 @@
 	// What a new want gets, and where "Got it" files the copies once they turn up.
 	let addFinish = $state<CardVariant>('normal');
 	let addPriority = $state<WantPriority>('normal');
+	let addCounting = $state<WantCounting>('extra');
 	let foundLot = $state('');
 	const foundLotId = $derived(foundLot === '' ? null : foundLot);
 
@@ -94,24 +112,18 @@
 
 	/**
 	 * Wants joined to the catalogue and to what you own. A want is for one finish, so
-	 * only copies in that finish count towards it — however many lots they sit in.
+	 * only copies in that finish count towards it — however many lots they sit in. The
+	 * progress is worked out over every list, whichever one is showing: when two lists
+	 * want the same card, the copies owned go to one of them, not to both.
 	 */
-	const rows = $derived.by(() =>
-		store
+	const rows = $derived.by(() => {
+		const progress = store.wantProgress();
+		return store
 			.wantsIn(listId)
 			.flatMap((want): Row[] => {
 				const card = data.catalogue.byId.get(want.cardId);
 				if (!card) return []; // printing vanished from the catalogue
-				const owned = store.ownedOf(want.cardId, want.variant);
-				return [
-					{
-						want,
-						card,
-						owned,
-						missing: Math.max(0, want.quantity - owned),
-						list: listName(want.listId)
-					}
-				];
+				return [{ ...progress.get(wantKey(want))!, want, card, list: listName(want.listId) }];
 			})
 			// Most wanted first, cards you have already found last, then by name.
 			.sort(
@@ -119,8 +131,8 @@
 					RANK[a.want.priority] - RANK[b.want.priority] ||
 					Number(a.missing === 0) - Number(b.missing === 0) ||
 					a.card.name.localeCompare(b.card.name)
-			)
-	);
+			);
+	});
 
 	const filtered = $derived.by(() => {
 		// Name substring, or a set code and number like "MEG 21" / "meg21".
@@ -139,6 +151,66 @@
 		high: rows.filter((row) => row.want.priority === 'high' && row.missing > 0).length,
 		found: rows.filter((row) => row.missing === 0).length
 	});
+
+	// -- prices ---------------------------------------------------------------
+	// One REST call per card, so ask once per printing on the list and let the answers
+	// land as they come. Nothing is fetched while prices are switched off.
+
+	const source = $derived(prefs.priceSource);
+	const currency = $derived(CURRENCY_OF[source]);
+
+	const wantedIds = $derived([...new Set(rows.map((row) => row.card.id))]);
+
+	$effect(() => {
+		if (prefs.showPrices) priceBook.request(wantedIds);
+	});
+
+	/** The chosen marketplace's quote — the only one that can go into a total. */
+	const quote = (cardId: string): MarketPrice | null =>
+		priceFrom(priceBook.get(cardId), source);
+
+	/** Any quote at all: a card Cardmarket has never listed may still have a US price. */
+	const anyQuote = (cardId: string): MarketPrice | null =>
+		quote(cardId) ?? priceBook.get(cardId)?.[0] ?? null;
+
+	/**
+	 * What the list costs, in the one currency that can be added up. Cards the chosen
+	 * marketplace does not price are counted rather than quietly totalled as zero — plenty
+	 * of Energy and promo printings have no quote anywhere.
+	 */
+	const money = $derived.by(() => {
+		let toFind = 0;
+		let all = 0;
+		let unpriced = 0;
+		for (const row of rows) {
+			const price = quote(row.card.id)?.price;
+			if (price === undefined) {
+				unpriced += 1;
+				continue;
+			}
+			toFind += price * row.missing;
+			all += price * row.want.quantity;
+		}
+		return { toFind, all, unpriced };
+	});
+
+	/** The line under a stat tile: the money, plus why it may not be the whole story. */
+	function priceHint(amount: number, suffix: string): string | undefined {
+		if (!prefs.showPrices) return undefined;
+		const tail =
+			priceBook.pending > 0
+				? ' · pricing…'
+				: money.unpriced > 0
+					? ` · ${money.unpriced} unpriced`
+					: '';
+		return `≈ ${formatMoney(currency, amount)} ${suffix}${tail}`;
+	}
+
+	function refreshPrices() {
+		clearPriceCache();
+		priceBook.refresh(wantedIds);
+		toast.success('Fetching fresh prices…');
+	}
 
 	/** Wants per list, for the counts beside each name in the picker. */
 	const counts = $derived.by(() => {
@@ -170,10 +242,17 @@
 		}
 	}
 
+	/**
+	 * Adding the same card again asks for one more copy, the way adding it again to a lot
+	 * records one more copy. A want you already own copies of stays on the list: whether
+	 * those count towards it is what `counting` decides, and a new want counts the copies
+	 * still to find, so nothing arrives already ticked off.
+	 */
 	function addWant(card: CardType) {
 		const variant = pickVariant(card, null, addFinish);
 		const existing = store.want({ cardId: card.id, variant, listId: targetListId });
 		const quantity = (existing?.quantity ?? 0) + 1;
+		const counting = existing?.counting ?? addCounting;
 		write(
 			() =>
 				store.setWant({
@@ -181,9 +260,10 @@
 					variant,
 					quantity,
 					listId: targetListId,
+					counting,
 					priority: existing?.priority ?? addPriority
 				}),
-			`Looking for ${quantity}× ${card.name} (${VARIANT_LABELS[variant]}) · ${listName(targetListId)}`
+			`${counting === 'extra' ? 'Looking for' : 'Want'} ${quantity}× ${card.name} (${VARIANT_LABELS[variant]}) · ${listName(targetListId)}`
 		);
 	}
 
@@ -254,6 +334,21 @@
 			<Ellipsis class="size-4" />
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Content align="end">
+			<DropdownMenu.Group>
+				<DropdownMenu.GroupHeading>The quantity counts</DropdownMenu.GroupHeading>
+				<DropdownMenu.RadioGroup
+					value={row.want.counting}
+					onValueChange={(value) =>
+						write(() => store.updateWant(refOf(row), { counting: value as WantCounting }))}
+				>
+					{#each Object.entries(WANT_COUNTING_LABELS) as [value, label] (value)}
+						<DropdownMenu.RadioItem {value} title={WANT_COUNTING_HINTS[value as WantCounting]}>
+							{label}
+						</DropdownMenu.RadioItem>
+					{/each}
+				</DropdownMenu.RadioGroup>
+			</DropdownMenu.Group>
+			<DropdownMenu.Separator />
 			<DropdownMenu.Group>
 				<DropdownMenu.GroupHeading>Move to list</DropdownMenu.GroupHeading>
 				<DropdownMenu.Item
@@ -337,20 +432,83 @@
 	</Button>
 {/snippet}
 
+<!-- "Copies to own" shows progress towards the playset; "copies to find" cannot, since
+     what is already in the binder is beside the point — it shows the hunt instead. -->
 {#snippet countBadge(row: Row)}
 	<Badge
 		variant={row.missing === 0 ? 'default' : 'secondary'}
 		class="shrink-0 tabular-nums"
-		title={row.missing === 0 ? 'You own enough of this finish' : `${row.missing} still to find`}
+		title={row.want.counting === 'extra'
+			? `${row.missing} to find, on top of the ${row.owned} you own`
+			: row.missing === 0
+				? 'You own enough of this finish'
+				: `${row.missing} still to find — you own ${row.owned}` +
+					(row.owned > row.counted ? `, ${row.owned - row.counted} counted towards another list` : '')}
 	>
-		{Math.min(row.owned, row.want.quantity)}/{row.want.quantity}
+		{#if row.want.counting === 'extra'}
+			+{row.want.quantity}
+		{:else}
+			{row.counted}/{row.want.quantity}
+		{/if}
 	</Badge>
+{/snippet}
+
+<!-- What the copies still to find would cost, in whichever marketplace quoted them. -->
+{#snippet priceTag(row: Row, className?: string)}
+	{@const price = anyQuote(row.card.id)}
+	{#if prefs.showPrices && price}
+		{@const copies = Math.max(row.missing, 1)}
+		<span
+			class={cn('text-muted-foreground shrink-0 text-xs tabular-nums', className)}
+			title="{formatPrice(price)} each on {price.source}{copies > 1
+				? ` · ${formatPrice(price, price.price * copies)} for ${copies}`
+				: ''}"
+		>
+			{formatPrice(price, price.price * copies)}{copies > 1 ? ` (${copies}×)` : ''}
+		</span>
+	{/if}
 {/snippet}
 
 <svelte:head><title>Wants · Cardex</title></svelte:head>
 
 <PageHeader title="Wants" subtitle="Cards you are hunting for but do not own yet">
 	{#snippet actions()}
+		<!-- Prices come from TCGdex and change daily, so which market and whether to ask at
+		     all live here rather than in settings, next to the numbers they explain. -->
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger class={buttonVariants({ variant: 'outline', size: 'sm' })}>
+				<Coins class="size-4" />
+				<span class="max-sm:sr-only">Prices</span>
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end" class="w-56">
+				<DropdownMenu.CheckboxItem
+					checked={prefs.showPrices}
+					onCheckedChange={(checked) => (prefs.showPrices = checked)}
+				>
+					Show prices
+				</DropdownMenu.CheckboxItem>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Group>
+					<DropdownMenu.GroupHeading>Priced against</DropdownMenu.GroupHeading>
+					<DropdownMenu.RadioGroup
+						value={source}
+						onValueChange={(value) => (prefs.priceSource = value as PriceSource)}
+					>
+						{#each PRICE_SOURCES as value (value)}
+							<DropdownMenu.RadioItem {value}>{PRICE_SOURCE_LABELS[value]}</DropdownMenu.RadioItem>
+						{/each}
+					</DropdownMenu.RadioGroup>
+				</DropdownMenu.Group>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item disabled={!prefs.showPrices} onclick={refreshPrices}>
+					<RefreshCw class="size-4" /> Refresh prices
+				</DropdownMenu.Item>
+				<DropdownMenu.Label class="text-muted-foreground text-xs font-normal">
+					Approximate, from TCGdex. Kept for half a day.
+				</DropdownMenu.Label>
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+
 		<Button
 			variant="outline"
 			size="sm"
@@ -463,8 +621,8 @@
 		{/if}
 
 		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-			<StatTile label="Cards to find" value={stats.toFind} />
-			<StatTile label="On the list" value={stats.wants} />
+			<StatTile label="Cards to find" value={stats.toFind} hint={priceHint(money.toFind, 'to buy')} />
+			<StatTile label="On the list" value={stats.wants} hint={priceHint(money.all, 'all copies')} />
 			<StatTile label="High priority" value={stats.high} />
 			<StatTile label="Already found" value={stats.found} hint="Owned — tick them off" />
 		</div>
@@ -548,6 +706,17 @@
 							]}"
 							title="{WANT_PRIORITY_LABELS[row.want.priority]} priority"
 						></span>
+						{#if prefs.showPrices}
+							{@const price = anyQuote(row.card.id)}
+							{#if price}
+								<span
+									class="bg-background/85 pointer-events-none absolute right-1.5 bottom-10 rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums shadow-sm"
+									title="{formatPrice(price)} each on {price.source}"
+								>
+									{formatPrice(price)}
+								</span>
+							{/if}
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -580,6 +749,7 @@
 								{#if row.want.note}· {row.want.note}{/if}
 							</span>
 						</button>
+						{@render priceTag(row)}
 						{@render gotIt(row, false)}
 						{@render rowMenu(row)}
 					</div>
@@ -616,9 +786,13 @@
 								{/if}
 								{@render countBadge(row)}
 							</div>
-							<p class="text-muted-foreground truncate text-xs">
-								{row.card.set.ptcglCode ?? row.card.set.id} · #{row.card.localId} ·
-								{VARIANT_LABELS[row.want.variant]}
+							<p class="text-muted-foreground flex items-center gap-1 truncate text-xs">
+								<span class="truncate">
+									{row.card.set.ptcglCode ?? row.card.set.id} · #{row.card.localId} ·
+									{VARIANT_LABELS[row.want.variant]}
+									{#if row.owned > 0}· own {row.owned}{/if}
+								</span>
+								{@render priceTag(row, 'text-foreground/80 font-medium')}
 							</p>
 							<Input
 								value={row.want.note ?? ''}
@@ -656,7 +830,8 @@
 			<Card.Header>
 				<Card.Title class="text-base">Add to {listName(targetListId)}</Card.Title>
 				<Card.Description>
-					Adding a card you already own is fine — the list tracks the gap.
+					Adding a card you already own is fine — a new want counts the copies still to find,
+					so it will not arrive ticked off.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content class="flex min-h-0 flex-1 flex-col gap-3">
@@ -691,6 +866,23 @@
 							</Select.Content>
 						</Select.Root>
 					</div>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label class="text-xs">The quantity counts</Label>
+					<Select.Root
+						type="single"
+						value={addCounting}
+						onValueChange={(value) => (addCounting = (value as WantCounting) ?? 'extra')}
+					>
+						<Select.Trigger class="h-9">{WANT_COUNTING_LABELS[addCounting]}</Select.Trigger>
+						<Select.Content>
+							{#each Object.entries(WANT_COUNTING_LABELS) as [value, label] (value)}
+								<Select.Item {value}>{label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					<p class="text-muted-foreground text-xs">{WANT_COUNTING_HINTS[addCounting]}</p>
 				</div>
 
 				<div class="flex flex-col gap-1.5">

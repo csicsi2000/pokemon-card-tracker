@@ -35,6 +35,7 @@ export function makeWant(overrides: Partial<WantEntry> & { cardId: string }): Wa
 		variant: 'normal',
 		quantity: 1,
 		listId: null,
+		counting: 'extra',
 		priority: 'normal',
 		note: null,
 		createdAt: '2026-01-01T00:00:00.000Z',

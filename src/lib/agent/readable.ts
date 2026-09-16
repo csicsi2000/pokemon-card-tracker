@@ -6,7 +6,7 @@
  */
 import type { Catalogue } from '$lib/catalogue-index';
 import type { Card, CardVariant, Deck, UserData, WantPriority } from '$lib/types';
-import { battleLogsFor } from '$lib/data/model';
+import { battleLogsFor, wantKey, wantProgress } from '$lib/data/model';
 import { battleRecord, matchups, recordLabel } from '$lib/tcg/battle-log/record';
 import { folderPath } from '$lib/data/folders';
 import { buildBuylist } from '$lib/tcg/buylist';
@@ -75,17 +75,22 @@ const wantLists = (data: UserData) => [
 
 /**
  * The wants list, joined to the catalogue and to what is already owned. A want is for
- * one finish, so only copies in that finish count towards it.
+ * one finish, so only copies in that finish count towards it — and whether they count at
+ * all is the want's own choice. Copies are shared out between lists wanting the same
+ * card, so `missing` comes from wantProgress rather than being worked out per want.
  */
 function wantRows(data: UserData, catalogue: Catalogue) {
+	const progress = wantProgress(data.wants, (cardId, variant) =>
+		data.collection
+			.filter((row) => row.cardId === cardId && row.variant === variant)
+			.reduce((sum, row) => sum + row.quantity, 0)
+	);
 	return data.wants
 		.flatMap((want) => {
 			const card = catalogue.byId.get(want.cardId);
 			if (!card) return [];
-			const owned = data.collection
-				.filter((row) => row.cardId === want.cardId && row.variant === want.variant)
-				.reduce((sum, row) => sum + row.quantity, 0);
-			return [{ want, card, owned, missing: Math.max(0, want.quantity - owned) }];
+			const { owned, missing } = progress.get(wantKey(want))!;
+			return [{ want, card, owned, missing }];
 		})
 		.sort(
 			(a, b) =>
@@ -186,9 +191,10 @@ export function toReadableMarkdown(
 		out.push('## Wants');
 		out.push('');
 		out.push(
-			'Cards the owner is hunting for, grouped by wants list. The quantity is how many they ' +
-				'want to end up with; "still N" is what is missing after counting the copies already ' +
-				'owned in that finish.'
+			'Cards the owner is hunting for, grouped by wants list. "still N" is what they have yet ' +
+				'to find. A quantity marked "to find" is copies they want on top of any already in the ' +
+				'collection; one marked "to own" is the total they want to end up with, which the ' +
+				'copies they already have count towards.'
 		);
 		out.push('');
 		for (const list of wantLists(data)) {
@@ -199,8 +205,9 @@ export function toReadableMarkdown(
 			if (list.note) out.push(list.note), out.push('');
 			for (const { want, card, missing } of inList) {
 				out.push(
-					`- ${cardLine(want.quantity, card, want.variant)} — ${want.priority} priority, still ${missing}` +
-						(want.note ? ` — ${want.note}` : '')
+					`- ${cardLine(want.quantity, card, want.variant)} ${
+						want.counting === 'extra' ? 'to find' : 'to own'
+					} — ${want.priority} priority, still ${missing}` + (want.note ? ` — ${want.note}` : '')
 				);
 			}
 			out.push('');
@@ -358,6 +365,7 @@ export function toReadableJson(data: UserData, catalogue: Catalogue) {
 				.filter(({ want }) => want.listId === list.id)
 				.map(({ want, card, owned, missing }) => ({
 					quantity: want.quantity,
+					counting: want.counting,
 					owned,
 					missing,
 					finish: want.variant,

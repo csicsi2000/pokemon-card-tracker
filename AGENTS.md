@@ -69,6 +69,14 @@ Card facts: `static/catalogue.json` (schema in `src/lib/catalogue-format.ts`) an
   Add new writes as reducers first.
 - Keep `updatedAt` stamping and tombstones intact in any new mutation, or sync breaks.
 - Do not edit `static/catalogue.json` by hand; `npm run build:catalogue` regenerates it.
+- That file is a snapshot, not the whole truth. In the browser it is the *baseline*:
+  `catalogue-refresh.ts` checks TCGdex in the background (one request for the set list),
+  fetches only sets whose declared size changed, and caches them in localStorage as a
+  delta merged on top. `catalogue-delta.ts` holds the pure logic; how a card becomes a
+  row lives in `tcg/tcgdex.ts`, shared with the build script so both encode alike. The
+  CLI and MCP server read the static file only, so they can lag the app by a set or two.
+- TCGdex sometimes renames a set id, which orphans saved card ids. Record the rename in
+  `RENAMED_SETS` (`data/migrate.ts`) and saved data is rewritten on load.
 - PWA: the manifest, worker and caching rules are the `SvelteKitPWA` block in
   `vite.config.ts`; install detection is `src/lib/pwa/`. Two traps: the app renders
   client-side (`ssr = false`), so anything a browser must see before hydration — manifest
