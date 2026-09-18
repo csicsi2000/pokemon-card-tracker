@@ -23,6 +23,7 @@
 	import GitCompare from '@lucide/svelte/icons/git-compare';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import Star from '@lucide/svelte/icons/star';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { childrenOf, countDeep, folderPath } from '$lib/data/folders';
 	import { SUPERTYPE_COLOR } from '$lib/components/appearance-classes';
@@ -45,10 +46,15 @@
 		}))
 	);
 
+	// Starred decks first, then the most recently touched — a favourite stays put while the
+	// rest of the folder shuffles around under it.
 	const decks = $derived(
 		store.decks
 			.filter((deck) => (deck.folderId ?? '') === folderId)
-			.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+			.sort(
+				(a, b) =>
+					Number(b.favorite) - Number(a.favorite) || b.updatedAt.localeCompare(a.updatedAt)
+			)
 			.map((deck) => ({
 				...deck,
 				cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
@@ -326,6 +332,24 @@
 								<Card.Title class="flex items-start justify-between gap-2">
 									<a href="{base}/decks/{deck.id}" class="truncate hover:underline">{deck.name}</a>
 									<div class="flex shrink-0 items-center">
+										<!-- Unlike its neighbours this is a mark, not an action: once set it stays
+										     filled and coloured, which is also what sorts the deck to the top. -->
+										<Button
+											variant="ghost"
+											size="icon"
+											class={cn(
+												'size-7',
+												deck.favorite
+													? 'text-amber-500 hover:text-amber-500'
+													: 'text-muted-foreground'
+											)}
+											aria-label={deck.favorite ? 'Remove from favourites' : 'Add to favourites'}
+											aria-pressed={deck.favorite}
+											title={deck.favorite ? 'Unstar' : 'Favourite'}
+											onclick={() => store.toggleDeckFavorite(deck.id)}
+										>
+											<Star class={cn('size-4', deck.favorite && 'fill-current')} />
+										</Button>
 										<!-- One tap to try a change out on a copy instead of the real deck. -->
 										<Button
 											variant="ghost"

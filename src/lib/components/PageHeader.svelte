@@ -6,8 +6,17 @@
 		title,
 		subtitle,
 		backHref,
+		titleAction,
 		actions
-	}: { title: string; subtitle?: string; backHref?: string; actions?: Snippet } = $props();
+	}: {
+		title: string;
+		subtitle?: string;
+		backHref?: string;
+		/** A control that belongs to the thing named in the title rather than to the page —
+		 *  a star, say. It sits on the title line, out of the crowded actions row. */
+		titleAction?: Snippet;
+		actions?: Snippet;
+	} = $props();
 </script>
 
 <header
@@ -23,7 +32,10 @@
 		</a>
 	{/if}
 	<div class="min-w-0 flex-1">
-		<h1 class="truncate text-xl font-semibold tracking-tight md:text-2xl">{title}</h1>
+		<div class="flex min-w-0 items-center gap-1">
+			<h1 class="truncate text-xl font-semibold tracking-tight md:text-2xl">{title}</h1>
+			{#if titleAction}<div class="shrink-0">{@render titleAction()}</div>{/if}
+		</div>
 		{#if subtitle}
 			<p class="text-muted-foreground truncate text-sm">{subtitle}</p>
 		{/if}

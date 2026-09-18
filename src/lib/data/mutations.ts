@@ -632,6 +632,7 @@ export function createDeck(
 		formatId: input.formatId ?? null,
 		folderId: input.folderId ?? null,
 		cards: input.cards ?? [],
+		favorite: false,
 		createdAt: now,
 		updatedAt: now
 	};
@@ -650,6 +651,13 @@ export function updateDeck(
 			deck.id === id ? { ...deck, ...changes, updatedAt: clock.next() } : deck
 		)
 	};
+}
+
+/** Star or unstar a deck. A no-op on an id that is not there, like the other deck writes. */
+export function toggleDeckFavorite(data: UserData, clock: Clock, id: string): UserData {
+	const deck = data.decks.find((item) => item.id === id);
+	if (!deck) return data;
+	return updateDeck(data, clock, id, { favorite: !deck.favorite });
 }
 
 /** "Zard test" → "Zard test copy", then "Zard test copy 2" — the first name still free. */
@@ -686,6 +694,9 @@ export function duplicateDeck(
 			data.decks.map((item) => item.name)
 		),
 		cards: source.cards.map((card) => ({ ...card })),
+		// A copy is somewhere to try a change out, not a deck being played, so it starts
+		// unstarred however the original is marked.
+		favorite: false,
 		createdAt: now,
 		updatedAt: now
 	};

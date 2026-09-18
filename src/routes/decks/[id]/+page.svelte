@@ -25,6 +25,7 @@
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
 	import Check from '@lucide/svelte/icons/check';
 	import Heart from '@lucide/svelte/icons/heart';
+	import Star from '@lucide/svelte/icons/star';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 	import List from '@lucide/svelte/icons/list';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -190,6 +191,25 @@
 			.join(' · ')}
 		{backHref}
 	>
+		<!-- The star is this deck's own mark, not a thing the page does, so it rides on the
+		     title line: the same control as the decks page, and it keeps the actions row
+		     from growing again — on a phone that row already crowds the deck name. -->
+		{#snippet titleAction()}
+			<Button
+				variant="ghost"
+				size="icon"
+				class={cn(
+					'size-7',
+					deck.favorite ? 'text-amber-500 hover:text-amber-500' : 'text-muted-foreground'
+				)}
+				aria-label={deck.favorite ? 'Remove from favourites' : 'Add to favourites'}
+				aria-pressed={deck.favorite}
+				title={deck.favorite ? 'Unstar' : 'Favourite'}
+				onclick={() => store.toggleDeckFavorite(deckId)}
+			>
+				<Star class={cn('size-4', deck.favorite && 'fill-current')} />
+			</Button>
+		{/snippet}
 		{#snippet actions()}
 			<!-- Labels drop away on a phone: full ones leave the deck name a single letter. -->
 			<Button variant="outline" size="sm" onclick={duplicate} title="Duplicate this deck">

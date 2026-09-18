@@ -353,6 +353,11 @@ class Store {
 		this.updateDeck(id, { folderId });
 	}
 
+	/** Flip the deck's star. Favourites sort to the top of their folder on the decks page. */
+	toggleDeckFavorite(id: string) {
+		this.#commit(mutate.toggleDeckFavorite(this.#data, this.clock, id));
+	}
+
 	/** A copy of the deck, next to it and ready to be edited. Null if the id is unknown. */
 	duplicateDeck(id: string): Deck | null {
 		const { data, deck } = mutate.duplicateDeck(this.#data, this.clock, id);

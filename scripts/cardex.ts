@@ -206,6 +206,7 @@ async function main(argv: string[]) {
 				views.map((v) => ({
 					id: v.deck.id,
 					name: v.deck.name,
+					favorite: v.deck.favorite,
 					folder: v.path,
 					format: v.format,
 					cards: v.total,
@@ -217,7 +218,7 @@ async function main(argv: string[]) {
 						? views
 								.map(
 									(v) =>
-										`${pad(v.deck.name, 30)}${pad(v.path.join('/') || '(top level)', 28)}${pad(v.total + ' cards', 10)}${pad(Math.round(v.buylist.coverage * 100) + '% owned', 12)}${v.format ?? ''}`
+										`${pad((v.deck.favorite ? '★ ' : '') + v.deck.name, 30)}${pad(v.path.join('/') || '(top level)', 28)}${pad(v.total + ' cards', 10)}${pad(Math.round(v.buylist.coverage * 100) + '% owned', 12)}${v.format ?? ''}`
 								)
 								.join('\n')
 						: 'No decks yet.'

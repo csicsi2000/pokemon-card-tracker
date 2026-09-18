@@ -163,6 +163,8 @@ function toDeck(value: unknown): Deck | null {
 		formatId: strOrNull(value.formatId),
 		folderId: strOrNull(value.folderId),
 		cards: toCards(value.cards),
+		// Absent from every deck written before stars existed, which is exactly "not starred".
+		favorite: value.favorite === true,
 		createdAt: stamp(value.createdAt),
 		updatedAt: stamp(value.updatedAt)
 	};

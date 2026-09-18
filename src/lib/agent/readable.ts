@@ -254,11 +254,13 @@ export function toReadableMarkdown(
 		const buylist = buildBuylist(entries, owned);
 		const total = entries.reduce((sum, e) => sum + e.quantity, 0);
 
-		out.push(`### Deck: ${deck.name}`);
+		out.push(`### Deck: ${deck.name}${deck.favorite ? ' ★' : ''}`);
 		out.push('');
 		out.push(
 			[
 				path.length ? `Folder: ${path.join(' / ')}` : 'Folder: (top level)',
+				// A star is the owner saying this is one of the decks they actually play.
+				deck.favorite ? 'Favourite' : null,
 				format ? `Format: ${format.name}` : null,
 				`${total} cards`,
 				`${Math.round(buylist.coverage * 100)}% owned`,

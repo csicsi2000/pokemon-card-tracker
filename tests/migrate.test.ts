@@ -77,6 +77,19 @@ describe('migrate', () => {
 		expect(result.tombstones).toEqual([]);
 	});
 
+	it('reads a deck written before stars existed as not starred', () => {
+		const result = migrate({
+			version: 2,
+			decks: [
+				{ id: 'd1', name: 'Zard' },
+				{ id: 'd2', name: 'Lost Box', favorite: true },
+				{ id: 'd3', name: 'Gholdengo', favorite: 'yes' }
+			]
+		});
+
+		expect(result.decks.map((deck) => deck.favorite)).toEqual([false, true, false]);
+	});
+
 	it('returns an empty payload for junk input', () => {
 		expect(migrate(null).collection).toEqual([]);
 		expect(migrate('hello').decks).toEqual([]);

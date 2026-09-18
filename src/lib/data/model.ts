@@ -135,6 +135,11 @@ export type Deck = {
 	formatId: string | null;
 	folderId: string | null;
 	cards: DeckCard[];
+	/**
+	 * Starred on the decks page. Purely an ordering hint — a favourite deck sorts to the
+	 * top of whatever folder it sits in, it does not move out of that folder.
+	 */
+	favorite: boolean;
 	createdAt: string;
 	updatedAt: string;
 };

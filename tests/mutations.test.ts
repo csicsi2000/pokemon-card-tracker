@@ -242,6 +242,26 @@ describe('folder and deck mutations', () => {
 	});
 });
 
+describe('toggleDeckFavorite', () => {
+	it('flips the star and stamps the deck', () => {
+		const clock = fixedClock();
+		const start = makeUserData({ decks: [makeDeck({ id: 'zard' }), makeDeck({ id: 'box' })] });
+
+		const starred = mutate.toggleDeckFavorite(start, clock, 'zard');
+		expect(starred.decks[0].favorite).toBe(true);
+		expect(starred.decks[0].updatedAt > start.decks[0].updatedAt).toBe(true);
+		// Only the deck that was clicked moves.
+		expect(starred.decks[1]).toBe(start.decks[1]);
+
+		expect(mutate.toggleDeckFavorite(starred, clock, 'zard').decks[0].favorite).toBe(false);
+	});
+
+	it('leaves an unknown id alone', () => {
+		const start = makeUserData({ decks: [makeDeck({ id: 'zard' })] });
+		expect(mutate.toggleDeckFavorite(start, fixedClock(), 'nope')).toBe(start);
+	});
+});
+
 describe('duplicateDeck', () => {
 	it('copies the list, format, notes and folder into a new record', () => {
 		const clock = fixedClock();
@@ -254,7 +274,8 @@ describe('duplicateDeck', () => {
 					description: 'needs a second Buddy-Buddy',
 					formatId: 'standard',
 					folderId: 'std',
-					cards: [{ cardId: 'OBF-125', quantity: 3 }]
+					cards: [{ cardId: 'OBF-125', quantity: 3 }],
+					favorite: true
 				}),
 				makeDeck({ id: 'other', name: 'Lost Box' })
 			]
@@ -262,6 +283,8 @@ describe('duplicateDeck', () => {
 
 		const { data, deck } = mutate.duplicateDeck(start, clock, 'zard');
 
+		// A scratch copy is not one of the decks being played, whatever the original is.
+		expect(deck!.favorite).toBe(false);
 		expect(deck).toMatchObject({
 			name: 'Zard test copy',
 			description: 'needs a second Buddy-Buddy',
