@@ -1,8 +1,9 @@
 /**
- * Writes decks and collections back out. Two shapes:
+ * Writes decks and collections back out. Three shapes:
  *   * PTCGL text — round-trips through parser.ts, and is what pkmn.gg / PTCGL /
  *     Limitless accept. Also the format Claude should reply in, so AI-generated
  *     decks can be pasted straight back into the importer.
+ *   * Cardmarket text — what its "add a decklist to a wants list" box accepts.
  *   * AI JSON — flat and token-cheap, for pasting a whole collection into a chat.
  */
 import type { Card, Supertype } from '$lib/types';
@@ -35,6 +36,54 @@ export function toPtcglText(lines: ExportLine[]): string {
 
 	const total = lines.reduce((sum, line) => sum + line.quantity, 0);
 	return [...blocks, `Total Cards: ${total}`].join('\n\n') + '\n';
+}
+
+/**
+ * The parts of a card's rules text Cardmarket's matcher needs; `CardText` from
+ * card-details satisfies it, and keeping the shape structural keeps this module free
+ * of anything that only exists in the browser.
+ */
+export type CardNaming = { abilities?: { name: string }[]; attacks?: { name: string }[] };
+
+/**
+ * Cardmarket identifies Pokémon by name *plus* their ability and attack names — its
+ * help page is explicit that "2x Umbreon" matches nothing while
+ * "2x Umbreon EX Moon Mirage Onyx" does. Trainers and Energy go in by name alone.
+ * No set code or number: the importer takes any printing of the card.
+ *
+ * `textOf` is what supplies the ability/attack names — a Pokémon without them still
+ * gets a line, it just risks matching nothing when the name is shared.
+ */
+export function toCardmarketText(
+	lines: ExportLine[],
+	textOf?: (card: Card) => CardNaming | undefined
+): string {
+	// Two printings — or a normal and a reverse — of one card are one Cardmarket line,
+	// since the search behind it is by name and finds every version anyway.
+	const merged = new Map<string, number>();
+
+	for (const { quantity, card } of lines) {
+		if (quantity <= 0) continue;
+		const name = cardmarketName(card, textOf?.(card));
+		merged.set(name, (merged.get(name) ?? 0) + quantity);
+	}
+
+	if (merged.size === 0) return '';
+	return [...merged].map(([name, quantity]) => `${quantity}x ${name}`).join('\n') + '\n';
+}
+
+function cardmarketName(card: Card, text: CardNaming | undefined): string {
+	const parts = [card.name];
+
+	if (card.supertype === 'Pokemon') {
+		for (const ability of text?.abilities ?? []) parts.push(ability.name);
+		for (const attack of text?.attacks ?? []) parts.push(attack.name);
+	}
+
+	return parts
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.join(' ');
 }
 
 export type AiCardEntry = {

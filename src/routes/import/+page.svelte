@@ -7,6 +7,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import LotPicker from '$lib/components/LotPicker.svelte';
 	import FolderPicker from '$lib/components/FolderPicker.svelte';
+	import CopyListButton from '$lib/components/CopyListButton.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -114,8 +115,8 @@ Total Cards: 3`;
 		)
 	);
 	const listTotal = $derived(importable.reduce((sum, row) => sum + row.entry.quantity, 0));
-	const missingText = $derived(
-		toPtcglText(coverage.rows.map((row) => ({ quantity: row.missing, card: row.suggestion })))
+	const missingLines = $derived(
+		coverage.rows.map((row) => ({ quantity: row.missing, card: row.suggestion }))
 	);
 
 	const deckOptions = $derived(
@@ -447,9 +448,11 @@ Total Cards: 3`;
 									</p>
 								</div>
 								{#if coverage.totalMissing > 0}
-									<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
-										<Copy class="size-4" /> Copy missing as list
-									</Button>
+									<CopyListButton
+										lines={missingLines}
+										label="Missing cards"
+										text="Copy missing as list"
+									/>
 								{/if}
 							</Card.Content>
 						</Card.Root>

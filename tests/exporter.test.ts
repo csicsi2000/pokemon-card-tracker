@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toPtcglText } from '../src/lib/tcg/exporter';
+import { toCardmarketText, toPtcglText, type CardNaming } from '../src/lib/tcg/exporter';
 import { parseDecklist } from '../src/lib/tcg/parser';
 import { makeCard, makeSet } from './helpers';
 
@@ -79,5 +79,56 @@ Total Cards: 16
 		});
 
 		expect(toPtcglText([{ quantity: 1, card }])).toContain('1 Pikachu null 1');
+	});
+});
+
+describe('toCardmarketText', () => {
+	const text: Record<string, CardNaming> = {
+		'sv03-125': {
+			abilities: [{ name: 'Infernal Reign' }],
+			attacks: [{ name: 'Burning Darkness' }]
+		}
+	};
+	const textOf = (card: { id: string }) => text[card.id];
+
+	it('names a Pokémon by its abilities and attacks, and everything else by name', () => {
+		expect(toCardmarketText(lines, textOf)).toBe(
+			`4x Charizard ex Infernal Reign Burning Darkness
+4x Iono
+8x Fire Energy
+`
+		);
+	});
+
+	it('falls back to the bare name when no rules text is available', () => {
+		expect(toCardmarketText(lines)).toBe(
+			`4x Charizard ex
+4x Iono
+8x Fire Energy
+`
+		);
+	});
+
+	it('merges printings and finishes of one card into a single line', () => {
+		const iono = lines[1].card;
+		const reprint = makeCard({
+			name: 'Iono',
+			localId: '254',
+			supertype: 'Trainer',
+			set: makeSet({ id: 'sv08', name: 'Surging Sparks', ptcglCode: 'SSP' })
+		});
+
+		expect(
+			toCardmarketText([
+				{ quantity: 2, card: iono },
+				{ quantity: 1, card: iono, variant: 'reverse' },
+				{ quantity: 1, card: reprint }
+			])
+		).toBe('4x Iono\n');
+	});
+
+	it('leaves out rows with nothing to buy, and writes nothing for an empty list', () => {
+		expect(toCardmarketText([{ quantity: 0, card: lines[1].card }])).toBe('');
+		expect(toCardmarketText([])).toBe('');
 	});
 });

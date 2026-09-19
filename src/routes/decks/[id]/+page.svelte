@@ -17,7 +17,6 @@
 	import { toast } from 'svelte-sonner';
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
-	import Copy from '@lucide/svelte/icons/copy';
 	import CopyPlus from '@lucide/svelte/icons/copy-plus';
 	import Download from '@lucide/svelte/icons/download';
 	import GitCompare from '@lucide/svelte/icons/git-compare';
@@ -35,7 +34,9 @@
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
 	import DeckSummary from '$lib/components/DeckSummary.svelte';
 	import BattleLogList from '$lib/components/BattleLogList.svelte';
+	import HandTester from '$lib/components/HandTester.svelte';
 	import ResolveMissing, { wantMissing } from '$lib/components/ResolveMissing.svelte';
+	import CopyListButton from '$lib/components/CopyListButton.svelte';
 	import { folderPath } from '$lib/data/folders';
 	import { prefs, DECK_VIEW_LABELS, type DeckView } from '$lib/prefs.svelte';
 	import { store } from '$lib/store.svelte';
@@ -43,7 +44,7 @@
 	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
 	import { buildBuylist } from '$lib/tcg/buylist';
 	import { battleRecord, recordLabel } from '$lib/tcg/battle-log/record';
-	import { toPtcglText, toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
+	import { toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
 	import { cn } from '$lib/utils';
 	import type { Card as CardType } from '$lib/types';
 
@@ -111,9 +112,8 @@
 	/** The deck's match record, for the Battles tab's badge. */
 	const record = $derived(battleRecord(store.battleLogsFor(deckId)));
 
-	const ptcglText = $derived(toPtcglText(entries));
-	const missingText = $derived(
-		toPtcglText(buylist.rows.map((row) => ({ quantity: row.missing, card: row.suggestion })))
+	const missingLines = $derived(
+		buylist.rows.map((row) => ({ quantity: row.missing, card: row.suggestion }))
 	);
 	const aiPayload = $derived(
 		`${AI_PREAMBLE}\n${JSON.stringify(
@@ -227,9 +227,7 @@
 					<GitCompare class="size-4" /> <span class="sr-only sm:not-sr-only">Compare</span>
 				</Button>
 			{/if}
-			<Button variant="outline" size="sm" onclick={() => copy(ptcglText, 'Decklist')}>
-				<Copy class="size-4" /> <span class="sr-only sm:not-sr-only">Copy list</span>
-			</Button>
+			<CopyListButton lines={entries} label="Decklist" hideLabelOnPhone />
 			<Button variant="outline" size="sm" onclick={() => copy(aiPayload, 'AI export')}>
 				<Sparkles class="size-4" /> <span class="sr-only sm:not-sr-only">Copy for AI</span>
 			</Button>
@@ -312,6 +310,7 @@
 							<Badge variant="secondary" class="ml-1.5">{buylist.totalMissing}</Badge>
 						{/if}
 					</Tabs.Trigger>
+					<Tabs.Trigger value="hand">Hand test</Tabs.Trigger>
 					<Tabs.Trigger value="battles">
 						Battles
 						{#if record.played > 0}
@@ -517,9 +516,11 @@
 									<Button variant="outline" size="sm" onclick={wantEverythingMissing}>
 										<Heart class="size-4" /> Add all to wants
 									</Button>
-									<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
-										<Copy class="size-4" /> Copy missing as list
-									</Button>
+									<CopyListButton
+										lines={missingLines}
+										label="Missing cards"
+										text="Copy missing as list"
+									/>
 								</div>
 							</div>
 							{#each buylist.rows as row (row.name)}
@@ -542,6 +543,12 @@
 							{/each}
 						</div>
 					{/if}
+				</Tabs.Content>
+
+				<!-- Shuffle and deal, over and over: the one question the counts above cannot
+				     answer is whether the list actually starts. -->
+				<Tabs.Content value="hand" class="pt-3">
+					<HandTester {entries} />
 				</Tabs.Content>
 
 				<!-- Games played with this deck: the record, the matchups, and a replay of each

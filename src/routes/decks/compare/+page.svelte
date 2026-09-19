@@ -15,6 +15,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import CardImage from '$lib/components/CardImage.svelte';
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
+	import CopyListButton from '$lib/components/CopyListButton.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Switch } from '$lib/components/ui/switch';
@@ -171,8 +172,8 @@
 		}
 	}
 
-	const missingText = $derived(
-		toBuy.rows.map((row) => `${row.missing} ${row.name}`).join('\n') + '\n'
+	const missingLines = $derived(
+		toBuy.rows.map((row) => ({ quantity: row.missing, card: row.suggestion }))
 	);
 </script>
 
@@ -334,9 +335,7 @@
 							</span>
 							you do not own: {toBuy.rows.map((row) => `${row.missing}× ${row.name}`).join(', ')}
 						</p>
-						<Button variant="outline" size="sm" onclick={() => copy(missingText, 'Missing cards')}>
-							<Copy class="size-4" /> Copy
-						</Button>
+						<CopyListButton lines={missingLines} label="Missing cards" text="Copy" />
 					</Card.Content>
 				</Card.Root>
 			{/if}

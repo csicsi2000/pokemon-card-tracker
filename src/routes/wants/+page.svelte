@@ -10,6 +10,7 @@
 	import CardDetailSheet from '$lib/components/CardDetailSheet.svelte';
 	import LotPicker from '$lib/components/LotPicker.svelte';
 	import StatTile from '$lib/components/StatTile.svelte';
+	import CopyListButton from '$lib/components/CopyListButton.svelte';
 	import WantListDialog from '$lib/components/WantListDialog.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -23,7 +24,6 @@
 	import Minus from '@lucide/svelte/icons/minus';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Check from '@lucide/svelte/icons/check';
-	import Copy from '@lucide/svelte/icons/copy';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 	import Rows3 from '@lucide/svelte/icons/rows-3';
@@ -34,7 +34,6 @@
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { cardQuery } from '$lib/tcg/card-query';
 	import { pickVariant } from '$lib/tcg/quick-add';
-	import { toPtcglText } from '$lib/tcg/exporter';
 	import {
 		clearPriceCache,
 		formatMoney,
@@ -219,11 +218,9 @@
 		return totals;
 	});
 
-	/** The still-missing copies as a decklist, to paste into a shop or a trade thread. */
-	const missingText = $derived(
-		toPtcglText(
-			rows.filter((row) => row.missing > 0).map((row) => ({ quantity: row.missing, card: row.card }))
-		)
+	/** The still-missing copies, to paste into a shop or a trade thread. */
+	const missingLines = $derived(
+		rows.filter((row) => row.missing > 0).map((row) => ({ quantity: row.missing, card: row.card }))
 	);
 
 	const refOf = (row: Row) => ({
@@ -312,15 +309,6 @@
 	function open(card: CardType) {
 		selected = card;
 		sheetOpen = true;
-	}
-
-	async function copy(text: string, label: string) {
-		try {
-			await navigator.clipboard.writeText(text);
-			toast.success(`${label} copied`);
-		} catch {
-			toast.error('Could not copy — the browser blocked clipboard access.');
-		}
 	}
 </script>
 
@@ -509,14 +497,7 @@
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 
-		<Button
-			variant="outline"
-			size="sm"
-			disabled={stats.toFind === 0}
-			onclick={() => copy(missingText, currentName)}
-		>
-			<Copy class="size-4" /> Copy list
-		</Button>
+		<CopyListButton lines={missingLines} label={currentName} disabled={stats.toFind === 0} />
 	{/snippet}
 </PageHeader>
 

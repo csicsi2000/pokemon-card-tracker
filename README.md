@@ -126,8 +126,13 @@ is copies on top of whatever you already own, shown as `+2`; **Copies to own** i
 total you want to end up with, shown as `2/4` — two owned, two still to find. The counters
 and the **Cards to find** tile always count the gap rather than the wish. When the cards
 arrive, **Got it** adds exactly the missing copies to the lot chosen in the panel on the
-right and clears the want. **Copy list** puts everything still missing on the
-clipboard as a decklist, ready to paste into a shop's mass-entry box or a trade thread.
+right and clears the want. **Copy list** puts everything still missing on the clipboard,
+either as a **PTCGL decklist** for a trade thread or another deck site, or as
+**Cardmarket wants** — the shape Cardmarket's "add a decklist to a wants list" box takes:
+one `4x Charizard ex Infernal Reign Burning Darkness` line per card, since it matches
+Pokémon by name plus their ability and attack names rather than by set and number. The
+same two formats sit behind every Copy list button on the buying side of the app: the
+deck Missing tab, the deck comparison, and the Import page's summary.
 
 **Several lists.** Wants that name no list sit on the **Main list**; make as many more as
 you like — one per deck you are building, one for a trade night, one for a binder you are
@@ -175,10 +180,21 @@ the ⋯ menu on a deck or folder offers Rename, Move to… and Delete (deleting 
 contents up one level). A deck's own page has a folder picker next to its format.
 
 Every deck row shows **owned / needed**, counted by card name across every printing you own,
-and the **Missing** tab lists what to buy with a "Copy missing as list" button. The Import
+and the **Missing** tab lists what to buy with a "Copy missing as list" button (PTCGL or
+Cardmarket, as on the wants page). The Import
 page shows the same have/missing summary for a pasted list *before* you save anything, and
 can import into a new deck (in a chosen folder), into your collection (into a chosen lot), or
 replace the list of an existing deck.
+
+### Hand testing
+
+A deck's **Hand test** tab goldfishes the list: shuffle, deal seven, mulligan automatically
+while the hand holds no Basic Pokémon, set six prizes aside, then draw a card at a time.
+Basics in the hand are ringed, the hands that were shuffled back are listed, and **Peek at
+prizes** answers the only question a face-down prize ever raises. Above the deal sit the
+figures to judge it against — the chance of a mulligan and of opening with a Basic,
+Supporter, Item or Energy, all hypergeometric over the list as it stands — with a running
+tally of the hands you have actually dealt beside them.
 
 ### Battle logs and replays
 
@@ -491,7 +507,7 @@ sets is still four Charmander, and any printing you own counts toward what a dec
 | `npm run dev` | Dev server on :5173 |
 | `npm run build` | Static production build into `build/` |
 | `npm run preview` | Serve the production build |
-| `npm test` | Vitest — parser, resolver, quick add, exporter, legality, buylist, deck diff, migration, merge, sync engine |
+| `npm test` | Vitest — parser, resolver, quick add, exporter, legality, buylist, deck diff, hand test, migration, merge, sync engine |
 | `npm run check` | `svelte-check` type checking |
 | `npm run build:catalogue` | Refresh `static/catalogue.json` from TCGdex |
 
@@ -503,7 +519,7 @@ src/lib/card-details.ts     bundled rules text per set, plus live prices per car
 src/lib/data/               user-data model, migration, pure mutations, repair, merge
 src/lib/store.svelte.ts     holds the data as Svelte state, persists it, counts revisions
 src/lib/sync/               sync engine, Google sign-in + Drive backend, WebDAV backend (flagged off)
-src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, deck stats & diff, energy types, format rules
+src/lib/tcg/                parser, resolver, quick add, exporter, legality, buylist, deck stats & diff, hand test, energy types, format rules
 src/lib/tcg/battle-log/     TCG Live log parser, board replay, match summary and record
 src/lib/components/         CardTile, CardImage, SetLogo, CardDetailSheet, QuickAddBar, …
 src/routes/                 dashboard, cards, sets, collection, wants, trades, lots, decks, battles, formats, import, settings
