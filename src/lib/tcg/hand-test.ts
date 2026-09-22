@@ -1,6 +1,6 @@
 /**
- * Goldfishing a deck: shuffle it, deal an opening hand, mulligan when it has no Basic
- * Pokémon to start on, set six prizes aside and draw turn by turn.
+ * Goldfishing a deck: shuffle it, deal an opening hand — mulligan or not — set six
+ * prizes aside and draw turn by turn.
  *
  * Pure functions over the same `DeckEntry[]` the legality check and the summary work
  * on, with the shuffle's randomness injected so the tests can deal a known hand. Every
@@ -21,18 +21,11 @@ export const HAND_SIZE = 7;
 /** Prizes set aside before the first turn. */
 export const PRIZE_COUNT = 6;
 
-/**
- * A deck with Basic Pokémon in it always reaches a keepable hand eventually, so this
- * only bounds a run of luck bad enough that the caller would rather see a hand than
- * wait — at eight Basics in sixty it is a one-in-a-billion-billion tail.
- */
-const MAX_MULLIGANS = 100;
-
 /** `Math.random`'s contract: a number in [0, 1). */
 export type Rng = () => number;
 
 export type HandTest = {
-	/** The kept hand, in the order it was drawn, opening seven first. */
+	/** The hand, in the order it was drawn, opening seven first. */
 	hand: Card[];
 	/** What has been drawn since the opening hand, oldest first. */
 	drawn: Card[];
@@ -40,11 +33,15 @@ export type HandTest = {
 	prizes: Card[];
 	/** The rest of the deck, top card first. */
 	library: Card[];
-	/** Hands shuffled back for having no Basic Pokémon, oldest first. */
-	mulligans: Card[][];
+	/**
+	 * No Basic Pokémon in the hand: in a game it would go back, the opponent would draw
+	 * a card and you would deal again. Dealt and shown all the same — a hand you never
+	 * see teaches you nothing about the list that produced it.
+	 */
+	mulligan: boolean;
 	/**
 	 * False only when the deck has no Basic Pokémon at all — then no shuffle can
-	 * produce a hand you could start the game on, so `hand` is dealt but unplayable.
+	 * produce a hand you could start the game on, and every deal is a mulligan.
 	 */
 	keepable: boolean;
 };
@@ -67,36 +64,26 @@ export function shuffle(cards: Card[], rng: Rng = Math.random): Card[] {
 }
 
 /**
- * Shuffle, deal, mulligan until the hand can start a game, then set the prizes aside.
+ * Shuffle, deal seven, set the prizes aside. Exactly one hand per call, mulligan or
+ * not: a hand with no Basic Pokémon is flagged rather than thrown away, because the
+ * rough hands are the ones worth looking at. Dealing again is the caller's to decide.
+ *
  * A deck shorter than a full hand still deals — testing a list you are halfway through
  * writing is the point — it just deals everything it has and takes no prizes.
  */
 export function openingHand(entries: DeckEntry[], rng: Rng = Math.random): HandTest {
 	const pile = deckPile(entries);
-	const keepable = pile.some(isBasicPokemon);
-
-	const mulligans: Card[][] = [];
-	let shuffled = shuffle(pile, rng);
-	let hand = shuffled.slice(0, HAND_SIZE);
-
-	// Only worth looping when some shuffle could do better; a deck with no Basics would
-	// otherwise mulligan for ever.
-	if (keepable) {
-		while (!hand.some(isBasicPokemon) && mulligans.length < MAX_MULLIGANS) {
-			mulligans.push(hand);
-			shuffled = shuffle(pile, rng);
-			hand = shuffled.slice(0, HAND_SIZE);
-		}
-	}
-
+	const shuffled = shuffle(pile, rng);
+	const hand = shuffled.slice(0, HAND_SIZE);
 	const rest = shuffled.slice(hand.length);
+
 	return {
 		hand,
 		drawn: [],
 		prizes: rest.slice(0, PRIZE_COUNT),
 		library: rest.slice(PRIZE_COUNT),
-		mulligans,
-		keepable
+		mulligan: !hand.some(isBasicPokemon),
+		keepable: pile.some(isBasicPokemon)
 	};
 }
 
@@ -218,5 +205,5 @@ export function handOdds(entries: DeckEntry[]): HandOdds {
 export type HandTally = { hands: number; mulligans: number };
 
 export function tallyHand(tally: HandTally, test: HandTest): HandTally {
-	return { hands: tally.hands + 1, mulligans: tally.mulligans + test.mulligans.length };
+	return { hands: tally.hands + 1, mulligans: tally.mulligans + (test.mulligan ? 1 : 0) };
 }

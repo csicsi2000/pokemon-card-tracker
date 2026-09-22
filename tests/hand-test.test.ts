@@ -94,27 +94,40 @@ describe('openingHand', () => {
 		expect(test.prizes).toHaveLength(PRIZE_COUNT);
 		expect(test.library).toHaveLength(60 - HAND_SIZE - PRIZE_COUNT);
 		expect(test.drawn).toEqual([]);
+		expect(test.mulligan).toBe(false);
 		expect(test.keepable).toBe(true);
 	});
 
-	it('mulligans a hand with no Basic Pokémon and keeps the one that has one', () => {
-		// Seven energy and one Pikachu: the first shuffle leaves the pile alone, so the
-		// hand is the seven energy; the second rotates the Pikachu up into it. A shuffle
-		// of eight cards spends seven random numbers, hence where the script turns.
+	it('deals a hand with no Basic Pokémon and flags it instead of hiding it', () => {
+		// Seven energy on top of one Pikachu, dealt undisturbed: a mulligan, and the
+		// cards that made it are the ones handed back.
 		const entries: DeckEntry[] = [
 			{ card: energy('Lightning Energy'), quantity: 7 },
 			{ card: pokemon('Pikachu', ['Basic']), quantity: 1 }
 		];
-		const rng = scripted([...Array(7).fill(0.999999), 0]);
 
-		const test = openingHand(entries, rng);
+		const test = openingHand(entries, identity);
 
-		expect(test.mulligans).toHaveLength(1);
-		expect(names(test.mulligans[0]).every((name) => name === 'Lightning Energy')).toBe(true);
-		expect(test.hand.some((card) => card.name === 'Pikachu')).toBe(true);
+		expect(test.mulligan).toBe(true);
+		expect(names(test.hand)).toEqual(Array(HAND_SIZE).fill('Lightning Energy'));
+		expect(test.keepable).toBe(true);
 	});
 
-	it('deals a hand it cannot keep when the deck has no Basic Pokémon at all', () => {
+	it('deals one hand per call, so a redeal is the caller’s to make', () => {
+		const entries: DeckEntry[] = [
+			{ card: energy('Lightning Energy'), quantity: 7 },
+			{ card: pokemon('Pikachu', ['Basic']), quantity: 1 }
+		];
+		// The rotation brings the Pikachu into the seven the second time round.
+		const first = openingHand(entries, identity);
+		const second = openingHand(entries, rotate);
+
+		expect(first.mulligan).toBe(true);
+		expect(second.mulligan).toBe(false);
+		expect(second.hand.some((card) => card.name === 'Pikachu')).toBe(true);
+	});
+
+	it('mulligans every hand when the deck has no Basic Pokémon at all', () => {
 		const entries: DeckEntry[] = [
 			{ card: trainer('Iono', ['Supporter']), quantity: 30 },
 			{ card: energy('Fire Energy'), quantity: 30 }
@@ -123,7 +136,7 @@ describe('openingHand', () => {
 		const test = openingHand(entries, identity);
 
 		expect(test.keepable).toBe(false);
-		expect(test.mulligans).toEqual([]);
+		expect(test.mulligan).toBe(true);
 		expect(test.hand).toHaveLength(HAND_SIZE);
 	});
 
@@ -263,12 +276,11 @@ describe('handOdds', () => {
 });
 
 describe('tallyHand', () => {
-	it('adds a hand and its mulligans to the running count', () => {
-		const test = openingHand(deck(4, 20), scripted([0.5, 0.2, 0.8]));
+	it('counts every hand, and the mulligans among them', () => {
+		const kept = openingHand(deck(20, 20), identity);
+		const mulliganed = openingHand([{ card: energy('Fire Energy'), quantity: 20 }], identity);
 
-		expect(tallyHand({ hands: 2, mulligans: 1 }, test)).toEqual({
-			hands: 3,
-			mulligans: 1 + test.mulligans.length
-		});
+		expect(tallyHand({ hands: 2, mulligans: 1 }, kept)).toEqual({ hands: 3, mulligans: 1 });
+		expect(tallyHand({ hands: 2, mulligans: 1 }, mulliganed)).toEqual({ hands: 3, mulligans: 2 });
 	});
 });

@@ -188,10 +188,12 @@ replace the list of an existing deck.
 
 ### Hand testing
 
-A deck's **Hand test** tab goldfishes the list: shuffle, deal seven, mulligan automatically
-while the hand holds no Basic Pokémon, set six prizes aside, then draw a card at a time.
-Basics in the hand are ringed, the hands that were shuffled back are listed, and **Peek at
-prizes** answers the only question a face-down prize ever raises. Above the deal sit the
+A deck's **Hand test** tab goldfishes the list: shuffle, deal seven, set six prizes aside,
+then draw a card at a time. Every hand is dealt face up, mulligan or not — a seven with no
+Basic Pokémon is marked as a mulligan and the button offers to deal again, rather than
+being shuffled away before you can look at it, because those are the hands worth seeing.
+Basics in the hand are ringed, the mulligans taken so far this game are counted, and
+**Peek at prizes** answers the only question a face-down prize ever raises. Above the deal sit the
 figures to judge it against — the chance of a mulligan and of opening with a Basic,
 Supporter, Item or Energy, all hypergeometric over the list as it stands — with a running
 tally of the hands you have actually dealt beside them.
