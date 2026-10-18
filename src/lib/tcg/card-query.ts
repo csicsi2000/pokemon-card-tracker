@@ -14,7 +14,8 @@ import { normalizeName } from './normalize';
 import { findByNumber, setForCode } from './resolver';
 import { PTCGL_CODE_OVERRIDES } from './set-code-overrides';
 
-const CODE = /^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)?$/;
+/** Letters and digits, digit-led allowed (30C, 30th-c) so long as there is a letter. */
+const CODE = /^(?=\d*[A-Za-z])[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?$/;
 /** With a space the number may be lettered, as printed: "SVI TG05", "PR-SW SWSH092". */
 const NUMBER = /^[A-Za-z]{0,5}\d+[A-Za-z]?$/;
 /**

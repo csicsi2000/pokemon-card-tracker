@@ -65,11 +65,15 @@ const VARIANT_MARKERS: Record<string, CardVariant> = {
 
 /**
  * [qty[x]] CODE NUMBER [xQTY] [finish]
- * The code is letters and digits with an optional dash group (PR-SW); the number is
- * digits with an optional letter prefix or suffix (SWSH092, TG05, 21a).
+ * The code is letters and digits with an optional dash group (PR-SW). It may open with
+ * digits (30C, or the raw id 30th-c) as long as a letter follows them — but not a lone
+ * "x", so "3x 188" stays three copies of #188 rather than a set called 3X. The number is
+ * digits with an optional letter prefix or suffix (SWSH092, TG05, 21a), and is never
+ * "x2", which is a count: with digit-led codes allowed, "21a x2" would otherwise read as
+ * card x2 of a set called 21A.
  */
 const LINE =
-	/^(?:(\d+)\s*[x×]?\s+)?([A-Za-z][A-Za-z0-9]{0,4}(?:-[A-Za-z0-9]{1,4})?)\s+([A-Za-z]{0,5}\d+[A-Za-z]?)(?:\s*[x×]\s*(\d+))?(?:\s+([A-Za-z0-9]+))?$/;
+	/^(?:(\d+)\s*[x×]?\s+)?((?:[A-Za-z][A-Za-z0-9]{0,4}|\d{1,3}(?![x×]\s)[A-Za-z][A-Za-z0-9]{0,3})(?:-[A-Za-z0-9]{1,4})?)\s+(?![x×]\d+(?:\s|$))([A-Za-z]{0,5}\d+[A-Za-z]?)(?:\s*[x×]\s*(\d+))?(?:\s+([A-Za-z0-9]+))?$/i;
 
 /**
  * The same line without the set code — only read when a default set is pinned, since

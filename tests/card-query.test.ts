@@ -16,7 +16,11 @@ const porygon = makeCard({ name: 'Porygon2', localId: '130', set: pal });
 const por = makeSet({ id: 'me02', name: 'Perfect Order', ptcglCode: 'POR', releaseDate: '2026-02-06' });
 const ariados = makeCard({ name: 'Ariados', localId: '002', set: por });
 
-const catalogue = makeCatalogue([numel, bulbasaur, pikachu, charmander, porygon, ariados]);
+// A code that opens with digits.
+const celebration = makeSet({ id: '30th', name: '30th Celebration', ptcglCode: '30C', releaseDate: '2026-09-16' });
+const tropius = makeCard({ name: 'Tropius', localId: '005', set: celebration });
+
+const catalogue = makeCatalogue([numel, bulbasaur, pikachu, charmander, porygon, ariados, tropius]);
 
 describe('lookupCardCode', () => {
 	it('reads a set code and number with or without a space', () => {
@@ -51,6 +55,13 @@ describe('lookupCardCode', () => {
 	it('does not read a name that ends in a digit as a code', () => {
 		expect(lookupCardCode(catalogue, 'Porygon2')).toBeNull();
 		expect(searchCards(catalogue, { query: 'porygon2' })).toEqual([porygon]);
+	});
+
+	it('reads a code that opens with digits', () => {
+		expect(lookupCardCode(catalogue, '30C 5')?.cards[0]).toBe(tropius);
+		expect(lookupCardCode(catalogue, '30c5')?.cards[0]).toBe(tropius);
+		expect(lookupCardCode(catalogue, '30th 005')?.cards[0]).toBe(tropius);
+		expect(lookupCardCode(catalogue, '30 5')).toBeNull();
 	});
 
 	it('takes a lettered number only when a space separates it', () => {

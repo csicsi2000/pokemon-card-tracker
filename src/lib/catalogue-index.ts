@@ -70,15 +70,43 @@ function toCard(row: CardRow, sets: CardSet[]): Card {
 	};
 }
 
+/**
+ * Upper-cased code → set, with each code given to exactly one set.
+ *
+ * TCGdex occasionally hands a subset its parent's abbreviation: 30th Celebration and
+ * 30th Classic Collection are both "30C". Left alone, whichever set came last took the
+ * code, so "30C 5" — and a quick add pinned to either set — could land on the other
+ * set's card. The code goes to the main set (the bigger one; id order breaks a tie), and
+ * the subset's code is cleared so everything that prints or pins a code falls back to
+ * its set id, which is unambiguous.
+ */
+function indexSetCodes(sets: CardSet[]) {
+	const byCode = new Map<string, CardSet[]>();
+	for (const set of sets) {
+		if (!set.ptcglCode) continue;
+		const code = set.ptcglCode.toUpperCase();
+		const bucket = byCode.get(code);
+		if (bucket) bucket.push(set);
+		else byCode.set(code, [set]);
+	}
+
+	const setsByCode = new Map<string, CardSet>();
+	for (const [code, claimants] of byCode) {
+		claimants.sort(
+			(a, b) => (b.cardCount ?? 0) - (a.cardCount ?? 0) || a.id.localeCompare(b.id)
+		);
+		setsByCode.set(code, claimants[0]);
+		for (const subset of claimants.slice(1)) subset.ptcglCode = null;
+	}
+	return setsByCode;
+}
+
 export function buildCatalogue(file: CatalogueFile): Catalogue {
 	const sets = file.sets.map(toSet);
 	const cards = file.cards.map((row) => toCard(row, sets));
 
 	const setsById = new Map(sets.map((set) => [set.id, set]));
-	const setsByCode = new Map<string, CardSet>();
-	for (const set of sets) {
-		if (set.ptcglCode) setsByCode.set(set.ptcglCode.toUpperCase(), set);
-	}
+	const setsByCode = indexSetCodes(sets);
 
 	const byId = new Map(cards.map((card) => [card.id, card]));
 	const byName = new Map<string, Card[]>();

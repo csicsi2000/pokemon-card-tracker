@@ -5,9 +5,12 @@ import {
 	parseQuickAdd,
 	parseQuickAddLine,
 	pickVariant,
+	quickAddCode,
 	resolveQuickAdd
 } from '../src/lib/tcg/quick-add';
 import { resolveEntry } from '../src/lib/tcg/resolver';
+import { buildCatalogue } from '../src/lib/catalogue-index';
+import type { CardRow, SetRow } from '../src/lib/catalogue-format';
 import { plainestVariant, sortVariants, type CardVariant } from '../src/lib/types';
 import { makeCard, makeCatalogue, makeSet } from './helpers';
 
@@ -273,5 +276,64 @@ describe('name-less decklist lines', () => {
 
 		const missing = resolveEntry(catalogue, parseDecklist('1 MEG 999').entries[0]);
 		expect(missing.match).toBe('unresolved');
+	});
+});
+
+/**
+ * TCGdex gives 30th Celebration and its Classic Collection subset the same code, "30C",
+ * and the code opens with a digit — both broke quick add for these sets.
+ */
+describe('30th Celebration', () => {
+	const setRow = (id: string, name: string, cardCount: number): SetRow =>
+		[id, name, 'Mega Evolution', '30C', '2026-09-16', cardCount, null, null, null, 0, 1, 0];
+	const cardRow = (id: string, setIndex: number, localId: string, name: string): CardRow =>
+		[id, setIndex, localId, name, 'P', [], null, null, null, [], null, 'h', 0];
+
+	// Subset first, as the catalogue delta happened to order them, so it would win a
+	// last-write-wins index.
+	const anniversary = buildCatalogue({
+		generatedAt: '2026-10-01',
+		sets: [setRow('30th-c', '30th Classic Collection', 30), setRow('30th', '30th Celebration', 161)],
+		cards: [
+			cardRow('30th-c-005', 0, '005', 'Misty'),
+			cardRow('30th-005', 1, '005', 'Tropius'),
+			cardRow('30th-012', 1, '012', 'Pikachu')
+		]
+	});
+	const celebration = anniversary.setsById.get('30th')!;
+	const classic = anniversary.setsById.get('30th-c')!;
+	const resolve = (line: string, defaultSetCode?: string) =>
+		resolveQuickAdd(anniversary, parseQuickAddLine(line, 1, { defaultSetCode })!);
+
+	it('gives the shared code to the main set and pins the subset by its id', () => {
+		expect(anniversary.setsByCode.get('30C')).toBe(celebration);
+		expect(quickAddCode(celebration)).toBe('30C');
+		expect(quickAddCode(classic)).toBe('30th-c');
+	});
+
+	it('adds from whichever set is pinned, not the other one', () => {
+		expect(resolve('5', quickAddCode(celebration)).card?.id).toBe('30th-005');
+		expect(resolve('5', quickAddCode(classic)).card?.id).toBe('30th-c-005');
+	});
+
+	it('reads a code that opens with digits', () => {
+		expect(parseQuickAddLine('30C 12')).toMatchObject({ quantity: 1, setCode: '30C', number: '12' });
+		expect(parseQuickAddLine('2 30C 12 h')).toMatchObject({
+			quantity: 2,
+			setCode: '30C',
+			number: '12',
+			variant: 'holo'
+		});
+		expect(parseQuickAddLine('2x 30c 12')).toMatchObject({ quantity: 2, setCode: '30C' });
+		expect(resolve('30C 12').card?.name).toBe('Pikachu');
+		expect(resolve('30th-c 5').card?.name).toBe('Misty');
+		expect(looksLikeQuickAdd('30C 12')).toBe(true);
+	});
+
+	it('still reads counts, not codes, with a set pinned', () => {
+		const pinned = { defaultSetCode: '30C' };
+		expect(parseQuickAddLine('3x 12', 1, pinned)).toMatchObject({ quantity: 3, setCode: '30C', number: '12' });
+		expect(parseQuickAddLine('21a x2', 1, pinned)).toMatchObject({ quantity: 2, setCode: '30C', number: '21a' });
+		expect(parseQuickAddLine('3 188 rh', 1, pinned)).toMatchObject({ quantity: 3, setCode: '30C' });
 	});
 });
