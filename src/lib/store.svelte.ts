@@ -245,8 +245,7 @@ class Store {
 
 	/** `wants: 'default'` keeps the cards and folds them into the default list. */
 	deleteWantList(id: string, wants: 'default' | 'remove') {
-		const next = mutate.deleteWantList(this.#data, this.clock, id, wants);
-		this.#commit(repair(next, { now: new Date().toISOString() }));
+		this.#commit(mutate.deleteWantList(this.#data, this.clock, id, wants));
 	}
 
 	// -- lots ---------------------------------------------------------------
@@ -275,8 +274,7 @@ class Store {
 	}
 
 	deleteLot(id: string, cards: 'unsorted' | 'remove') {
-		const next = mutate.deleteLot(this.#data, this.clock, id, cards);
-		this.#commit(repair(next, { now: new Date().toISOString() }));
+		this.#commit(mutate.deleteLot(this.#data, this.clock, id, cards));
 	}
 
 	// -- lot folders --------------------------------------------------------

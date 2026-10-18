@@ -10,7 +10,7 @@
  *     the network is unavailable this is the only part that goes missing.
  */
 import { base } from '$app/paths';
-import { getCatalogueDelta } from './catalogue';
+import { getCatalogue, getCatalogueDelta } from './catalogue';
 import { detailUrl, type CardDetailRow, type SetDetailFile } from './catalogue-format';
 import { cleanText } from './tcg/text';
 
@@ -86,6 +86,19 @@ function toText(row: CardDetailRow | undefined): CardText {
 
 const setFiles = new Map<string, Map<string, CardDetailRow>>();
 const setRequests = new Map<string, Promise<Map<string, CardDetailRow>>>();
+/** Bumped by `clearCardTextCache`, so a read already in flight cannot write its old map back. */
+let generation = 0;
+
+/**
+ * The service worker keeps these files CacheFirst, so the URL has to change when their
+ * content does or a deploy never reaches a device that opened the set before. They are
+ * regenerated together with catalogue.json, whose `generatedAt` therefore versions them.
+ */
+function setDetailUrl(setId: string) {
+	const version = getCatalogue()?.generatedAt;
+	const url = `${base}${detailUrl(setId)}`;
+	return version ? `${url}?v=${encodeURIComponent(version)}` : url;
+}
 
 async function loadSetDetail(setId: string) {
 	const cached = setFiles.get(setId);
@@ -94,12 +107,21 @@ async function loadSetDetail(setId: string) {
 	const existing = setRequests.get(setId);
 	if (existing) return existing;
 
+	const started = generation;
 	const request = (async () => {
 		let rows: CardDetailRow[] = [];
+		// Only a real answer is worth remembering. A network failure or a server error just
+		// means "not now", and caching it would leave the set blank until the next reload.
+		let settled = false;
 		try {
-			const response = await fetch(`${base}${detailUrl(setId)}`);
-			// A set whose cards are all vanilla has no file at all; that is not an error.
-			if (response.ok) rows = ((await response.json()) as SetDetailFile).cards ?? [];
+			const response = await fetch(setDetailUrl(setId));
+			if (response.ok) {
+				rows = ((await response.json()) as SetDetailFile).cards ?? [];
+				settled = true;
+			} else if (response.status === 404) {
+				// A set whose cards are all vanilla has no file at all; that is not an error.
+				settled = true;
+			}
 		} catch {
 			rows = [];
 		}
@@ -113,7 +135,7 @@ async function loadSetDetail(setId: string) {
 			byLocalId.set(row.localId, row);
 		}
 
-		setFiles.set(setId, byLocalId);
+		if (settled && started === generation) setFiles.set(setId, byLocalId);
 		return byLocalId;
 	})();
 
@@ -121,17 +143,20 @@ async function loadSetDetail(setId: string) {
 	try {
 		return await request;
 	} finally {
-		setRequests.delete(setId);
+		// A clear may have dropped this request and a newer one taken its slot.
+		if (setRequests.get(setId) === request) setRequests.delete(setId);
 	}
 }
 
 /**
  * Forget the per-set files already parsed, so the next read picks up newer rows. Called
  * after a catalogue refresh merges a set — the map built before it would still hold the
- * bundled text.
+ * bundled text. Reads still in flight finish for their callers but are not kept.
  */
 export function clearCardTextCache() {
+	generation += 1;
 	setFiles.clear();
+	setRequests.clear();
 }
 
 export async function loadCardText(setId: string, localId: string): Promise<CardText> {

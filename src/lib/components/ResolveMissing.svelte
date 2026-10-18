@@ -11,6 +11,7 @@
 	 * The two writes are exported so a page can offer them in bulk ("put the whole buylist
 	 * on my wants") without re-deriving which finish to record.
 	 */
+	import { copiesToFind } from '$lib/data/model';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { store } from '$lib/store.svelte';
 	import type { Card } from '$lib/types';
@@ -25,9 +26,12 @@
 	 */
 	export function wantMissing(card: Card, missing: number): boolean {
 		const variant = plainFinish(card);
-		const already = store.want({ cardId: card.id, variant })?.quantity ?? 0;
-		if (already >= missing) return false;
-		store.setWant({ cardId: card.id, variant, quantity: missing });
+		const existing = store.want({ cardId: card.id, variant });
+		const owned = store.ownedOf(card.id, variant);
+		if (existing && copiesToFind(existing, owned) >= missing) return false;
+		// A want that counts its total includes the copies already owned.
+		const quantity = existing?.counting === 'total' ? missing + owned : missing;
+		store.setWant({ cardId: card.id, variant, quantity });
 		return true;
 	}
 

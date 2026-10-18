@@ -118,4 +118,23 @@ describe('the agent write path', () => {
 		const one = await battles.findBattleLog(saved.data, saved.log.id);
 		expect(battles.battleTranscript(one).join(' ')).toContain('Shadow Bullet');
 	});
+
+	it('refuses a result it does not know rather than saving it as unknown', async () => {
+		await expect(battles.saveBattleLog(ctx(), 'Alakazam', { text: SAMPLE, result: 'won' })).rejects.toThrow(
+			/"won" is not a result/
+		);
+		const saved = await battles.saveBattleLog(ctx(), 'Alakazam', { text: SAMPLE, result: 'tie' });
+		expect(saved.log.result).toBe('tie');
+	});
+
+	it('refuses a date that is not a real YYYY-MM-DD day', async () => {
+		for (const playedOn of ['1/9/2026', '2026-9-1', '2026-02-30', '2026-13-01', '2026-09-01T10:00', '']) {
+			await expect(
+				battles.saveBattleLog(ctx(), 'Alakazam', { text: SAMPLE, playedOn }),
+				playedOn
+			).rejects.toThrow(/is not a date/);
+		}
+		const saved = await battles.saveBattleLog(ctx(), 'Alakazam', { text: SAMPLE, playedOn: '2024-02-29' });
+		expect(saved.log.playedOn).toBe('2024-02-29');
+	});
 });

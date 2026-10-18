@@ -143,6 +143,7 @@ class SyncController {
 		if (!state) return;
 		const provider = providerOf(state)!;
 		this.#reflect(state);
+		this.#watchConnectivity();
 
 		if (provider === 'webdav') {
 			if (!state.webdav) return;
@@ -183,6 +184,7 @@ class SyncController {
 			writeState(state);
 			this.#reflect(state);
 			this.#useBackend('drive');
+			this.#watchConnectivity();
 			await this.#engine.sync();
 		} catch (error) {
 			this.status = resuming ? 'reconnect' : 'disconnected';
@@ -236,6 +238,7 @@ class SyncController {
 		writeState(state);
 		this.#reflect(state);
 		this.#backend = backend;
+		this.#watchConnectivity();
 		await this.#engine.sync();
 		// The engine's status callback has run by now; TS still sees the 'connecting' we set above.
 		const outcome = this.status as SyncStatus;
@@ -249,14 +252,48 @@ class SyncController {
 
 	/** Called by the layout whenever local data changes. */
 	onLocalChange() {
-		if (this.status === 'idle' || this.status === 'syncing' || this.status === 'offline') {
+		if (
+			this.status === 'idle' ||
+			this.status === 'syncing' ||
+			this.status === 'offline' ||
+			this.status === 'error'
+		) {
 			this.#engine.schedule();
 		}
+	}
+
+	/**
+	 * "Offline" and "error" both promise a retry, and nothing else brings one about if the
+	 * user makes no edit — so try again when the connection comes back, and when the app
+	 * comes back to the foreground (a phone that slept through its Wi-Fi returning fires no
+	 * `online` event). "reconnect" is left alone: it needs the user, not another attempt.
+	 */
+	#retry = () => {
+		if (document.visibilityState === 'hidden') return;
+		if (this.status === 'offline' || this.status === 'error') void this.#engine.sync();
+	};
+
+	#watching = false;
+
+	/** Install the retry listeners; safe to call on every connect. */
+	#watchConnectivity() {
+		if (!browser || this.#watching) return;
+		this.#watching = true;
+		window.addEventListener('online', this.#retry);
+		document.addEventListener('visibilitychange', this.#retry);
+	}
+
+	#unwatchConnectivity() {
+		if (!browser || !this.#watching) return;
+		this.#watching = false;
+		window.removeEventListener('online', this.#retry);
+		document.removeEventListener('visibilitychange', this.#retry);
 	}
 
 	/** Stop syncing on this device. Local data and the remote file are both kept. */
 	async disconnect() {
 		const provider = this.provider;
+		this.#unwatchConnectivity();
 		this.#engine.reset();
 		writeState(null);
 		this.#backend = null;

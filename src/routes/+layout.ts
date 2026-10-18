@@ -14,7 +14,11 @@ export const load: LayoutLoad = async ({ fetch, depends }) => {
 	// re-runs the load and hands every page the updated catalogue. See catalogue-sync.
 	depends(CATALOGUE_DEP);
 
-	store.load();
-	prefs.load();
+	// Only the first run reads storage: a re-run after a catalogue refresh must not swap
+	// the live data for what was last saved, which drops an edit whose save failed.
+	if (!store.loaded) {
+		store.load();
+		prefs.load();
+	}
 	return { catalogue: await loadCatalogue(fetch) };
 };

@@ -32,6 +32,10 @@ export const TCGDEX_ID_TO_PTCGL_CODE: Record<string, string> = Object.fromEntrie
 		.map(([code, setId]) => [setId, code])
 );
 
-/** The code to print for a set in a decklist, or null when nothing sensible exists. */
+/**
+ * The code to print for a set in a decklist, or null when nothing sensible exists.
+ * TCGdex codes numbered subsets "SIT:TG"; PTCGL writes the parent's code ("SIT TG05"),
+ * which the parser can read back and the resolver finds the subset from.
+ */
 export const exportSetCode = (set: { id: string; ptcglCode: string | null }) =>
-	set.ptcglCode ?? TCGDEX_ID_TO_PTCGL_CODE[set.id] ?? null;
+	(set.ptcglCode ?? TCGDEX_ID_TO_PTCGL_CODE[set.id])?.split(':')[0] ?? null;

@@ -59,6 +59,12 @@ Total Cards: 16`);
 		expect(entries[1]).toMatchObject({ name: 'Mew ex', setCode: null, number: null });
 	});
 
+	it('reads EX before a number as the Expedition set code', () => {
+		const { entries } = parseDecklist('1 Charizard EX 6\n1 Mewtwo EX');
+		expect(entries[0]).toMatchObject({ name: 'Charizard', setCode: 'EX', number: '6' });
+		expect(entries[1]).toMatchObject({ name: 'Mewtwo EX', setCode: null, number: null });
+	});
+
 	it('strips trailing foil markers', () => {
 		const { entries } = parseDecklist("1 Professor's Research SVI 189 PH");
 		expect(entries[0]).toMatchObject({ name: "Professor's Research", setCode: 'SVI', number: '189' });

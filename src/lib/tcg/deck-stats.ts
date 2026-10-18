@@ -10,7 +10,7 @@
 import type { Card, Supertype } from '$lib/types';
 import type { FormatRules } from './format-rules';
 import { isBasicEnergy, type DeckEntry } from './legality';
-import { normalizeName } from './normalize';
+import { deckNameKey } from './normalize';
 
 export type Breakdown = { label: string; count: number };
 
@@ -55,6 +55,13 @@ const BUCKET_ORDER: Record<Supertype, string[]> = {
 };
 
 /**
+ * Stage-less Pokémon that still cannot start the game, and that TCGdex often gives no
+ * `evolvesFrom`: LEVEL-UP and BREAK go on top of another Pokémon, Mega Evolution EX
+ * evolve from their EX, and RESTORED Pokémon come out of a Fossil card.
+ */
+const NEVER_BASIC = new Set(['Stage1', 'Stage2', 'LEVEL-UP', 'BREAK', 'MEGA', 'RESTORED']);
+
+/**
  * Can this card start the game on the bench? Modern cards say so in their subtypes; the
  * ones printed before subtypes existed are basic exactly when nothing evolves into them.
  * V-UNION is the odd one out: it has no stage but is assembled from the discard pile.
@@ -63,7 +70,7 @@ export function isBasicPokemon(card: Card): boolean {
 	if (card.supertype !== 'Pokemon') return false;
 	if (card.subtypes.includes('V-UNION')) return false;
 	if (card.subtypes.includes('Basic')) return true;
-	return card.evolvesFrom === null && !card.subtypes.some((s) => s === 'Stage1' || s === 'Stage2');
+	return card.evolvesFrom === null && !card.subtypes.some((s) => NEVER_BASIC.has(s));
 }
 
 function bucketOf(card: Card): string {
@@ -100,7 +107,7 @@ export function deckStats(entries: DeckEntry[]): DeckStats {
 		const key = bucketOf(card);
 		if (bucket) bucket.set(key, (bucket.get(key) ?? 0) + quantity);
 
-		const nameKey = normalizeName(card.name);
+		const nameKey = deckNameKey(card.name);
 		const seen = byName.get(nameKey);
 		if (seen) seen.quantity += quantity;
 		else byName.set(nameKey, { quantity, basicEnergy: isBasicEnergy(card) });

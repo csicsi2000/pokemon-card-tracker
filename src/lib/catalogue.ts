@@ -95,8 +95,13 @@ export async function refreshCatalogue(
 			force: options.force
 		});
 
-		// Persist even when nothing changed: the run still moved `checkedAt` forward.
-		delta = writeDelta(result.delta);
+		// Persist even when nothing changed: the run still moved `checkedAt` forward. What is
+		// stored is trimmed to the storage budget; what is kept here is not. Building from the
+		// trimmed copy would drop sets fetched a moment ago — gone from search at once, and
+		// marked stale again on the next check, to be fetched and dropped again forever. A
+		// trimmed set is only lost to the next session, which re-fetches it.
+		writeDelta(result.delta);
+		delta = result.delta;
 
 		if (result.changed) cached = buildCatalogue(mergeDelta(baseline, delta));
 

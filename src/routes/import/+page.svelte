@@ -27,6 +27,7 @@
 	import { parseDecklist } from '$lib/tcg/parser';
 	import { resolveEntries, type ResolvedEntry } from '$lib/tcg/resolver';
 	import { buildBuylist } from '$lib/tcg/buylist';
+	import { deckNameKey } from '$lib/tcg/normalize';
 	import { toPtcglText, toAiEntries, AI_PREAMBLE, type ExportLine } from '$lib/tcg/exporter';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { VARIANT_LABELS, type CardVariant } from '$lib/types';
@@ -85,9 +86,10 @@ Total Cards: 3`;
 
 	const rows = $derived(
 		resolved.map((row) => {
-			const override = overrides[row.entry.lineNumber];
-			const card = override ? (data.catalogue.byId.get(override) ?? row.card) : row.card;
-			return { ...row, card, overridden: Boolean(override) };
+			// Line numbers shift when the text is edited, so an override only counts while
+			// it is still one of this line's printings.
+			const override = row.alternatives.find((card) => card.id === overrides[row.entry.lineNumber]);
+			return { ...row, card: override ?? row.card, overridden: Boolean(override) };
 		})
 	);
 
@@ -99,7 +101,7 @@ Total Cards: 3`;
 		const totals = new Map<string, number>();
 		for (const row of store.collection) {
 			const card = data.catalogue.byId.get(row.cardId);
-			if (card) totals.set(card.nameNormalized, (totals.get(card.nameNormalized) ?? 0) + row.quantity);
+			if (card) totals.set(deckNameKey(card.name), (totals.get(deckNameKey(card.name)) ?? 0) + row.quantity);
 		}
 		return totals;
 	});
@@ -493,7 +495,7 @@ Total Cards: 3`;
 							<div class="flex flex-col divide-y">
 								{#each rows as row (row.entry.lineNumber)}
 									{@const label = matchLabel(row)}
-									{@const owned = row.card ? (ownedByName.get(row.card.nameNormalized) ?? 0) : 0}
+									{@const owned = row.card ? (ownedByName.get(deckNameKey(row.card.name)) ?? 0) : 0}
 									<!-- The printing picker drops to its own line on a phone. -->
 									<div class="flex flex-wrap items-center gap-3 py-2">
 										{#if row.card}

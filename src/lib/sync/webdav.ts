@@ -75,8 +75,16 @@ export function createWebDavClient(config: WebDavConfig, fetchImpl: typeof fetch
 		const headers = new Headers(init.headers ?? {});
 		if (authorization) headers.set('Authorization', authorization);
 		const response = await fetchImpl(base + name, { ...init, headers, credentials: 'omit' });
-		if (response.status === 401 || response.status === 403) {
+		if (response.status === 401) {
 			throw new SyncAuthError('The WebDAV server rejected the username or password');
+		}
+		// Signed in, but not allowed here: a folder URL pointing outside this account, or a
+		// share without write access. Still parked as "reconnect", since the fix is in the
+		// same form — but saying "wrong password" would send the user after the wrong thing.
+		if (response.status === 403) {
+			throw new SyncAuthError(
+				'The WebDAV server refused access to this folder. Check the folder URL, and that this account may write to it'
+			);
 		}
 		return response;
 	}

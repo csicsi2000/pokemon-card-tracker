@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as mutate from '../src/lib/data/mutations';
 import { rowKey } from '../src/lib/data/model';
+import { merge } from '../src/lib/data/merge';
 import { repair } from '../src/lib/data/repair';
 import { fixedClock, makeDeck, makeFolder, makeLot, makeRow, makeUserData } from './data-helpers';
 
@@ -69,7 +70,7 @@ describe('collection mutations', () => {
 });
 
 describe('lot mutations', () => {
-	it('deleteLot with "unsorted" only tombstones the lot; repair folds the cards', () => {
+	it('deleteLot with "unsorted" moves the cards there and tombstones the lot rows', () => {
 		const clock = fixedClock();
 		const start = makeUserData({
 			lots: [makeLot({ id: 'lot1' })],
@@ -82,10 +83,27 @@ describe('lot mutations', () => {
 		const deleted = mutate.deleteLot(start, clock, 'lot1', 'unsorted');
 		expect(deleted.lots).toEqual([]);
 		expect(tombstone(deleted, 'lot', 'lot1')).toBeDefined();
-		expect(deleted.collection).toHaveLength(2);
+		expect(tombstone(deleted, 'collection', 'a|normal|lot1')).toBeDefined();
+		expect(deleted.collection).toEqual([expect.objectContaining({ cardId: 'a', lotId: null, quantity: 3 })]);
+		expect(repair(deleted, { now: clock.next() }).collection).toEqual(deleted.collection);
+	});
 
-		const repaired = repair(deleted, { now: clock.next() });
-		expect(repaired.collection).toEqual([expect.objectContaining({ cardId: 'a', lotId: null, quantity: 3 })]);
+	it('a device still holding the deleted lot does not double its cards on merge', () => {
+		const clock = fixedClock('2026-02-01T00:00:00.000Z');
+		const shared = makeUserData({
+			lots: [makeLot({ id: 'lot1' })],
+			collection: [
+				makeRow({ cardId: 'a', quantity: 2, lotId: null }),
+				makeRow({ cardId: 'a', quantity: 3, lotId: 'lot1' })
+			]
+		});
+
+		let local = mutate.deleteLot(shared, clock, 'lot1', 'unsorted');
+		// Sync twice against the stale copy, as the engine would.
+		for (let round = 0; round < 2; round++) {
+			local = repair(merge(local, shared), { now: '2026-03-01T00:00:00.000Z' });
+		}
+		expect(local.collection).toEqual([expect.objectContaining({ cardId: 'a', lotId: null, quantity: 5 })]);
 	});
 
 	it('deleteLot with "remove" tombstones every row in it', () => {

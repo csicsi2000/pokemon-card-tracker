@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseDecklist } from '../src/lib/tcg/parser';
-import { resolveEntries, resolveEntry } from '../src/lib/tcg/resolver';
+import { toPtcglText } from '../src/lib/tcg/exporter';
+import { findByNumber, resolveEntries, resolveEntry } from '../src/lib/tcg/resolver';
 import { makeCard, makeCatalogue, makeSet } from './helpers';
 
 const obf = makeSet({ id: 'sv03', name: 'Obsidian Flames', ptcglCode: 'OBF', releaseDate: '2023-08-11' });
@@ -59,6 +60,18 @@ describe('resolveEntry', () => {
 		expect(result.alternatives).toHaveLength(2);
 	});
 
+	it('decides "standard-legal" by regulation mark when picking a printing', () => {
+		// TCGdex marks no set Standard-legal, so the flag cannot be what decides.
+		const newer = makeSet({ id: 'cel25', ptcglCode: 'CEL', releaseDate: '2026-09-01', legalStandard: false });
+		const older = makeSet({ id: 'sv08', ptcglCode: 'SSP', releaseDate: '2024-11-08', legalStandard: false });
+		const marked = makeCatalogue([
+			makeCard({ name: 'Pikachu', localId: '5', set: newer }),
+			makeCard({ name: 'Pikachu', localId: '57', set: older, regulationMark: 'H' })
+		]);
+
+		expect(resolveEntry(marked, parseDecklist('1 Pikachu').entries[0]).card?.set.id).toBe('sv08');
+	});
+
 	it('maps set codes TCGdex does not publish via the overrides table', () => {
 		const result = resolve('1 Charizard-GX HIF SV49');
 
@@ -105,6 +118,88 @@ describe('resolveEntry', () => {
 			'sv03',
 			'swshp'
 		]);
+	});
+});
+
+describe('numbered subsets behind a main set code', () => {
+	// Shaped like the real catalogue: the main set owns the plain code, the subset is
+	// coded "SIT:TG", and Hidden Fates' Shiny Vault has no code of its own at all.
+	const hif = makeSet({ id: 'sm115', name: 'Hidden Fates', ptcglCode: 'HIF', releaseDate: '2019-08-23' });
+	const sma = makeSet({ id: 'sma', name: 'Yellow A Alternate', ptcglCode: null, releaseDate: '2019-08-23' });
+	const sit = makeSet({ id: 'swsh12', name: 'Silver Tempest', ptcglCode: 'SIT', releaseDate: '2022-11-11' });
+	const sitTg = makeSet({ id: 'swsh12tg', name: 'Silver Tempest Trainer Gallery', ptcglCode: 'SIT:TG', releaseDate: '2022-11-11' });
+	const crz = makeSet({ id: 'swsh12.5', name: 'Crown Zenith', ptcglCode: 'CRZ', releaseDate: '2023-01-20' });
+	const crzGg = makeSet({ id: 'swsh12.5gg', name: 'Crown Zenith Galarian Gallery', ptcglCode: 'CRZ:GG', releaseDate: '2023-01-20' });
+	const brs = makeSet({ id: 'swsh9', name: 'Brilliant Stars', ptcglCode: 'BRS', releaseDate: '2022-02-25' });
+	const brsTg = makeSet({ id: 'swsh9tg', name: 'Brilliant Stars Trainer Gallery', ptcglCode: 'BRS:TG', releaseDate: '2022-02-25' });
+	const svi = makeSet({ id: 'sv01', name: 'Scarlet & Violet', ptcglCode: 'SVI', releaseDate: '2023-03-31' });
+
+	const subsetCatalogue = makeCatalogue([
+		makeCard({ name: 'Charizard-GX', localId: '9', set: hif }),
+		makeCard({ name: 'Charizard-GX', localId: 'SV49', set: sma }),
+		makeCard({ name: 'Sunkern', localId: '005', set: sit }),
+		makeCard({ name: 'Gardevoir', localId: 'TG05', set: sitTg }),
+		makeCard({ name: 'Grookey', localId: '001', set: crz }),
+		makeCard({ name: 'Hisuian Voltorb', localId: 'GG01', set: crzGg }),
+		makeCard({ name: 'Ninjask', localId: '010', set: brs }),
+		makeCard({ name: 'Houndoom', localId: 'TG10', set: brsTg }),
+		makeCard({ name: 'Pineco', localId: '005', set: svi })
+	]);
+
+	const resolveIn = (line: string) => resolveEntry(subsetCatalogue, parseDecklist(line).entries[0]);
+
+	it('finds Shiny Vault cards through the override when the main set owns the code', () => {
+		const result = resolveIn('1 HIF SV49');
+		expect(result.card?.id).toBe('sma-SV49');
+		expect(result.match).toBe('override');
+		expect(resolveIn('1 Charizard-GX HIF SV49').card?.id).toBe('sma-SV49');
+		expect(resolveIn('1 Charizard-GX HIF 9').card?.id).toBe('sm115-9');
+	});
+
+	it('finds gallery cards written under the parent code', () => {
+		expect(resolveIn('1 SIT TG05').card?.id).toBe('swsh12tg-TG05');
+		expect(resolveIn('1 Gardevoir SIT TG05').card?.id).toBe('swsh12tg-TG05');
+		expect(resolveIn('1 CRZ GG01').card?.id).toBe('swsh12.5gg-GG01');
+		expect(resolveIn('1 Houndoom BRS TG10').card?.id).toBe('swsh9tg-TG10');
+	});
+
+	it('never reads a lettered number as the main set card with the same digits', () => {
+		const result = resolveIn('1 SVI TG05');
+		expect(result.card).toBeNull();
+		expect(result.note).toMatch(/no card #TG05/);
+		expect(resolveIn('1 SIT 5').card?.id).toBe('swsh12-005');
+	});
+
+	it('round-trips an exported gallery card', () => {
+		const card = subsetCatalogue.byId.get('swsh12tg-TG05')!;
+		const text = toPtcglText([{ quantity: 1, card }]);
+		expect(text).toContain('1 Gardevoir SIT TG05');
+		expect(resolveEntries(subsetCatalogue, parseDecklist(text).entries)[0].card).toBe(card);
+	});
+});
+
+describe('Expedition, whose code is also a name suffix', () => {
+	it('pins "Charizard EX 6" to Expedition #6', () => {
+		const expedition = makeSet({ id: 'ecard1', name: 'Expedition Base Set', ptcglCode: 'EX', releaseDate: '2002-09-15' });
+		const expeditionCatalogue = makeCatalogue([
+			makeCard({ name: 'Charizard', localId: '6', set: expedition }),
+			makeCard({ name: 'Charizard', localId: '39', set: expedition })
+		]);
+		const result = resolveEntry(expeditionCatalogue, parseDecklist('1 Charizard EX 6').entries[0]);
+
+		expect(result.match).toBe('exact');
+		expect(result.card?.id).toBe('ecard1-6');
+	});
+});
+
+describe('findByNumber', () => {
+	it('keeps the numeric fallback for unprefixed numbers only', () => {
+		const promo = makeCard({ name: 'Pikachu', localId: 'SWSH050', set: swshPromo });
+		const plain = makeCard({ name: 'Pikachu', localId: '5', set: obf });
+
+		expect(findByNumber([promo], '50')).toEqual([promo]);
+		expect(findByNumber([promo], 'SWSH50')).toEqual([promo]);
+		expect(findByNumber([plain], 'TG05')).toEqual([]);
 	});
 });
 

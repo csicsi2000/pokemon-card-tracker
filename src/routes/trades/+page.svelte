@@ -146,8 +146,17 @@
 		write(() => store.updateTrade(refOf(row), { quantity: row.trade.quantity + delta }));
 
 	/** The copies changed hands: out of the collection, out of the binder. */
+	/** Copies "Traded" will remove: only the chosen lot's, when one is chosen. */
+	const takeable = (row: Row) =>
+		Math.min(
+			row.trade.quantity,
+			fromLotId === undefined
+				? row.owned
+				: store.ownedOf(row.trade.cardId, row.trade.variant, fromLotId)
+		);
+
 	function traded(row: Row) {
-		const count = Math.min(row.trade.quantity, row.owned);
+		const count = takeable(row);
 		const from =
 			fromLotId === undefined
 				? 'your collection'
@@ -213,8 +222,8 @@
 		variant="outline"
 		onclick={() => traded(row)}
 		aria-label="Traded {row.card.name}"
-		title={row.owned > 0
-			? `Remove ${Math.min(row.trade.quantity, row.owned)} from your collection and clear the entry`
+		title={takeable(row) > 0
+			? `Remove ${takeable(row)} from your collection and clear the entry`
 			: 'Clear the entry — you no longer own these'}
 	>
 		<Check class="size-4" />

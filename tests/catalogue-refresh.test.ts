@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyDelta, mergeDelta, type CatalogueDelta } from '../src/lib/catalogue-delta';
 import { refreshDelta } from '../src/lib/catalogue-refresh';
 import { buildCatalogue } from '../src/lib/catalogue-index';
@@ -177,4 +177,66 @@ describe('refreshDelta', () => {
 		// A set that merely failed must not be remembered as skipped, or it is never retried.
 		expect(result.delta.skipped).not.toContain('gone');
 	});
+});
+
+describe('refreshCatalogue', () => {
+	const STORAGE_KEY = 'cardex:catalogue-delta:v1';
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	/** Three new sets, each big enough that only one fits the 400 KB storage budget. */
+	const bulky: Upstream = {
+		briefs: ['big1', 'big2', 'big3'].map((id) => ({ id, total: 200 })),
+		sets: Object.fromEntries(
+			['big1', 'big2', 'big3'].map((id) => [
+				id,
+				{
+					serie: 'sv',
+					cards: Array.from({ length: 200 }, (_, index) => ({
+						localId: String(index + 1).padStart(3, '0'),
+						name: `${id} ${'x'.repeat(1000)}`
+					}))
+				}
+			])
+		)
+	};
+
+	it('keeps every set it fetched in memory, even the ones too big to store', async () => {
+		vi.resetModules();
+		const held = new Map<string, string>();
+		vi.stubGlobal('localStorage', {
+			getItem: (key: string) => held.get(key) ?? null,
+			setItem: (key: string, value: string) => void held.set(key, value),
+			removeItem: (key: string) => void held.delete(key)
+		});
+		const { loadCatalogue, refreshCatalogue, getCatalogue } = await import('../src/lib/catalogue');
+
+		const upstream = fakeFetch({ ...bulky, briefs: [...bulky.briefs, { id: 'mep', total: 60 }] });
+		const withBaseline = (async (input: RequestInfo | URL, init?: RequestInit) =>
+			String(input).endsWith('/catalogue.json')
+				? new Response(JSON.stringify(baseline))
+				: upstream.fetcher(input, init)) as typeof fetch;
+
+		await loadCatalogue(withBaseline);
+		const outcome = await refreshCatalogue({ fetcher: withBaseline, force: true });
+
+		expect(outcome.changed).toBe(true);
+		expect(outcome.added).toBe(600);
+		for (const id of ['big1', 'big2', 'big3']) {
+			expect(getCatalogue()!.byId.get(`${id}-200`)).toBeDefined();
+		}
+
+		// Storage got the trimmed copy…
+		const stored = JSON.parse(held.get(STORAGE_KEY)!) as CatalogueDelta;
+		expect(Object.keys(stored.sets).length).toBeLessThan(3);
+
+		// …but this session does not forget what it fetched, so it does not fetch it again.
+		upstream.calls.length = 0;
+		const again = await refreshCatalogue({ fetcher: withBaseline, force: true });
+		expect(again.changed).toBe(false);
+		expect(upstream.calls).toEqual(['GET https://api.tcgdex.net/v2/en/sets']);
+		expect(getCatalogue()!.byId.get('big3-200')).toBeDefined();
+	}, 30_000); // a fresh catalogue module graph is slow to transform under a parallel run
 });

@@ -17,8 +17,8 @@ import type { Card, CardVariant, Deck, DeckFolder, Folder, Lot, LotFolder, UserD
 import { buildBuylist, type Buylist } from '$lib/tcg/buylist';
 import { diffDecks, type DeckDiff } from '$lib/tcg/deck-diff';
 import { parseRules } from '$lib/tcg/format-rules';
-import { checkLegality, type LegalityReport } from '$lib/tcg/legality';
-import { normalizeName } from '$lib/tcg/normalize';
+import { checkLegality, isStandardLegal, type LegalityReport } from '$lib/tcg/legality';
+import { deckNameKey, normalizeName } from '$lib/tcg/normalize';
 import { parseDecklist } from '$lib/tcg/parser';
 import { parseQuickAdd, parseQuickAddLine, pickVariant, resolveQuickAdd } from '$lib/tcg/quick-add';
 import { resolveEntries, type ResolvedEntry } from '$lib/tcg/resolver';
@@ -150,7 +150,7 @@ export function resolveCardSpec(catalogue: Catalogue, spec: string): CardMatch {
 
 	const printings = catalogue.byName.get(normalizeName(trimmed));
 	if (printings?.length) {
-		const card = printings.find((p) => p.set.legalStandard) ?? printings[0];
+		const card = printings.find(isStandardLegal) ?? printings[0];
 		return {
 			card,
 			how: 'name',
@@ -219,7 +219,7 @@ export function deckView(data: UserData, catalogue: Catalogue, ref: string): Dec
 	});
 	const ownedByName = new Map<string, number>();
 	for (const row of owned) {
-		const key = normalizeName(row.name);
+		const key = deckNameKey(row.name);
 		ownedByName.set(key, (ownedByName.get(key) ?? 0) + row.quantity);
 	}
 	const order = { Pokemon: 0, Trainer: 1, Energy: 2 };
@@ -227,7 +227,7 @@ export function deckView(data: UserData, catalogue: Catalogue, ref: string): Dec
 		.flatMap((row) => {
 			const card = catalogue.byId.get(row.cardId);
 			return card
-				? [{ card, quantity: row.quantity, owned: ownedByName.get(card.nameNormalized) ?? 0 }]
+				? [{ card, quantity: row.quantity, owned: ownedByName.get(deckNameKey(card.name)) ?? 0 }]
 				: [];
 		})
 		.sort((a, b) => order[a.card.supertype] - order[b.card.supertype] || a.card.name.localeCompare(b.card.name));

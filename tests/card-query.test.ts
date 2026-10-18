@@ -89,6 +89,25 @@ describe('cardQuery', () => {
 	});
 });
 
+describe('lookupCardCode with numbered subsets', () => {
+	const sit = makeSet({ id: 'swsh12', name: 'Silver Tempest', ptcglCode: 'SIT', releaseDate: '2022-11-11' });
+	const sitTg = makeSet({ id: 'swsh12tg', name: 'Silver Tempest TG', ptcglCode: 'SIT:TG', releaseDate: '2022-11-11' });
+	const svi = makeSet({ id: 'sv01', name: 'Scarlet & Violet', ptcglCode: 'SVI', releaseDate: '2023-03-31' });
+	const sunkern = makeCard({ name: 'Sunkern', localId: '005', set: sit });
+	const gardevoir = makeCard({ name: 'Gardevoir', localId: 'TG05', set: sitTg });
+	const pineco = makeCard({ name: 'Pineco', localId: '005', set: svi });
+	const subsets = makeCatalogue([sunkern, gardevoir, pineco]);
+
+	it("finds a Trainer Gallery card under its parent's code", () => {
+		expect(lookupCardCode(subsets, 'SIT TG05')).toMatchObject({ set: sitTg, cards: [gardevoir] });
+		expect(lookupCardCode(subsets, 'SIT 5')?.cards).toEqual([sunkern]);
+	});
+
+	it('does not read TG05 as the main set #5', () => {
+		expect(lookupCardCode(subsets, 'SVI TG05')).toMatchObject({ set: svi, cards: [] });
+	});
+});
+
 describe('searchCards with a code query', () => {
 	it('puts the named printing first', () => {
 		expect(searchCards(catalogue, { query: 'meg21' })).toEqual([numel]);

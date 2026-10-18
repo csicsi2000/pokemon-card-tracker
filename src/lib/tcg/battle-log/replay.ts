@@ -263,8 +263,17 @@ type Fold = {
 	replacedStadium: { card: string; player: string } | null;
 	/** Prize cards just taken whose "was added to hand" lines are still to come. */
 	prizePending: number;
-	/** Whose Pokemon was just knocked out - its "cards were discarded from" line names a card no longer on the board. */
-	knockedOut: string | null;
+	/**
+	 * The Pokemon just knocked out, and whose it was - its "cards were discarded from" line
+	 * names a card no longer on the board, and must not be read as a survivor of that name.
+	 */
+	knockedOut: { player: string; stack: string[] } | null;
+	/**
+	 * Counters put on each Pokemon (by uid) since the last line that was not stadium
+	 * machinery, one entry per placement. Battle Cage's "Damage to X was prevented." takes
+	 * one of these back off, and is a no-op for a Pokemon nothing was put on.
+	 */
+	placed: Map<string, number[]>;
 	/** The Pokemon whose ability the current top-level line is using, for the sub-lines under it. */
 	abilityUser: { side: SideState; mon: InPlay } | null;
 };
@@ -462,7 +471,7 @@ function apply(board: BoardState, event: LogEvent, fold: Fold): string[] {
 				// Only the top card here: the line that follows ("4 cards were discarded from
 				// X") names the pre-evolutions and the energy that went with it.
 				toDiscard(found.side, found.mon.name);
-				fold.knockedOut = found.side.player;
+				fold.knockedOut = { player: found.side.player, stack: [...found.mon.stack] };
 				hit(found.mon);
 			}
 			break;
@@ -521,6 +530,9 @@ function apply(board: BoardState, event: LogEvent, fold: Fold): string[] {
 			if (found) {
 				hurt(found.mon, action.amount);
 				hit(found.mon);
+				const placements = fold.placed.get(found.mon.uid) ?? [];
+				placements.push(action.amount);
+				fold.placed.set(found.mon.uid, placements);
 			}
 			break;
 		}
@@ -549,11 +561,19 @@ function apply(board: BoardState, event: LogEvent, fold: Fold): string[] {
 		}
 
 		case 'prevent': {
-			// The counter was placed a line earlier and this takes it back off again.
-			const found = findTarget(board, action.target);
-			if (found) {
-				hurt(found.mon, -10);
-				hit(found.mon);
+			// Battle Cage prints this for every benched Pokemon it protects, whether or not
+			// anything was aimed at it. Only a placement earlier in the same group is taken back
+			// off; for the rest there is nothing to undo.
+			const claimed = sideOf(board, action.target.player);
+			const needle = normal(action.target.name);
+			const mon = [...allOf(claimed), ...allOf(other(board, claimed))].find(
+				(held) =>
+					(fold.placed.get(held.uid)?.length ?? 0) > 0 &&
+					(normal(held.name) === needle || held.stack.some((card) => normal(card) === needle))
+			);
+			if (mon) {
+				hurt(mon, -(fold.placed.get(mon.uid)!.shift() ?? 0));
+				hit(mon);
 			}
 			break;
 		}
@@ -578,9 +598,13 @@ function apply(board: BoardState, event: LogEvent, fold: Fold): string[] {
 
 		case 'discard-from': {
 			// Cards leaving a Pokemon, named on the bullet line when the log reveals them. After a
-			// knockout the Pokemon is already off the board, so the side comes from that instead.
-			const found = findTarget(board, action.target);
-			const side = found?.side ?? (fold.knockedOut ? board.sides[fold.knockedOut] : null);
+			// knockout the Pokemon is already off the board, so the side comes from that instead -
+			// and a survivor of the same name (or with it in its stack) is not looked up, or its
+			// attachments would be stripped for the fallen one's.
+			const ko = fold.knockedOut;
+			const fallen = ko && ko.stack.some((card) => normal(card) === normal(action.target.name));
+			const found = fallen ? null : findTarget(board, action.target);
+			const side = found?.side ?? (ko ? board.sides[ko.player] : null);
 			if (!side) break;
 			hit(found?.mon);
 			const gone = event.cards.length ? event.cards : action.card ? [action.card] : [];
@@ -688,13 +712,19 @@ export function buildReplay(log: ParsedLog): Replay {
 		replacedStadium: null,
 		prizePending: 0,
 		knockedOut: null,
-		abilityUser: null
+		abilityUser: null,
+		placed: new Map()
 	};
 
 	let running = board;
 	for (const section of log.sections) {
-		running.turnPlayer = section.kind === 'turn' ? section.player : null;
-		if (section.turnNumber !== null) running.turnNumber = section.turnNumber;
+		// `running` is the board already pushed as the previous step, so the new section's turn
+		// goes on a copy. Shallow is enough: the first event below deep-clones it anyway.
+		running = {
+			...running,
+			turnPlayer: section.kind === 'turn' ? section.player : null,
+			turnNumber: section.turnNumber ?? running.turnNumber
+		};
 
 		for (const event of section.events) {
 			const next = cloneBoard(running);
@@ -703,6 +733,8 @@ export function buildReplay(log: ParsedLog): Replay {
 			const kind = event.action.kind;
 			if (event.depth === 0 && kind !== 'discard') fold.replacedStadium = null;
 			if (event.depth === 0) fold.abilityUser = null;
+			// A group is a line and its sub-lines, plus the stadium lines it set off.
+			if (event.depth === 0 && kind !== 'activated' && kind !== 'prevent') fold.placed.clear();
 			if (kind !== 'prizes' && kind !== 'to-hand') fold.prizePending = 0;
 			if (kind !== 'knockout' && kind !== 'discard-from') fold.knockedOut = null;
 			const touched = apply(next, event, fold);

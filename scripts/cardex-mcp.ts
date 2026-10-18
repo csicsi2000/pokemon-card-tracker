@@ -14,6 +14,7 @@ import * as api from '../src/lib/agent/api';
 import * as battles from '../src/lib/agent/battles';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
 import { diffToText } from '../src/lib/tcg/deck-diff';
+import { isStandardLegal } from '../src/lib/tcg/legality';
 import { BATTLE_RESULTS, type BattleResult } from '../src/lib/data/model';
 import { CARD_VARIANTS, type CardVariant } from '../src/lib/types';
 import { loadCatalogueFromDisk, openData, resolveDataPath, saveData } from './agent-io';
@@ -49,7 +50,7 @@ const guarded =
 	};
 
 const cardSummary = (card: api.CardMatch['card']) =>
-	card && { id: card.id, name: card.name, set: card.set.ptcglCode ?? card.set.id, setName: card.set.name, number: card.localId, supertype: card.supertype, subtypes: card.subtypes, types: card.types, hp: card.hp, rarity: card.rarity, regulationMark: card.regulationMark, standardLegal: card.set.legalStandard };
+	card && { id: card.id, name: card.name, set: card.set.ptcglCode ?? card.set.id, setName: card.set.name, number: card.localId, supertype: card.supertype, subtypes: card.subtypes, types: card.types, hp: card.hp, rarity: card.rarity, regulationMark: card.regulationMark, standardLegal: isStandardLegal(card) };
 
 const finishSchema = z.enum(CARD_VARIANTS as [CardVariant, ...CardVariant[]]);
 

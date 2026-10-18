@@ -11,14 +11,19 @@
  * is the same as repairing once.
  */
 import { dedupeRows, dedupeTrades, dedupeWants } from './migrate';
-import type { Folder, Tombstone, UserData } from './model';
+import { rowKey, type Folder, type Tombstone, type UserData } from './model';
 
 const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 export type RepairOptions = {
 	/** ISO time, used only to prune old tombstones. */
 	now: string;
-	/** When this device last synced; tombstones are kept until they are older than this. */
+	/**
+	 * When this device last synced; tombstones are kept until they are older than this.
+	 * Only the sync engine knows it, so only the sync engine prunes: left out, every
+	 * tombstone is kept, or a device that has been offline for months would forget its
+	 * deletions before it ever uploaded them.
+	 */
 	lastSyncedAt?: string | null;
 };
 
@@ -31,6 +36,7 @@ function pruneTombstones(tombstones: Tombstone[], options: RepairOptions): Tombs
 		if (!existing || tombstone.deletedAt > existing.deletedAt) latest.set(key, tombstone);
 	}
 
+	if (options.lastSyncedAt === undefined) return [...latest.values()];
 	const cutoff = new Date(Date.parse(options.now) - TOMBSTONE_TTL_MS).toISOString();
 	return [...latest.values()].filter((tombstone) => {
 		if (tombstone.deletedAt >= cutoff) return true;
@@ -81,13 +87,23 @@ export function repair(data: UserData, options: RepairOptions): UserData {
 	const lotFolderIds = new Set(data.lotFolders.map((folder) => folder.id));
 	const repairedLotFolders = untangle(data.lotFolders);
 
+	// Cards in a lot that is gone (another device added them while this one deleted the
+	// lot) fold into Unsorted, where dedupe sums them with any stack already there. Each
+	// stray row is tombstoned a millisecond after its own edit, so a device still holding
+	// it cannot bring it back to be summed a second time — and since the stamp comes from
+	// the row, every device folds it identically.
+	const live = data.collection.filter((row) => row.quantity > 0);
+	const strays = live.filter((row) => row.lotId && !lotIds.has(row.lotId));
+	const strayTombstones: Tombstone[] = strays.map((row) => ({
+		kind: 'collection',
+		key: rowKey(row),
+		deletedAt: new Date(Date.parse(row.updatedAt) + 1).toISOString()
+	}));
+
 	return {
 		version: 2,
-		// Cards whose lot is gone fold into Unsorted; dedupe sums stacks that now share a key.
 		collection: dedupeRows(
-			data.collection
-				.filter((row) => row.quantity > 0)
-				.map((row) => (row.lotId && !lotIds.has(row.lotId) ? { ...row, lotId: null } : row))
+			live.map((row) => (row.lotId && !lotIds.has(row.lotId) ? { ...row, lotId: null } : row))
 		),
 		// A want stays even once the cards are owned; only the user decides it is done.
 		// Wants on a list the other device deleted fall back to the default list.
@@ -118,6 +134,6 @@ export function repair(data: UserData, options: RepairOptions): UserData {
 		// catches the race where a log was written while the deck was being deleted.
 		battleLogs: data.battleLogs.filter((log) => deckIds.has(log.deckId)),
 		formats: data.formats,
-		tombstones: pruneTombstones(data.tombstones, options)
+		tombstones: pruneTombstones([...data.tombstones, ...strayTombstones], options)
 	};
 }

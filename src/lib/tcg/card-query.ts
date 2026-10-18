@@ -1,6 +1,6 @@
 /**
  * What a search box does with a query that is a set code and a collector number rather
- * than a card name: "MEG 21", "meg21", "pr-sw 92", "sv03 125", "SVI TG05".
+ * than a card name: "MEG 21", "meg21", "pr-sw 92", "sv03 125", "SIT TG05".
  *
  * Looser than `parseQuickAddLine` on purpose. Quick add reads pasted stacks, so it wants
  * an unambiguous grammar; a search box gets one card at a time and should understand the
@@ -11,12 +11,12 @@
 import type { Catalogue } from '../catalogue-index';
 import type { Card, CardSet } from '../types';
 import { normalizeName } from './normalize';
-import { findByNumber, setForCode } from './resolver';
+import { findByNumber, setsForCode } from './resolver';
 import { PTCGL_CODE_OVERRIDES } from './set-code-overrides';
 
 /** Letters and digits, digit-led allowed (30C, 30th-c) so long as there is a letter. */
 const CODE = /^(?=\d*[A-Za-z])[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?$/;
-/** With a space the number may be lettered, as printed: "SVI TG05", "PR-SW SWSH092". */
+/** With a space the number may be lettered, as printed: "SIT TG05", "PR-SW SWSH092". */
 const NUMBER = /^[A-Za-z]{0,5}\d+[A-Za-z]?$/;
 /**
  * Without one it may not. "Porygon2" would otherwise split into POR + "ygon2", whose
@@ -50,22 +50,23 @@ function splitCandidates(text: string): Array<[code: string, number: string]> {
 	return candidates;
 }
 
-/** `setForCode`, plus a punctuation-blind pass so "prsw" finds the "PR-SW" set. */
-function setForQueryCode(catalogue: Catalogue, code: string): CardSet | undefined {
-	const { set } = setForCode(catalogue, code);
-	if (set) return set;
+/** `setsForCode`, plus a punctuation-blind pass so "prsw" finds the "PR-SW" set. */
+function setsForQueryCode(catalogue: Catalogue, code: string): CardSet[] {
+	const sets = setsForCode(catalogue, code).map(({ set }) => set);
+	if (sets.length) return sets;
 
 	const stripped = code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-	if (!stripped) return undefined;
+	if (!stripped) return [];
 
 	const bare = (known: string) => known.replace(/[^A-Z0-9]/g, '') === stripped;
 	for (const [known, candidate] of catalogue.setsByCode) {
-		if (bare(known)) return candidate;
+		if (bare(known)) return [candidate];
 	}
 	for (const [known, setId] of Object.entries(PTCGL_CODE_OVERRIDES)) {
-		if (bare(known)) return catalogue.setsById.get(setId);
+		const set = bare(known) ? catalogue.setsById.get(setId) : undefined;
+		if (set) return [set];
 	}
-	return undefined;
+	return [];
 }
 
 /**
@@ -77,12 +78,15 @@ export function lookupCardCode(catalogue: Catalogue, text: string): CardCodeMatc
 	let emptySet: CardCodeMatch | null = null;
 
 	for (const [code, number] of splitCandidates(text)) {
-		const set = setForQueryCode(catalogue, code);
-		if (!set) continue;
+		const sets = setsForQueryCode(catalogue, code);
+		if (!sets.length) continue;
 
-		const cards = findByNumber(catalogue.cardsBySet.get(set.id) ?? [], number);
-		if (cards.length) return { set, number, cards };
-		emptySet ??= { set, number, cards: [] };
+		// The code's subsets too: "SIT TG05" is in the Trainer Gallery, not Silver Tempest.
+		for (const set of sets) {
+			const cards = findByNumber(catalogue.cardsBySet.get(set.id) ?? [], number);
+			if (cards.length) return { set, number, cards };
+		}
+		emptySet ??= { set: sets[0], number, cards: [] };
 	}
 
 	return emptySet;

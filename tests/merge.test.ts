@@ -87,6 +87,25 @@ describe('merge', () => {
 		);
 	});
 
+	it('cards folded out of a deleted lot are not folded in again on later merges', () => {
+		const clockA = fixedClock('2026-02-01T00:00:00.000Z');
+		const clockB = fixedClock('2026-02-01T00:00:10.000Z');
+		const shared = makeUserData({ lots: [makeLot({ id: 'lot1', updatedAt: T1 })] });
+
+		const deviceA = mutate.deleteLot(shared, clockA, 'lot1', 'unsorted');
+		const deviceB = mutate.setOwned(shared, clockB, 'b', 'normal', 2, 'lot1');
+
+		// A folds B's stray row in; B, not yet synced, keeps offering its copy.
+		let synced = repair(merge(deviceA, deviceB), { now: '2026-03-01T00:00:00.000Z' });
+		for (let round = 0; round < 2; round++) {
+			synced = repair(merge(synced, deviceB), { now: '2026-03-01T00:00:00.000Z' });
+		}
+		expect(synced.collection).toEqual([expect.objectContaining({ cardId: 'b', lotId: null, quantity: 2 })]);
+		expect(repair(merge(deviceB, synced), { now: '2026-03-01T00:00:00.000Z' }).collection).toEqual(
+			synced.collection
+		);
+	});
+
 	it('folder cycle from concurrent moves is broken after repair', () => {
 		const a = makeUserData({
 			folders: [makeFolder({ id: 'f1', parentId: 'f2', updatedAt: T2 }), makeFolder({ id: 'f2', updatedAt: T1 })]

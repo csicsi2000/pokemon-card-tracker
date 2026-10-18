@@ -45,6 +45,9 @@
 
 	/** Typing into the custom box keeps only the first character, so a stray word cannot become the icon. */
 	function onCustomInput(event: Event & { currentTarget: HTMLInputElement }) {
+		// Mid-composition the box holds IME scratch ("l" on the way to 李); compositionend
+		// calls this again with the finished character.
+		if (event instanceof InputEvent && event.isComposing) return;
 		const next = normalizeIcon(event.currentTarget.value);
 		event.currentTarget.value = next ?? '';
 		setIcon(next);
@@ -120,6 +123,7 @@
 			id="{id}-icon"
 			value={custom}
 			oninput={onCustomInput}
+			oncompositionend={onCustomInput}
 			placeholder="Other…"
 			aria-label="Any other emoji"
 			autocomplete="off"

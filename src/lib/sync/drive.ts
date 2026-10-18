@@ -27,6 +27,40 @@ const toMeta = (raw: RawMeta): DriveFileMeta => ({
 	modifiedTime: raw.modifiedTime
 });
 
+/**
+ * Drive answers 403 for two unrelated things: a sign-in that may not do this (fixed by
+ * reconnecting) and a limit that was hit (fixed by waiting, or by freeing space). Telling
+ * them apart takes the `reason` in the error body. Only these mean the grant is wrong.
+ */
+const AUTH_REASONS = new Set([
+	'authError',
+	'insufficientPermissions',
+	'insufficientFilePermissions',
+	'appNotAuthorizedToFile',
+	'forbidden'
+]);
+
+/** Limits, in words a user can act on. Reconnecting fixes none of them. */
+const LIMIT_MESSAGES: Record<string, string> = {
+	storageQuotaExceeded:
+		'Your Google Drive is full, so Cardex could not save to it. Free up space in Drive, then sync again.',
+	userRateLimitExceeded: 'Google Drive is asking Cardex to slow down. It will try again shortly.',
+	rateLimitExceeded: 'Google Drive is asking Cardex to slow down. It will try again shortly.',
+	dailyLimitExceeded: 'Google Drive’s daily limit for Cardex is used up. Sync will work again tomorrow.'
+};
+
+/** The first `reason` (and Drive's own message) from a Drive error body, if it has one. */
+async function errorReason(response: Response): Promise<{ reason?: string; message?: string }> {
+	try {
+		const body = (await response.json()) as {
+			error?: { message?: string; errors?: { reason?: string }[] };
+		};
+		return { reason: body.error?.errors?.[0]?.reason, message: body.error?.message };
+	} catch {
+		return {};
+	}
+}
+
 export function createDriveClient(
 	getToken: () => Promise<string>,
 	fetchImpl: typeof fetch = fetch
@@ -37,9 +71,18 @@ export function createDriveClient(
 			...init,
 			headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` }
 		});
-		if (response.status === 401 || response.status === 403) {
-			throw new SyncAuthError('Google Drive rejected the sign-in');
+		if (response.status === 401) throw new SyncAuthError('Google Drive rejected the sign-in');
+		if (response.status === 403) {
+			const { reason, message } = await errorReason(response);
+			// No readable reason: assume the grant, as before — reconnecting is the likely fix.
+			if (!reason || AUTH_REASONS.has(reason)) {
+				throw new SyncAuthError('Google Drive rejected the sign-in');
+			}
+			throw new Error(
+				LIMIT_MESSAGES[reason] ?? `Google Drive refused the request: ${message ?? reason}`
+			);
 		}
+		if (response.status === 429) throw new Error(LIMIT_MESSAGES.rateLimitExceeded);
 		if (response.status === 404) throw new SyncMissingError('The Drive file is gone');
 		if (!response.ok) {
 			throw new Error(`Google Drive returned ${response.status} ${response.statusText}`);

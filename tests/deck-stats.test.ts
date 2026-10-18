@@ -80,6 +80,28 @@ describe('deckStats', () => {
 		]);
 	});
 
+	it('files special energy TCGdex tags as Normal under Special', () => {
+		const entries: DeckEntry[] = [
+			{ card: energy('Basic Fire Energy', ['Normal']), quantity: 8 },
+			{ card: energy('Reversal Energy', ['Normal']), quantity: 2 },
+			{ card: energy('Nitro Fire Energy', ['Normal']), quantity: 1 }
+		];
+
+		expect(group(entries, 'Energy').breakdown).toEqual([
+			{ label: 'Basic', count: 8 },
+			{ label: 'Special', count: 3 }
+		]);
+	});
+
+	it("counts every professor's Professor's Research as one name", () => {
+		const entries: DeckEntry[] = [
+			{ card: trainer("Professor's Research (Professor Oak)", ['Supporter']), quantity: 2 },
+			{ card: trainer("Professor's Research (Professor Magnolia)", ['Supporter']), quantity: 2 }
+		];
+
+		expect(deckStats(entries).distinctNames).toBe(1);
+	});
+
 	it('counts the energy types the Pokémon ask for, ignoring Colorless', () => {
 		const entries: DeckEntry[] = [
 			{ card: pokemon('Charmander', ['Basic'], { types: ['Fire'] }), quantity: 4 },
@@ -128,6 +150,14 @@ describe('isBasicPokemon', () => {
 		expect(isBasicPokemon(pokemon('M Rayquaza EX', ['MEGA'], { evolvesFrom: 'Rayquaza EX' }))).toBe(
 			false
 		);
+	});
+
+	it('does not count stage-less cards that go on top of another Pokémon', () => {
+		// As TCGdex has them: no stage subtype and, often, no evolvesFrom.
+		expect(isBasicPokemon(pokemon('Dialga LV.X', ['LEVEL-UP']))).toBe(false);
+		expect(isBasicPokemon(pokemon('Zacian', ['BREAK']))).toBe(false);
+		expect(isBasicPokemon(pokemon('Tirtouga', ['RESTORED']))).toBe(false);
+		expect(isBasicPokemon(pokemon('M Rayquaza EX', ['MEGA', 'EX']))).toBe(false);
 	});
 
 	it('does not count V-UNION, which is assembled from the discard', () => {

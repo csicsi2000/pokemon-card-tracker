@@ -144,8 +144,11 @@ export default defineConfig(({ mode }) => ({
 					// lists at [200] and make the requests themselves CORS-mode instead.
 					{
 						// Immutable for a given build: rules text does not change once printed.
-						// Same-origin, so the status is always the real one.
-						urlPattern: /\/details\/[^/]+\.json$/i,
+						// Same-origin, so the status is always the real one. A deploy can still
+						// correct it, so card-details.ts asks for `?v=<catalogue generatedAt>`:
+						// a new build is a new URL, and the copy cached under the old one is
+						// never served again (maxEntries ages it out).
+						urlPattern: /\/details\/[^/?]+\.json(\?.*)?$/i,
 						handler: 'CacheFirst',
 						options: {
 							cacheName: 'card-details',
@@ -208,10 +211,20 @@ export default defineConfig(({ mode }) => ({
 						}
 					},
 					{
-						// Per-card detail (attacks, abilities, prices). Network first, because
-						// prices move; the cached copy keeps a card readable offline once seen.
-						// Requested with fetch(), which defaults to CORS mode, so the status
-						// here is real too.
+						// Per-card lookups are only ever made for prices (rules text ships in
+						// /details/). Never from this worker's cache: a copy up to two weeks old
+						// would come back looking like a fresh answer, and card-details.ts would
+						// store and show it as today's price. card-details.ts keeps its own
+						// short-lived, honestly dated cache instead. Listed before the rule
+						// below, which would otherwise match first.
+						urlPattern: /^https:\/\/api\.tcgdex\.net\/v2\/[^/]+\/cards\//i,
+						handler: 'NetworkOnly'
+					},
+					{
+						// The rest of the REST API — the set list and set records the
+						// background catalogue refresh reads. Network first; the cached copy
+						// only answers when TCGdex does not. Requested with fetch(), which
+						// defaults to CORS mode, so the status here is real too.
 						urlPattern: /^https:\/\/api\.tcgdex\.net\/.*/i,
 						handler: 'NetworkFirst',
 						options: {

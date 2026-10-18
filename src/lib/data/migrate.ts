@@ -290,6 +290,28 @@ function uniqueById<T extends { id: string; updatedAt: string }>(items: T[]): T[
 	return [...byId.values()];
 }
 
+/**
+ * Rows read from a payload, deduped. Two rows under one id are separate piles and add
+ * up — but a row only now under that id because its set was renamed is the same pile a
+ * device on an older build still calls by the old id, so there the later edit wins.
+ * Summing them would grow the count on every round trip with that device.
+ */
+function toRows(values: unknown[]): CollectionEntry[] {
+	const current: CollectionEntry[] = [];
+	const renamed: CollectionEntry[] = [];
+	for (const value of values) {
+		const row = toRow(value);
+		if (row) (isDict(value) && value.cardId !== row.cardId ? renamed : current).push(row);
+	}
+
+	const byKey = new Map(dedupeRows(current).map((row) => [rowKey(row), row]));
+	for (const row of dedupeRows(renamed)) {
+		const existing = byKey.get(rowKey(row));
+		if (!existing || row.updatedAt > existing.updatedAt) byKey.set(rowKey(row), row);
+	}
+	return [...byKey.values()];
+}
+
 /** Rows with the same key are the same physical stack: add them up. */
 export function dedupeRows(rows: CollectionEntry[]): CollectionEntry[] {
 	const byKey = new Map<string, CollectionEntry>();
@@ -331,7 +353,7 @@ export function migrate(value: unknown): UserData {
 	const data = isDict(value) ? value : {};
 	return {
 		version: 2,
-		collection: dedupeRows(compact(arr(data.collection).map(toRow))),
+		collection: toRows(arr(data.collection)),
 		wants: dedupeWants(compact(arr(data.wants).map(toWant))),
 		wantLists: uniqueById(compact(arr(data.wantLists).map(toWantList))),
 		trades: dedupeTrades(compact(arr(data.trades).map(toTrade))),

@@ -155,6 +155,16 @@ describe('WebDAV client', () => {
 		const client = createWebDavClient({ ...config, password: 'wrong' }, server.fetchImpl);
 
 		await expect(client.findFile()).rejects.toBeInstanceOf(SyncAuthError);
+		await expect(client.findFile()).rejects.toThrow('username or password');
+	});
+
+	it('says a 403 is about the folder, not the password', async () => {
+		const forbidden: typeof fetch = async () => new Response('', { status: 403 });
+		const client = createWebDavClient(config, forbidden);
+
+		const failure = client.findFile();
+		await expect(failure).rejects.toBeInstanceOf(SyncAuthError);
+		await expect(failure).rejects.toThrow('refused access to this folder');
 	});
 
 	it('writes the readable companion as a plain file next to the data', async () => {

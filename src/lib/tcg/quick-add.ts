@@ -26,7 +26,7 @@ import {
 	type CardSet,
 	type CardVariant
 } from '$lib/types';
-import { findByNumber, setForCode } from './resolver';
+import { findPrinting, setForCode } from './resolver';
 
 export type QuickAddEntry = {
 	quantity: number;
@@ -159,18 +159,15 @@ export const quickAddCode = (set: CardSet) => set.ptcglCode ?? set.id;
 export const looksLikeQuickAdd = (text: string) => parseQuickAddLine(text) !== null;
 
 export function resolveQuickAdd(catalogue: Catalogue, entry: QuickAddEntry): QuickAddResolution {
+	// Every set the code can mean: "SIT TG05" is in the Silver Tempest Trainer Gallery.
+	const found = findPrinting(catalogue, entry.setCode, entry.number);
+	if (found) return { entry, card: found.card, set: found.set, note: null };
+
 	const { set } = setForCode(catalogue, entry.setCode);
 	if (!set) {
 		return { entry, card: null, set: null, note: `Unknown set code ${entry.setCode}` };
 	}
-
-	const card = findByNumber(catalogue.cardsBySet.get(set.id) ?? [], entry.number)[0] ?? null;
-	return {
-		entry,
-		card,
-		set,
-		note: card ? null : `${set.name} has no card #${entry.number}`
-	};
+	return { entry, card: null, set, note: `${set.name} has no card #${entry.number}` };
 }
 
 export const resolveQuickAddAll = (catalogue: Catalogue, entries: QuickAddEntry[]) =>

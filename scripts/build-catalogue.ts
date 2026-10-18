@@ -53,6 +53,7 @@ async function main() {
 	const detailsBySet = new Map<string, CardDetailRow[]>();
 	const artworkPublished = new Set<string>();
 	const failures: string[] = [];
+	const failedSetIds = new Set<string>();
 	const warnings: string[] = [];
 	let done = 0;
 
@@ -77,6 +78,7 @@ async function main() {
 			if (await hasPublishedArtwork(cards)) artworkPublished.add(set.id);
 		} catch (error) {
 			failures.push(`${set.id}: ${(error as Error).message}`);
+			failedSetIds.add(set.id);
 		}
 
 		done += 1;
@@ -90,12 +92,17 @@ async function main() {
 
 	const catalogue: CatalogueFile = {
 		generatedAt: new Date().toISOString().slice(0, 10),
-		sets: sets.map((set) =>
-			toSetRow(set, {
+		sets: sets.map((set) => {
+			const row = toSetRow(set, {
 				imageBase: imageBases.get(set.id) ?? null,
 				artworkPublished: artworkPublished.has(set.id)
-			})
-		),
+			});
+			// A set whose cards failed to fetch must not claim its declared size: the browser
+			// refetches a set only when TCGdex's total differs from the one recorded here
+			// (`staleSetIds`), so a real total would leave it empty until the next build.
+			if (failedSetIds.has(set.id)) row[5] = null;
+			return row;
+		}),
 		cards: cardRows
 	};
 

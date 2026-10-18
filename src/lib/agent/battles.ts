@@ -7,7 +7,13 @@
  * tab shows, through the same parser.
  */
 import type { Clock } from '$lib/data/clock';
-import { battleLogsFor, type BattleLog, type BattleResult, type UserData } from '$lib/data/model';
+import {
+	BATTLE_RESULTS,
+	battleLogsFor,
+	type BattleLog,
+	type BattleResult,
+	type UserData
+} from '$lib/data/model';
 import * as mutate from '$lib/data/mutations';
 import { buildReplay, parseBattleLog } from '$lib/tcg/battle-log';
 import { packLogText, unpackLogText } from '$lib/tcg/battle-log/storage';
@@ -85,11 +91,33 @@ export type SaveBattleLogInput = {
 	text: string;
 	/** The handle that is the user's. Guessed from the deck's list when left out. */
 	player?: string;
-	result?: BattleResult;
+	/** One of `BATTLE_RESULTS`, checked here — it arrives as free text from the CLI. Read from the log when left out. */
+	result?: string;
+	/** YYYY-MM-DD, checked here: logs sort by it as a string. */
 	playedOn?: string;
 	opponentDeck?: string;
 	note?: string;
 };
+
+/**
+ * A result outside the list would be saved, then quietly read back as 'unknown' by
+ * migrate, so it is refused up front instead.
+ */
+function checkResult(value: string | undefined): BattleResult | undefined {
+	if (value === undefined) return undefined;
+	if (BATTLE_RESULTS.includes(value as BattleResult)) return value as BattleResult;
+	throw new AgentError(`"${value}" is not a result. Use one of: ${BATTLE_RESULTS.join(', ')}`);
+}
+
+/** A real calendar day as YYYY-MM-DD: "2026-9-1" or "2026-02-30" would sort or read wrong. */
+function checkDate(value: string | undefined): string | undefined {
+	if (value === undefined) return undefined;
+	const day = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null;
+	if (!day || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== value) {
+		throw new AgentError(`"${value}" is not a date. Use YYYY-MM-DD, like 2026-09-01.`);
+	}
+	return value;
+}
 
 /**
  * Save a pasted log against a deck. Which side is the user's is guessed from the deck's
@@ -102,6 +130,8 @@ export async function saveBattleLog(
 	input: SaveBattleLogInput
 ): Promise<{ data: UserData; log: BattleLog; summary: BattleSummary }> {
 	const deck = findDeck(ctx.data, ref);
+	const result = checkResult(input.result);
+	const playedOn = checkDate(input.playedOn);
 	const text = input.text.trim();
 	if (!text) throw new AgentError('The log is empty');
 
@@ -134,8 +164,8 @@ export async function saveBattleLog(
 		...(await packLogText(text)),
 		player,
 		opponent: parsed.players.find((name) => name !== player) ?? '',
-		result: input.result ?? summary.outcome,
-		playedOn: input.playedOn ?? undefined,
+		result: result ?? summary.outcome,
+		playedOn,
 		opponentDeck: input.opponentDeck ?? null,
 		note: input.note ?? null
 	});

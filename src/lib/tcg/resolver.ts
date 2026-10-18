@@ -2,7 +2,8 @@
  * Turns parsed decklist entries into catalogue cards.
  *
  * Resolution order, most to least trustworthy:
- *   1. set code + collector number  (the exact printing the export named)
+ *   1. set code + collector number  (the exact printing the export named, looked for in
+ *      the code's numbered subsets too — see `setsForCode`)
  *   2. the same, via PTCGL_CODE_OVERRIDES for codes TCGdex lacks
  *   3. name only — used for "null" set codes and for codes we could not map
  *   4. basic-energy aliases ("Basic {R} Energy" → "Fire Energy")
@@ -11,7 +12,8 @@
  * ask the user. This is synchronous — the catalogue is already in memory.
  */
 import type { Catalogue } from '$lib/catalogue';
-import type { Card } from '$lib/types';
+import type { Card, CardSet } from '$lib/types';
+import { isStandardLegal } from './legality';
 import type { ParsedEntry } from './parser';
 import { energyNameAliases, normalizeName } from './normalize';
 import { PTCGL_CODE_OVERRIDES } from './set-code-overrides';
@@ -35,13 +37,22 @@ const numberKey = (value: string) => value.replace(/^0+(?=\d)/, '').toLowerCase(
  */
 const digitsOnly = (value: string) => value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
 
-/** Printings whose collector number matches, literal matches before numeric ones. */
+/** The letters a collector number opens with: "TG" for "TG05", "" for "005". */
+const letterPrefix = (value: string) => value.match(/^[A-Za-z]*/)![0].toUpperCase();
+
+/**
+ * Printings whose collector number matches, literal matches before numeric ones. A
+ * lettered number only falls back to printings with the same letters: "TG05" is a
+ * Trainer Gallery card, never the main set's #5.
+ */
 export function findByNumber(candidates: Card[], number: string, setId?: string) {
 	const scoped = setId ? candidates.filter((card) => card.set.id === setId) : candidates;
 	const literal = scoped.filter((card) => numberKey(card.localId) === numberKey(number));
+	const prefix = letterPrefix(number);
 	const numeric = scoped.filter(
 		(card) =>
 			!literal.includes(card) &&
+			(!prefix || letterPrefix(card.localId) === prefix) &&
 			digitsOnly(card.localId) &&
 			digitsOnly(card.localId) === digitsOnly(number)
 	);
@@ -50,38 +61,63 @@ export function findByNumber(candidates: Card[], number: string, setId?: string)
 
 /** Newest standard-legal printing wins, then newest overall — what players expect. */
 function pickCanonical(candidates: Card[]) {
-	return (
-		candidates.find((card) => card.set.legalStandard) ?? candidates[0]
-	);
+	return candidates.find(isStandardLegal) ?? candidates[0];
 }
 
 /**
- * The set a code names: a PTCGL code first, then the override table, then — because
- * people who read the catalogue type them — a raw TCGdex set id like "sv03".
+ * Every set a code can name, in the order to look for a collector number in them: the
+ * PTCGL code, the override table, the set's numbered subsets, then — because people who
+ * read the catalogue type them — a raw TCGdex set id like "sv03".
+ *
+ * The subsets matter because a main set owns its code: PTCGL writes Silver Tempest's
+ * Trainer Gallery as "SIT TG05" (TCGdex codes that subset "SIT:TG"), and Hidden Fates'
+ * Shiny Vault as "HIF SV49", which only the override table maps to `sma`.
  */
-export function setForCode(catalogue: Catalogue, code: string) {
+export function setsForCode(catalogue: Catalogue, code: string) {
 	const upper = code.toUpperCase();
-	const direct = catalogue.setsByCode.get(upper);
-	if (direct) return { set: direct, viaOverride: false };
+	const found: { set: CardSet; viaOverride: boolean }[] = [];
+	const add = (set: CardSet | undefined, viaOverride: boolean) => {
+		if (set && !found.some((entry) => entry.set === set)) found.push({ set, viaOverride });
+	};
 
+	add(catalogue.setsByCode.get(upper), false);
 	const overrideId = PTCGL_CODE_OVERRIDES[upper];
-	const override = overrideId ? catalogue.setsById.get(overrideId) : undefined;
-	if (override) return { set: override, viaOverride: true };
+	add(overrideId ? catalogue.setsById.get(overrideId) : undefined, true);
+	for (const [known, set] of catalogue.setsByCode) {
+		if (known.startsWith(`${upper}:`)) add(set, false);
+	}
+	add(catalogue.setsById.get(code.toLowerCase()), false);
 
-	const byId = catalogue.setsById.get(code.toLowerCase());
-	return { set: byId, viaOverride: false };
+	return found;
+}
+
+/** The set a code names first — the one to report when none of them holds a number. */
+export function setForCode(catalogue: Catalogue, code: string) {
+	return setsForCode(catalogue, code)[0] ?? { set: undefined, viaOverride: false };
+}
+
+/**
+ * The printing a set code and collector number name, searching every set the code can
+ * mean. `candidates` narrows the search to printings already matched by name.
+ */
+export function findPrinting(catalogue: Catalogue, code: string, number: string, candidates?: Card[]) {
+	for (const { set, viaOverride } of setsForCode(catalogue, code)) {
+		const card = findByNumber(candidates ?? catalogue.cardsBySet.get(set.id) ?? [], number, set.id)[0];
+		if (card) return { set, card, viaOverride };
+	}
+	return null;
 }
 
 /** Set code + collector number with no name — "3 MEG 21" — pins one printing or nothing. */
 function resolveByNumberOnly(catalogue: Catalogue, entry: ParsedEntry): ResolvedEntry {
 	const code = entry.setCode!.toUpperCase();
-	const { set, viaOverride } = setForCode(catalogue, code);
+	const { set } = setForCode(catalogue, code);
 	if (!set) {
 		return { entry, card: null, match: 'unresolved', alternatives: [], note: `Unknown set code ${code}` };
 	}
 
-	const card = findByNumber(catalogue.cardsBySet.get(set.id) ?? [], entry.number!)[0];
-	if (!card) {
+	const found = findPrinting(catalogue, code, entry.number!);
+	if (!found) {
 		return {
 			entry,
 			card: null,
@@ -91,6 +127,7 @@ function resolveByNumberOnly(catalogue: Catalogue, entry: ParsedEntry): Resolved
 		};
 	}
 
+	const { card, viaOverride } = found;
 	return {
 		entry,
 		card,
@@ -126,11 +163,16 @@ export function resolveEntry(catalogue: Catalogue, entry: ParsedEntry): Resolved
 	// With a set code and number we can pin the exact printing.
 	if (entry.setCode && entry.number) {
 		const code = entry.setCode.toUpperCase();
-		const { set, viaOverride } = setForCode(catalogue, code);
-		const exact = set ? findByNumber(candidates, entry.number, set.id)[0] : undefined;
+		const { set } = setForCode(catalogue, code);
+		const exact = findPrinting(catalogue, code, entry.number, candidates);
 
 		if (exact) {
-			return { entry, card: exact, match: viaOverride ? 'override' : 'exact', alternatives: candidates };
+			return {
+				entry,
+				card: exact.card,
+				match: exact.viaOverride ? 'override' : 'exact',
+				alternatives: candidates
+			};
 		}
 
 		note = set

@@ -195,7 +195,12 @@
 							<Input
 								id="format-name"
 								value={format.name}
-								onchange={(e) => store.updateFormat(formatId, { name: e.currentTarget.value })}
+								onchange={(e) => {
+									// An empty name would leave nothing to click on the formats page.
+									const name = e.currentTarget.value.trim();
+									if (name) store.updateFormat(formatId, { name });
+									else e.currentTarget.value = format.name;
+								}}
 							/>
 						</div>
 						<div class="flex flex-col gap-2">

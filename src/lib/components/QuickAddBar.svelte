@@ -132,6 +132,7 @@
 
 	function onkeydown(event: KeyboardEvent) {
 		if (event.key !== 'Enter' || event.shiftKey) return;
+		if (event.isComposing || event.keyCode === 229) return; // Enter that commits an IME composition
 		if (multiline) return; // Enter inside a pasted list is just a newline
 		event.preventDefault();
 		if (preview?.card) addSingle();

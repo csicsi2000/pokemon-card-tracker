@@ -134,10 +134,9 @@ export class SyncEngine {
 			let meta: RemoteFileMeta | null = state.fileId ? await backend.getMeta(state.fileId) : null;
 			if (!meta) meta = await backend.findFile();
 
-			const local = loadLocal();
-
 			// Nothing remote yet: this device's data becomes the file.
 			if (!meta) {
+				const local = loadLocal();
 				const created = await backend.createFile(JSON.stringify(local));
 				this.#remote = { version: created.version, data: local };
 				saveState({ ...state, fileId: created.id, remoteVersion: created.version, lastSyncedAt: now() });
@@ -155,6 +154,9 @@ export class SyncEngine {
 				this.#remote = { version: meta.version, data: remote };
 			}
 
+			// Read after the download, not before: saveLocal replaces the store, so a snapshot
+			// taken earlier would wipe out anything the user edited while it was in flight.
+			const local = loadLocal();
 			const merged = repair(merge(local, remote), { now: now(), lastSyncedAt: state.lastSyncedAt });
 
 			if (!sameData(merged, local)) saveLocal(merged);

@@ -493,6 +493,93 @@ describe('buildReplay zones', () => {
 		}
 	});
 
+	it('undoes a prevented counter only where one was just put', () => {
+		// Freezing Shroud's counter on Kadabra, then Battle Cage takes it back off.
+		const kadabra = (line: number) => after(line).sides.Csicsi20.active;
+		expect(kadabra(131)?.name).toBe('Kadabra');
+		expect(kadabra(133)?.damage).toBe(kadabra(131)!.damage - 10);
+		// Adrena-Brain moves counters onto Fezandipiti ex and Battle Cage reports every benched
+		// Pokémon it protects, Alakazam among them: nothing was put on it, so nothing comes off.
+		const alakazam = (line: number) =>
+			after(line).sides.Csicsi20.bench.find((mon) => mon.name === 'Alakazam')?.damage;
+		expect(alakazam(293)).toBe(40);
+		for (const line of [304, 316, 328, 336, 342]) expect(alakazam(line), `line ${line}`).toBe(40);
+	});
+
+	it('takes a prevented placement back off whole, and only within its own line', () => {
+		const text = [
+			'Setup',
+			'Ash drew 7 cards for the opening hand.',
+			'Gary drew 7 cards for the opening hand.',
+			'Ash played Pikachu to the Active Spot.',
+			'Ash played Eevee to the Bench.',
+			'Gary played Koffing to the Active Spot.',
+			'',
+			"Gary's Turn",
+			"Gary's Koffing used Gas Leak.",
+			"- Gary put 3 damage counters on Gary's Eevee.",
+			'Battle Cage was activated.',
+			'- Damage to Eevee was prevented.',
+			"Gary's Koffing used Gas Leak.",
+			"- Gary put 2 damage counters on Gary's Eevee.",
+			"Gary's Koffing used Gas Leak.",
+			"- Gary put 2 damage counters on Gary's Pikachu.",
+			'Battle Cage was activated.',
+			'- Damage to Eevee was prevented.'
+		].join('\n');
+		const ash = finalState(buildReplay(parseBattleLog(text))).sides.Ash;
+		// All three counters came off; the two that landed later stay, as the last Battle Cage
+		// line belongs to a placement on Pikachu.
+		expect(ash.bench.find((mon) => mon.name === 'Eevee')?.damage).toBe(20);
+		expect(ash.active?.damage).toBe(20);
+	});
+
+	it('discards a knocked-out Pokémon’s energy without touching a survivor of the same name', () => {
+		const text = [
+			'Setup',
+			'Ash drew 7 cards for the opening hand.',
+			'Gary drew 7 cards for the opening hand.',
+			'Ash played Abra to the Active Spot.',
+			'Ash played Abra to the Bench.',
+			'Gary played Yveltal to the Active Spot.',
+			'',
+			"Ash's Turn",
+			'Ash attached Telepathic Psychic Energy to Abra in the Active Spot.',
+			'',
+			"Gary's Turn",
+			'Gary attached Basic Darkness Energy to Yveltal in the Active Spot.',
+			"Ash's Turn",
+			'Ash attached Telepathic Psychic Energy to Abra on the Bench.',
+			'',
+			"Gary's Turn",
+			"Gary's Yveltal used Clutch on Ash's Abra for 70 damage.",
+			"Ash's Abra was Knocked Out!",
+			"Telepathic Psychic Energy was discarded from Ash's Abra."
+		].join('\n');
+		const game = buildReplay(parseBattleLog(text));
+		const ash = finalState(game).sides.Ash;
+		expect(ash.active).toBeNull();
+		expect(ash.bench).toHaveLength(1);
+		expect(ash.bench[0].attached).toEqual(['Telepathic Psychic Energy']);
+		expect(ash.discard).toEqual(['Abra', 'Telepathic Psychic Energy']);
+		expect(game.steps.at(-1)!.touched).not.toContain(ash.bench[0].uid);
+	});
+
+	it('keeps each step’s turn as it was, not the next section’s', () => {
+		const sections = parsed.sections.flatMap((section) => section.events.map(() => section));
+		expect(sections).toHaveLength(replay.steps.length);
+		replay.steps.forEach((step, index) => {
+			const section = sections[index];
+			expect(step.state.turnPlayer, `line ${step.event.line + 1}`).toBe(
+				section.kind === 'turn' ? section.player : null
+			);
+		});
+		// The last line of setup still reads as setup once the first turn has begun.
+		const lastSetup = replay.steps.findLast((step) => step.section === 'Setup');
+		expect(lastSetup?.state.turnPlayer).toBeNull();
+		expect(lastSetup?.turnNumber).toBeNull();
+	});
+
 	it('tracks special conditions until the Pokémon leaves the Active Spot', () => {
 		const text = [
 			'Setup',

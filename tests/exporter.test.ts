@@ -49,6 +49,14 @@ Total Cards: 16
 		);
 	});
 
+	it("writes a gallery subset under its parent's code, as PTCGL does", () => {
+		const gallery = makeSet({ id: 'swsh12tg', name: 'Silver Tempest Trainer Gallery', ptcglCode: 'SIT:TG' });
+		const text = toPtcglText([{ quantity: 1, card: makeCard({ name: 'Gardevoir', localId: 'TG05', set: gallery }) }]);
+
+		expect(text).toContain('1 Gardevoir SIT TG05');
+		expect(parseDecklist(text).entries[0]).toMatchObject({ name: 'Gardevoir', setCode: 'SIT', number: 'TG05' });
+	});
+
 	it('round-trips through the parser', () => {
 		const { entries, total, warnings } = parseDecklist(toPtcglText(lines));
 

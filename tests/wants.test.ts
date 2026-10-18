@@ -284,8 +284,22 @@ describe('wants lists', () => {
 		const deleted = mutate.deleteWantList(start, clock, 'trades', 'default');
 		expect(tombstone(deleted, 'trades', 'wantList')).toBeDefined();
 
-		const repaired = repair(deleted, { now: NOW });
-		expect(repaired.wants).toEqual([expect.objectContaining({ cardId: 'a', listId: null })]);
+		expect(deleted.wants).toEqual([expect.objectContaining({ cardId: 'a', listId: null })]);
+		expect(repair(deleted, { now: NOW }).wants).toEqual(deleted.wants);
+	});
+
+	it('keeping the wants of a deleted list never lowers what the default list wants', () => {
+		const clock = fixedClock();
+		const start = makeUserData({
+			wantLists: [makeWantList({ id: 'trades' })],
+			wants: [
+				makeWant({ cardId: 'z', quantity: 4, updatedAt: '2026-01-01T00:00:00.000Z' }),
+				makeWant({ cardId: 'z', quantity: 1, listId: 'trades', updatedAt: '2026-01-02T00:00:00.000Z' })
+			]
+		});
+
+		const deleted = mutate.deleteWantList(start, clock, 'trades', 'default');
+		expect(deleted.wants).toEqual([expect.objectContaining({ cardId: 'z', listId: null, quantity: 4 })]);
 	});
 
 	it('deleting a list can take its wants with it', () => {

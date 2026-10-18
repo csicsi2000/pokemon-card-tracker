@@ -50,13 +50,15 @@ const SECTIONS: Record<string, Supertype> = {
 /**
  * Uppercase words that end card names ("Charizard VMAX"). Without this they would be
  * mistaken for a set code on a line that omits set information.
+ *
+ * Not EX: it is also Expedition's set code, and a word is only read as a code with a
+ * collector number after it — exactly when EX means the set ("1 Charizard EX 6").
  */
 const NAME_SUFFIXES = new Set([
 	'V',
 	'VMAX',
 	'VSTAR',
 	'GX',
-	'EX',
 	'BREAK',
 	'LEGEND',
 	'PRIME',

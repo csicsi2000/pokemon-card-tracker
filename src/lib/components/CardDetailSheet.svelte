@@ -31,6 +31,7 @@
 	import LotPicker from './LotPicker.svelte';
 	import { loadCardText, loadPrices, formatPrice, type CardText, type MarketPrice } from '$lib/card-details';
 	import { prefs } from '$lib/prefs.svelte';
+	import { isStandardLegal } from '$lib/tcg/legality';
 	import { rowKey, store } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
 	import {
@@ -255,7 +256,7 @@
 		{#if card.regulationMark}
 			<Badge variant="outline">Reg {card.regulationMark}</Badge>
 		{/if}
-		{#if card.set.legalStandard}
+		{#if isStandardLegal(card)}
 			<Badge>Standard</Badge>
 		{:else if card.set.legalExpanded}
 			<Badge variant="secondary">Expanded</Badge>

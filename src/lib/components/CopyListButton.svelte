@@ -51,8 +51,17 @@
 
 	async function copyCardmarket() {
 		busy = true;
+		const what = `${label} for Cardmarket`;
+		const text = cardmarketText();
 		try {
-			await write(await cardmarketText(), `${label} for Cardmarket`);
+			// Safari only lets a write that starts inside the tap through, and the set files
+			// may need a fetch first. Handing the clipboard a promise starts the write now.
+			if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) throw new Error();
+			const blob = text.then((payload) => new Blob([payload], { type: 'text/plain' }));
+			await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })]);
+			toast.success(`${what} copied`);
+		} catch {
+			await write(await text, what);
 		} finally {
 			busy = false;
 		}

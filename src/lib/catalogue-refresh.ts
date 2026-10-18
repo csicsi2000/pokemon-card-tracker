@@ -86,6 +86,10 @@ export function readDelta(baseGeneratedAt: string): CatalogueDelta | null {
 	}
 }
 
+/**
+ * Store the delta, trimmed to the budget, and return the trimmed copy that was stored.
+ * Callers keep the untrimmed one in memory — see `refreshCatalogue`.
+ */
 export function writeDelta(delta: CatalogueDelta): CatalogueDelta {
 	if (typeof localStorage === 'undefined') return delta;
 

@@ -72,6 +72,7 @@
 	}
 
 	function onkeydown(event: KeyboardEvent) {
+		if (event.isComposing || event.keyCode === 229) return; // Enter that commits an IME composition
 		if (event.key === 'Enter' && quick?.card) {
 			event.preventDefault();
 			add(quick.card);

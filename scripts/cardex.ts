@@ -19,9 +19,10 @@ import { readFileSync } from 'node:fs';
 import * as api from '../src/lib/agent/api';
 import * as battles from '../src/lib/agent/battles';
 import { recordLabel } from '../src/lib/tcg/battle-log/record';
+import { isStandardLegal } from '../src/lib/tcg/legality';
 import { folderPath } from '../src/lib/data/folders';
 import { toReadableJson, toReadableMarkdown } from '../src/lib/agent/readable';
-import { VARIANT_LABELS, type BattleResult, type CardVariant } from '../src/lib/types';
+import { VARIANT_LABELS, type CardVariant } from '../src/lib/types';
 import { loadCatalogueFromDisk, openData, resolveDataPath, saveData } from './agent-io';
 
 // -- tiny argv parser ---------------------------------------------------------
@@ -47,6 +48,27 @@ function parseArgs(argv: string[]): Args {
 
 const flagString = (args: Args, key: string) =>
 	typeof args.flags[key] === 'string' ? (args.flags[key] as string) : undefined;
+
+/** Like flagString, but a bare `--date` with nothing after it is a mistake, not "no date". */
+function flagValue(args: Args, key: string): string | undefined {
+	if (args.flags[key] === true) throw new api.AgentError(`--${key} needs a value`);
+	return flagString(args, key);
+}
+
+/**
+ * The --folder of a move. Leaving it out or misspelling it must not quietly move the deck or
+ * lot to the top level, so it is required; only an explicit "" is the top level. Windows
+ * PowerShell 5.1 drops a bare "" argument before it reaches us, hence the hint.
+ */
+function moveFolder(args: Args, usage: string): string {
+	const folder = args.flags.folder;
+	if (typeof folder !== 'string') {
+		throw new api.AgentError(
+			`${usage}  (--folder "" for the top level; in Windows PowerShell write --folder '""')`
+		);
+	}
+	return folder;
+}
 
 const HELP = `cardex — Pokémon TCG collection & decks from the command line
 
@@ -76,7 +98,7 @@ Writing (every write is timestamped and merges cleanly into the app on next sync
                                    FILE is a PTCGL decklist; "-" reads stdin
   deck replace <deck> --from FILE|-   replace a deck's list
   deck set <deck> <spec> <qty>     set one card's count (0 removes it)
-  deck move <deck> --folder A/B    move a deck (folders are created as needed)
+  deck move <deck> --folder A/B    move a deck (folders created as needed; "" = top level)
   deck rename <deck> <new name>
   deck delete <deck>
   battle add <deck> --from FILE|-  save a TCG Live battle log ("-" reads stdin)
@@ -288,12 +310,12 @@ async function main(argv: string[]) {
 					const from = flagString(args, 'from');
 					if (!from) throw new api.AgentError('battle add needs --from FILE (or "-" for stdin)');
 					const text = from === '-' ? readFileSync(0, 'utf8') : readFileSync(from, 'utf8');
-					const result = flagString(args, 'result');
+					// saveBattleLog refuses a result or date it does not know.
 					const { data, log, summary } = await battles.saveBattleLog(ctx, rest.join(' '), {
 						text,
 						player: flagString(args, 'player'),
-						result: result as BattleResult | undefined,
-						playedOn: flagString(args, 'date'),
+						result: flagValue(args, 'result'),
+						playedOn: flagValue(args, 'date'),
 						opponentDeck: flagString(args, 'opponent-deck'),
 						note: flagString(args, 'note')
 					});
@@ -341,7 +363,7 @@ async function main(argv: string[]) {
 			const cards = api.search(catalogue, [sub, ...rest].join(' '), flagString(args, 'set'));
 			return emit(
 				args,
-				cards.map((card) => ({ id: card.id, name: card.name, set: card.set.ptcglCode ?? card.set.id, setName: card.set.name, number: card.localId, supertype: card.supertype, rarity: card.rarity, standard: card.set.legalStandard })),
+				cards.map((card) => ({ id: card.id, name: card.name, set: card.set.ptcglCode ?? card.set.id, setName: card.set.name, number: card.localId, supertype: card.supertype, rarity: card.rarity, standard: isStandardLegal(card) })),
 				() => (cards.length ? cards.map((card) => `${pad(api.describeCard(card), 48)}${card.set.name}`).join('\n') : 'Nothing found.')
 			);
 		}
@@ -387,7 +409,8 @@ async function main(argv: string[]) {
 				return emit(args, lot, () => `Created lot "${lot.name}" (${lot.id})`);
 			}
 			if (sub === 'move' && rest[0]) {
-				const { data, lot, folder } = api.moveLot(ctx, rest.join(' '), flagString(args, 'folder') ?? null);
+				const path = moveFolder(args, 'Usage: lot move <lot> --folder A/B');
+				const { data, lot, folder } = api.moveLot(ctx, rest.join(' '), path);
 				commit(data);
 				const where = folder ? folderPath(data.lotFolders, folder.id).map((f) => f.name).join('/') : 'the top level';
 				return emit(args, { id: lot.id, name: lot.name, folder: where }, () => `Moved "${lot.name}" to ${where}`);
@@ -504,7 +527,10 @@ async function main(argv: string[]) {
 				case 'move':
 				case 'rename': {
 					if (!rest[0]) throw new api.AgentError(`Usage: deck ${sub} <deck> ...`);
-					const changes = sub === 'move' ? { folder: flagString(args, 'folder') ?? null } : { name: rest.slice(1).join(' ') };
+					const changes =
+						sub === 'move'
+							? { folder: moveFolder(args, 'Usage: deck move <deck> --folder A/B') }
+							: { name: rest.slice(1).join(' ') };
 					const { data, deck } = api.renameDeck(ctx, rest[0], changes);
 					commit(data);
 					return emit(args, { id: deck.id, ...changes }, () => `Updated "${deck.name}".`);

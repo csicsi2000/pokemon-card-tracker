@@ -92,12 +92,16 @@
 	const diff = $derived(diffDecks(entriesOf(idA), entriesOf(idB)));
 	const ready = $derived(Boolean(deckA && deckB));
 
-	/** The copies coming in that the user does not already own — the cost of switching. */
+	/**
+	 * The copies coming in that the user does not already own — the cost of switching.
+	 * Measured against B's full count, not the delta: the copies you own already cover
+	 * B's first copies of a card, so only what B runs beyond them is missing.
+	 */
 	const toBuy = $derived(
 		buildBuylist(
 			diff.rows
 				.filter((row) => row.delta > 0)
-				.map((row) => ({ card: row.card, quantity: row.delta })),
+				.map((row) => ({ card: row.card, quantity: row.b })),
 			store.collection.flatMap((entry) => {
 				const card = data.catalogue.byId.get(entry.cardId);
 				return card ? [{ name: card.name, quantity: entry.quantity }] : [];

@@ -43,6 +43,7 @@
 	import { parseRules } from '$lib/tcg/format-rules';
 	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
 	import { buildBuylist } from '$lib/tcg/buylist';
+	import { deckNameKey } from '$lib/tcg/normalize';
 	import { battleRecord, recordLabel } from '$lib/tcg/battle-log/record';
 	import { toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
 	import { cn } from '$lib/utils';
@@ -93,7 +94,7 @@
 		const totals = new Map<string, number>();
 		for (const row of store.collection) {
 			const card = data.catalogue.byId.get(row.cardId);
-			if (card) totals.set(card.nameNormalized, (totals.get(card.nameNormalized) ?? 0) + row.quantity);
+			if (card) totals.set(deckNameKey(card.name), (totals.get(deckNameKey(card.name)) ?? 0) + row.quantity);
 		}
 		return totals;
 	});
@@ -250,7 +251,12 @@
 					value={deck.name}
 					class="h-9 max-w-64"
 					aria-label="Deck name"
-					onchange={(event) => store.updateDeck(deckId, { name: event.currentTarget.value })}
+					onchange={(event) => {
+						// An empty name would leave the deck with nothing to click on the decks page.
+						const name = event.currentTarget.value.trim();
+						if (name) store.updateDeck(deckId, { name });
+						else event.currentTarget.value = deck.name;
+					}}
 				/>
 
 				<Select.Root
@@ -368,7 +374,7 @@
 							class="grid grid-cols-3 gap-3 pt-1 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5"
 						>
 							{#each entries as entry, index (entry.card.id)}
-								{@const owned = ownedByName.get(entry.card.nameNormalized) ?? 0}
+								{@const owned = ownedByName.get(deckNameKey(entry.card.name)) ?? 0}
 								{@const missing = Math.max(0, entry.quantity - owned)}
 								<div
 									animate:flip={{ duration: 200 }}
@@ -436,7 +442,7 @@
 						</div>
 					{:else}
 						{#each entries as entry (entry.card.id)}
-							{@const owned = ownedByName.get(entry.card.nameNormalized) ?? 0}
+							{@const owned = ownedByName.get(deckNameKey(entry.card.name)) ?? 0}
 							{@const missing = Math.max(0, entry.quantity - owned)}
 							<div
 								animate:flip={{ duration: 200 }}

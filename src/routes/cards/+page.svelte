@@ -119,7 +119,11 @@
 		<Select.Root
 			type="single"
 			value={supertype}
-			onValueChange={(v) => (supertype = (v ?? '') as Supertype | '')}
+			onValueChange={(v) => {
+				// Not in the URL, so the effect above never sees it change: reset the page here.
+				supertype = (v ?? '') as Supertype | '';
+				pageNumber = 1;
+			}}
 		>
 			<Select.Trigger class="min-w-0 flex-1 sm:w-36 sm:flex-none">
 				{typeOptions.find((o) => o.value === supertype)?.label ?? 'All types'}

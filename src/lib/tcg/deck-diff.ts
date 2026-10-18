@@ -1,8 +1,8 @@
 /**
  * Two decks side by side: what came in, what went out, and what stayed.
  *
- * Cards are matched by NAME, not by printing — the same rule the buylist and deck
- * requirements use. Two versions of one archetype often differ only in where a card was
+ * Cards are matched by NAME, not by printing — the same rule (`deckNameKey`) the buylist
+ * and deck requirements use. Two versions of one archetype often differ only in where a card was
  * pulled from ("4 Iono PAL 185" vs "4 Iono PAF 80"), and calling that a change would
  * bury the real differences. A name both decks run in the same count but from different
  * printings is still flagged (`reprintOnly`), because regulation marks matter.
@@ -12,7 +12,7 @@
 import type { Card, Supertype } from '$lib/types';
 import { deckStats, type DeckStats } from './deck-stats';
 import type { DeckEntry } from './legality';
-import { normalizeName } from './normalize';
+import { deckNameKey } from './normalize';
 
 /** Which side of the comparison a row belongs to, read from left (A) to right (B). */
 export type DiffStatus =
@@ -87,7 +87,7 @@ type Side = { quantity: number; cards: Card[] };
 function byName(entries: DeckEntry[]): Map<string, Side> {
 	const sides = new Map<string, Side>();
 	for (const { card, quantity } of entries) {
-		const key = card.nameNormalized || normalizeName(card.name);
+		const key = deckNameKey(card.name);
 		const side = sides.get(key);
 		if (side) {
 			side.quantity += quantity;

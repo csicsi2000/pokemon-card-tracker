@@ -62,6 +62,17 @@ describe('diffDecks', () => {
 		expect(row(diff, 'Iono').printings).toEqual({ a: [pal], b: [paf] });
 	});
 
+	it("treats another professor's Professor's Research as a reprint, not a swap", () => {
+		const oak = trainer("Professor's Research (Professor Oak)");
+		const magnolia = trainer("Professor's Research (Professor Magnolia)");
+
+		const diff = diffDecks([{ card: oak, quantity: 4 }], [{ card: magnolia, quantity: 4 }]);
+
+		expect(diff.changes).toBe(0);
+		expect(diff.rows).toHaveLength(1);
+		expect(diff.rows[0]).toMatchObject({ status: 'same', reprintOnly: true, name: magnolia.name });
+	});
+
 	it('does not flag a reprint when both decks run the same printings', () => {
 		const iono = trainer('Iono');
 		const diff = diffDecks([{ card: iono, quantity: 4 }], [{ card: iono, quantity: 4 }]);

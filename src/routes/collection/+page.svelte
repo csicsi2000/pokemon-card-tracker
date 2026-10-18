@@ -96,9 +96,9 @@
 	const matches = $derived(cardQuery(data.catalogue, query).matches);
 	const keep = (row: Row) =>
 		matches(row.card) &&
-		(!setId || row.card.set.id === setId) &&
+		(!activeSetId || row.card.set.id === activeSetId) &&
 		(!supertype || row.card.supertype === supertype) &&
-		(!rarity || (row.card.rarity ?? '') === rarity);
+		(!activeRarity || (row.card.rarity ?? '') === activeRarity);
 
 	/** Remembered per browser, so the order you like survives a reload. */
 	const sort = $derived(prefs.collectionSort);
@@ -205,6 +205,11 @@
 			.sort((a, b) => rarityRank(b) - rarityRank(a) || a.localeCompare(b))
 			.map((value) => ({ value, label: value }))
 	]);
+
+	// A set or rarity the current lot does not hold is not in its picker, which then reads
+	// "All" — so it must not filter either, or the page empties with every picker on "All".
+	const activeSetId = $derived(setOptions.some((o) => o.value === setId) ? setId : '');
+	const activeRarity = $derived(rarityOptions.some((o) => o.value === rarity) ? rarity : '');
 
 	const sortOptions = COLLECTION_SORTS.map((value) => ({
 		value,

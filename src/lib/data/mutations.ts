@@ -384,9 +384,12 @@ export function updateWantList(
 }
 
 /**
- * Remove a list. With `wants: 'default'` its wants are left in place and fold into the
- * default list during repair() — deliberately, so a device that merges this deletion
- * later folds them the same way. With `wants: 'remove'` they go too.
+ * Remove a list. With `wants: 'default'` its wants move onto the default list the way
+ * moveWant() moves one — re-keyed, the old key tombstoned, the larger quantity standing
+ * where the default list already wants that printing. With `wants: 'remove'` they go too.
+ *
+ * The move is a real edit rather than left to repair(): a device still holding the old
+ * keys would otherwise bring them back on every merge.
  */
 export function deleteWantList(
 	data: UserData,
@@ -402,14 +405,15 @@ export function deleteWantList(
 		tombstones: bury(data, 'wantList', id, now)
 	};
 
-	if (wants === 'remove') {
-		const doomed = next.wants.filter((want) => want.listId === id);
-		let tombstones = next.tombstones;
-		for (const want of doomed) tombstones = bury({ ...next, tombstones }, 'want', wantKey(want), now);
-		next = { ...next, wants: next.wants.filter((want) => want.listId !== id), tombstones };
+	const doomed = next.wants.filter((want) => want.listId === id);
+	if (wants === 'default') {
+		for (const want of doomed) next = moveWant(next, clock, want, null);
+		return next;
 	}
 
-	return next;
+	let tombstones = next.tombstones;
+	for (const want of doomed) tombstones = bury({ ...next, tombstones }, 'want', wantKey(want), now);
+	return { ...next, wants: next.wants.filter((want) => want.listId !== id), tombstones };
 }
 
 // -- lots -------------------------------------------------------------------
@@ -456,9 +460,13 @@ export function updateLot(
 }
 
 /**
- * Remove a lot. With `cards: 'unsorted'` its rows are left in place and fold into
- * Unsorted during repair() — deliberately, so a device that merges this deletion later
- * folds them the same way. With `cards: 'remove'` the rows go too.
+ * Remove a lot. With `cards: 'unsorted'` its rows move to Unsorted, adding to any stack
+ * already there; with `cards: 'remove'` they go. Either way every row in the lot is
+ * tombstoned.
+ *
+ * The move is a real edit rather than left to repair(): repair sums a stray row into
+ * Unsorted, and a device still holding the lot's rows would bring them back to be summed
+ * again on every merge.
  */
 export function deleteLot(
 	data: UserData,
@@ -474,14 +482,14 @@ export function deleteLot(
 		tombstones: bury(data, 'lot', id, now)
 	};
 
-	if (cards === 'remove') {
-		const doomed = next.collection.filter((row) => row.lotId === id);
-		let tombstones = next.tombstones;
-		for (const row of doomed) tombstones = bury({ ...next, tombstones }, 'collection', rowKey(row), now);
-		next = { ...next, collection: next.collection.filter((row) => row.lotId !== id), tombstones };
-	}
+	const doomed = next.collection.filter((row) => row.lotId === id);
+	let tombstones = next.tombstones;
+	for (const row of doomed) tombstones = bury({ ...next, tombstones }, 'collection', rowKey(row), now);
+	next = { ...next, collection: next.collection.filter((row) => row.lotId !== id), tombstones };
 
-	return next;
+	if (cards === 'remove') return next;
+	const moving = doomed.map(({ cardId, variant, quantity }) => ({ cardId, variant, quantity, lotId: null }));
+	return addOwned(next, clock, moving, 'add');
 }
 
 // -- lot folders ------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The price cache is the only part of the app that keeps a copy of something a server
@@ -36,6 +36,12 @@ async function freshModule(seed: Record<string, string> = {}) {
 	vi.stubGlobal('localStorage', storage);
 	return import('../src/lib/card-details');
 }
+
+// The first import transforms the whole module graph, which under a busy parallel run can
+// outlast a single test's timeout. Pay for it once here; fresh copies are cheap after.
+beforeAll(async () => {
+	await import('../src/lib/card-details');
+}, 60_000);
 
 beforeEach(() => {
 	vi.useFakeTimers();

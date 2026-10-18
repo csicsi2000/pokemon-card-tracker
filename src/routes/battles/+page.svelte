@@ -83,6 +83,7 @@
 	}
 
 	function remove(log: BattleLog) {
+		if (!confirm(`Delete the game against ${log.opponent || 'your opponent'}? The log cannot be recovered.`)) return;
 		store.deleteBattleLog(log.id);
 		toast.success(`Deleted the game against ${log.opponent || 'your opponent'}`);
 	}

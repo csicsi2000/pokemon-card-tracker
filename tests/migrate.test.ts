@@ -149,4 +149,23 @@ describe('renamed sets', () => {
 
 		expect(twice.collection.map((row) => row.cardId)).toEqual(['sv03-125', 'swsh11tg-TG24']);
 	});
+
+	it('keeps the later row when an old id meets the same pile under its new id', () => {
+		// A device on an older build still uploads the old id beside the new one.
+		const result = migrate({
+			version: 2,
+			collection: [
+				{ cardId: 'swsh9tg-TG01', variant: 'normal', quantity: 3, updatedAt: '2026-02-01T00:00:00.000Z' },
+				{ cardId: 'swsh9.5tg-TG01', variant: 'normal', quantity: 2, updatedAt: '2026-01-01T00:00:00.000Z' },
+				// Genuine duplicates under one id are still separate piles that add up.
+				{ cardId: 'sv03-125', variant: 'holo', quantity: 1 },
+				{ cardId: 'sv03-125', variant: 'holo', quantity: 2 }
+			]
+		});
+
+		expect(result.collection).toEqual([
+			expect.objectContaining({ cardId: 'swsh9tg-TG01', quantity: 3 }),
+			expect.objectContaining({ cardId: 'sv03-125', quantity: 3 })
+		]);
+	});
 });

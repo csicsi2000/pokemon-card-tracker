@@ -1,12 +1,13 @@
 /**
  * "What do I still need to buy?" — the reason this app exists alongside a spreadsheet.
  *
- * Requirements are per card NAME (any Charmander printing satisfies "4 Charmander"),
- * and ownership sums every printing and variant the user has. The result is the
+ * Requirements are per card NAME (any Charmander printing satisfies "4 Charmander",
+ * any professor's Professor's Research satisfies another — see `deckNameKey`), and
+ * ownership sums every printing and variant the user has. The result is the
  * shortfall, plus the printing that was asked for as a suggestion of what to look for.
  */
 import type { Card } from '$lib/types';
-import { normalizeName } from './normalize';
+import { deckDisplayName, deckNameKey } from './normalize';
 
 export type Requirement = { card: Card; quantity: number };
 /** Owned copies of one printing; `name` lets us aggregate across printings. */
@@ -30,16 +31,21 @@ export type Buylist = {
 export function buildBuylist(requirements: Requirement[], owned: OwnedRow[]): Buylist {
 	const ownedByName = new Map<string, number>();
 	for (const row of owned) {
-		const key = normalizeName(row.name);
+		const key = deckNameKey(row.name);
 		ownedByName.set(key, (ownedByName.get(key) ?? 0) + row.quantity);
 	}
 
 	const neededByName = new Map<string, { name: string; needed: number; suggestion: Card }>();
 	for (const { card, quantity } of requirements) {
-		const key = normalizeName(card.name);
+		const key = deckNameKey(card.name);
 		const existing = neededByName.get(key);
-		if (existing) existing.needed += quantity;
-		else neededByName.set(key, { name: card.name, needed: quantity, suggestion: card });
+		if (existing) {
+			existing.needed += quantity;
+			// Two characters' Professor's Research: name the card, not either professor.
+			if (existing.name !== card.name) existing.name = deckDisplayName(card.name);
+		} else {
+			neededByName.set(key, { name: card.name, needed: quantity, suggestion: card });
+		}
 	}
 
 	const rows: BuylistRow[] = [];

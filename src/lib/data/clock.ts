@@ -40,6 +40,7 @@ export function createClock(now: () => number = Date.now): Clock {
 			for (const folder of data.folders) observeTime(folder.updatedAt);
 			for (const deck of data.decks) observeTime(deck.updatedAt);
 			for (const format of data.formats) observeTime(format.updatedAt);
+			for (const log of data.battleLogs) observeTime(log.updatedAt);
 			for (const tombstone of data.tombstones) observeTime(tombstone.deletedAt);
 		}
 	};

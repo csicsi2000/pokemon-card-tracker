@@ -44,6 +44,30 @@ describe('buildBuylist', () => {
 		expect(list.rows[0]).toMatchObject({ needed: 4, owned: 0, missing: 4 });
 	});
 
+	it("lets any professor's Professor's Research cover another", () => {
+		const oak = makeCard({ name: "Professor's Research (Professor Oak)" });
+		const magnolia = makeCard({ name: "Professor's Research (Professor Magnolia)" });
+
+		const list = buildBuylist(
+			[
+				{ card: oak, quantity: 2 },
+				{ card: magnolia, quantity: 2 }
+			],
+			[{ name: "Professor's Research (Professor Juniper)", quantity: 1 }]
+		);
+
+		expect(list.rows).toEqual([
+			{ name: "Professor's Research", needed: 4, owned: 1, missing: 3, suggestion: oak }
+		]);
+	});
+
+	it('keeps the full name when only one character is asked for', () => {
+		const giovanni = makeCard({ name: "Boss's Orders (Giovanni)" });
+		const list = buildBuylist([{ card: giovanni, quantity: 2 }], [{ name: "Boss's Orders (Lysandre)", quantity: 1 }]);
+
+		expect(list.rows[0]).toMatchObject({ name: "Boss's Orders (Giovanni)", owned: 1, missing: 1 });
+	});
+
 	it('sorts the biggest gaps first', () => {
 		const list = buildBuylist(
 			[

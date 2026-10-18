@@ -99,6 +99,14 @@ describe('repair', () => {
 		expect(result.tombstones.find((t) => t.key === 'dup')?.deletedAt).toBe('2026-05-31T00:00:00.000Z');
 	});
 
+	it('keeps every tombstone when the caller does not know the last sync', () => {
+		const result = repair(
+			makeUserData({ tombstones: [{ kind: 'deck', key: 'old', deletedAt: '2025-01-01T00:00:00.000Z' }] }),
+			{ now: NOW }
+		);
+		expect(result.tombstones).toHaveLength(1);
+	});
+
 	it('keeps an old tombstone that this device has not synced since', () => {
 		const result = repair(
 			makeUserData({ tombstones: [{ kind: 'deck', key: 'old', deletedAt: '2026-01-01T00:00:00.000Z' }] }),

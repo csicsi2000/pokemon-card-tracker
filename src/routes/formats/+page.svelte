@@ -111,7 +111,10 @@
 									? 'Singleton'
 									: `${format.parsed.maxCopiesPerName} per name`}
 							</Badge>
-							<Badge variant="outline">{poolLabel(format.parsed, format.pool.length)}</Badge>
+							<Badge variant="outline">{poolLabel(
+									format.parsed,
+									format.pool.reduce((sum, row) => sum + row.quantity, 0)
+								)}</Badge>
 							{#if format.parsed.bannedNames.length}
 								<Badge variant="outline">{format.parsed.bannedNames.length} banned</Badge>
 							{/if}
