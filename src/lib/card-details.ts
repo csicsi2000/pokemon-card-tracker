@@ -283,11 +283,17 @@ export function pricesCachedAt(cardId: string): number | null {
 	return cache().get(cardId)?.at ?? null;
 }
 
+/** A quote still fresh enough to show, without asking TCGdex — what data saver gets. */
+export function cachedPrices(cardId: string): MarketPrice[] | undefined {
+	const cached = cache().get(cardId);
+	return cached && Date.now() - cached.at < PRICE_TTL_MS ? cached.prices : undefined;
+}
+
 const priceRequests = new Map<string, Promise<MarketPrice[]>>();
 
 export async function loadPrices(cardId: string): Promise<MarketPrice[]> {
-	const cached = cache().get(cardId);
-	if (cached && Date.now() - cached.at < PRICE_TTL_MS) return cached.prices;
+	const cached = cachedPrices(cardId);
+	if (cached) return cached;
 
 	const existing = priceRequests.get(cardId);
 	if (existing) return existing;

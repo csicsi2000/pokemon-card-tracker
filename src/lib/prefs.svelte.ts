@@ -32,6 +32,18 @@ export const DECK_VIEW_LABELS: Record<DeckView, string> = {
 	grid: 'Grid'
 };
 
+/**
+ * When to go easy on the network: always, never, or whenever the browser says the
+ * connection is metered. See `pwa/data-saver.ts` for what "metered" can be told from.
+ */
+export type DataSaverMode = 'auto' | 'on' | 'off';
+
+export const DATA_SAVER_LABELS: Record<DataSaverMode, string> = {
+	auto: 'On mobile data',
+	on: 'Always',
+	off: 'Never'
+};
+
 const STORAGE_KEY = 'cardex:prefs:v1';
 
 type Preferences = {
@@ -67,6 +79,8 @@ type Preferences = {
 	replayHideNoise: boolean;
 	/** Milliseconds between steps when a replay is playing itself. */
 	replaySpeed: number;
+	/** Whether card art, prices and the catalogue check hold back to save mobile data. */
+	dataSaver: DataSaverMode;
 };
 
 const defaults = (): Preferences => ({
@@ -81,7 +95,8 @@ const defaults = (): Preferences => ({
 	collectionSortDir: 'asc',
 	lotAddSets: {},
 	replayHideNoise: true,
-	replaySpeed: 700
+	replaySpeed: 700,
+	dataSaver: 'auto'
 });
 
 class Prefs {
@@ -167,6 +182,13 @@ class Prefs {
 	}
 	set replaySpeed(value: number) {
 		this.#commit({ ...this.#values, replaySpeed: value });
+	}
+
+	get dataSaver() {
+		return this.#values.dataSaver;
+	}
+	set dataSaver(value: DataSaverMode) {
+		this.#commit({ ...this.#values, dataSaver: value });
 	}
 
 	/** The set id pinned for quick add in one lot, or '' for none. */

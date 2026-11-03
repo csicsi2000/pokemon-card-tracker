@@ -10,7 +10,7 @@
  * A missing price is normal — Energy cards, brand-new sets and anything the marketplaces
  * have never listed simply have none — so a failure here is recorded and never thrown.
  */
-import { loadPrices, type MarketPrice } from './card-details';
+import { cachedPrices, loadPrices, type MarketPrice } from './card-details';
 
 /** Requests in flight at once. Enough to fill a screen quickly, few enough to be polite. */
 const CONCURRENCY = 6;
@@ -49,6 +49,20 @@ class PriceBook {
 			this.#pending += 1;
 		}
 		this.#pump();
+	}
+
+	/**
+	 * Show whatever quotes are already stored, and fetch nothing — data saver. The rest
+	 * are not marked as asked for, so a later `request` (back on Wi-Fi) still fetches them.
+	 */
+	fromCache(cardIds: Iterable<string>) {
+		const found: Record<string, MarketPrice[]> = {};
+		for (const cardId of cardIds) {
+			if (this.#prices[cardId]) continue;
+			const prices = cachedPrices(cardId);
+			if (prices) found[cardId] = prices;
+		}
+		if (Object.keys(found).length > 0) this.#prices = { ...this.#prices, ...found };
 	}
 
 	/** Forget everything and fetch the given cards again — the refresh button. */

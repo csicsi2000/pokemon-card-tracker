@@ -24,10 +24,21 @@
 	 * A real scan always wins; the drawn energy card is only what an energy tile shows
 	 * in place of the name box, which for most basic energy is immediately — those
 	 * printings have no `image` at all, so there is nothing to ask for.
+	 *
+	 * With data saver on, a tile shows only art this device has cached and the open card
+	 * makes do with the small scan (see `artForDataSaver`), and a failed load is not
+	 * retried — each rung of the ladder is another download.
 	 */
 	import EnergyCardArt from './EnergyCardArt.svelte';
 	import { cardImage } from '$lib/catalogue';
-	import { HEAL_DELAYS_MS, healArtwork, onRetryChance } from '$lib/pwa/art';
+	import {
+		HEAL_DELAYS_MS,
+		artForDataSaver,
+		healArtwork,
+		isArtCached,
+		onRetryChance
+	} from '$lib/pwa/art';
+	import { dataSaver } from '$lib/pwa/data-saver.svelte';
 	import { energyType } from '$lib/tcg/energy';
 	import { cn } from '$lib/utils';
 	import type { Card } from '$lib/types';
@@ -50,7 +61,25 @@
 	/** Heals already spent on the current `src`; indexes the delay ladder. */
 	let tries = 0;
 
-	const src = $derived(cardImage(card, quality));
+	const saving = $derived(dataSaver.active);
+	/** What data saver settled on; `undefined` while the cache is still being asked. */
+	let saverSrc = $state<string | null | undefined>(undefined);
+	$effect(() => {
+		if (!saving) return;
+		const urls = { low: cardImage(card, 'low'), high: cardImage(card, 'high') };
+		let current = true;
+		saverSrc = undefined;
+		void artForDataSaver(urls, quality, (url) => isArtCached(url, globalThis.caches)).then(
+			(url) => {
+				if (current) saverSrc = url;
+			}
+		);
+		return () => {
+			current = false;
+		};
+	});
+
+	const src = $derived(saving ? saverSrc : cardImage(card, quality));
 	/** Non-null for an energy card whose type we can name — then we can draw it ourselves. */
 	const energy = $derived(energyType(card));
 	// Reset when the component is reused for a different printing.
@@ -63,7 +92,7 @@
 
 	// A tile that gave up listens for a reason to hope: back online, or looked at again.
 	$effect(() => {
-		if (!failed) return;
+		if (!failed || saving) return;
 		return onRetryChance(() => {
 			tries = 0;
 			failed = false;
@@ -73,7 +102,7 @@
 
 	async function onerror() {
 		const url = src;
-		if (!url) {
+		if (!url || saving) {
 			failed = true;
 			return;
 		}
@@ -90,7 +119,10 @@
 	}
 </script>
 
-{#if src && !failed}
+{#if src === undefined}
+	<!-- Data saver is checking the cache; a blank tile rather than a flash of the name. -->
+	<div class={cn('bg-muted', className)}></div>
+{:else if src && !failed}
 	{#key attempt}
 		<img
 			{src}

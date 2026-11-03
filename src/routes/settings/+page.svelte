@@ -13,7 +13,15 @@
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Copy from '@lucide/svelte/icons/copy';
-	import { prefs, CARD_VIEW_LABELS, type CardView } from '$lib/prefs.svelte';
+	import Gauge from '@lucide/svelte/icons/gauge';
+	import {
+		prefs,
+		CARD_VIEW_LABELS,
+		DATA_SAVER_LABELS,
+		type CardView,
+		type DataSaverMode
+	} from '$lib/prefs.svelte';
+	import { dataSaver } from '$lib/pwa/data-saver.svelte';
 	import { store } from '$lib/store.svelte';
 	import { sync } from '$lib/sync/engine.svelte';
 	import { CALLBACK_PATH, popupUnsupported } from '$lib/sync/google-auth';
@@ -163,6 +171,52 @@
 					<span class="text-muted-foreground text-xs">{option.hint}</span>
 				</button>
 			{/each}
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header>
+			<Card.Title class="flex items-center gap-2 text-base">
+				<Gauge class="size-4" /> Data saver
+				{#if dataSaver.active}<Badge variant="secondary">On now</Badge>{/if}
+			</Card.Title>
+			<Card.Description>
+				Card art is almost all of what Cardex downloads. With data saver on, grids show only the
+				art this device has already loaded — new cards show their name instead — and a card you open
+				loads its small scan. Wants list prices and the check for new sets wait for Wi-Fi.
+				Syncing your collection is never held back.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col gap-3">
+			<div class="bg-muted flex w-fit gap-0.5 rounded-lg p-0.5">
+				{#each Object.entries(DATA_SAVER_LABELS) as [value, label] (value)}
+					{@const active = prefs.dataSaver === value}
+					<button
+						type="button"
+						aria-pressed={active}
+						onclick={() => (prefs.dataSaver = value as DataSaverMode)}
+						class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors {active
+							? 'bg-background text-foreground shadow-sm'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						{label}
+					</button>
+				{/each}
+			</div>
+			<p class="text-muted-foreground text-xs">
+				{#if prefs.dataSaver !== 'auto'}
+					{prefs.dataSaver === 'on' ? 'Saving data on every connection.' : 'Never holding back.'}
+				{:else if dataSaver.reason === 'cellular'}
+					On mobile data right now, so data saver is on.
+				{:else if dataSaver.reason === 'save-data'}
+					Your phone's own data saver is on, so this one is too.
+				{:else if dataSaver.detectable}
+					Not on mobile data right now. This switches on by itself when you leave Wi-Fi.
+				{:else}
+					This browser cannot tell Wi-Fi from mobile data — only Chrome on Android can — so here it
+					follows your system's data saver at most. Choose Always on a phone that needs it.
+				{/if}
+			</p>
 		</Card.Content>
 	</Card.Root>
 

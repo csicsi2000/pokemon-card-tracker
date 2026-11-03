@@ -10,6 +10,7 @@
 	import { install } from '$lib/pwa/install.svelte';
 	import { dropRetiredCaches } from '$lib/pwa/caches';
 	import { catalogueSync } from '$lib/catalogue-sync.svelte';
+	import { dataSaver } from '$lib/pwa/data-saver.svelte';
 
 	let { children } = $props();
 
@@ -21,11 +22,20 @@
 		// Reclaim the space held by caches this build stopped using. Not awaited: nothing
 		// on the page depends on it.
 		void dropRetiredCaches(globalThis.caches);
-		// Top the catalogue up with anything TCGdex has published since this build. Also
-		// not awaited: the static catalogue is already on screen, this only adds to it.
-		void catalogueSync.start();
+		const stopWatchingConnection = dataSaver.listen();
 		// Catch Chromium's deferred install prompt so the app can offer its own button.
-		return install.listen();
+		const stopListening = install.listen();
+		return () => {
+			stopWatchingConnection();
+			stopListening();
+		};
+	});
+	// Top the catalogue up with anything TCGdex has published since this build. Not
+	// awaited: the static catalogue is already on screen, this only adds to it. Data saver
+	// puts it off — a new set is a big download — until the phone is back on Wi-Fi, when
+	// this effect runs again; `start` no-ops while the last check is still fresh.
+	$effect(() => {
+		if (!dataSaver.active) void untrack(() => catalogueSync.start());
 	});
 	$effect(() => {
 		void store.revision;

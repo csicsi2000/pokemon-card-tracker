@@ -96,3 +96,41 @@ export function onRetryChance(callback: () => void, targets: RetryChanceTargets 
 		doc?.removeEventListener('visibilitychange', onVisible);
 	};
 }
+
+// -- data saver -------------------------------------------------------------
+
+/** The slice of CacheStorage `isArtCached` needs, so tests can hand in a Map. */
+export type ArtCache = Pick<CacheStorage, 'match'>;
+
+/**
+ * Whether this device already holds `url` in a service-worker cache — so showing it
+ * costs no data. `ignoreVary`: the <img> asked with an Origin header and this lookup
+ * has none, which a `Vary: Origin` answer would otherwise count as a mismatch.
+ */
+export async function isArtCached(url: string, storage: ArtCache | undefined): Promise<boolean> {
+	if (!storage) return false;
+	try {
+		return (await storage.match(url, { ignoreVary: true })) !== undefined;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Which scan to show while saving data, or null for the name placeholder.
+ *
+ * A grid tile (`low`) only shows art the device already has — the high-res copy counts,
+ * it is the same card — because a page of tiles is where the megabytes go. The card
+ * someone opened (`high`) is a deliberate look, so it fetches if it must, but the small
+ * scan: a quarter of the bytes, and it fills the tile's cache for next time.
+ */
+export async function artForDataSaver(
+	urls: { low: string | null; high: string | null },
+	quality: 'low' | 'high',
+	isCached: (url: string) => Promise<boolean>
+): Promise<string | null> {
+	const { low, high } = urls;
+	const preferred = quality === 'high' ? [high, low] : [low, high];
+	for (const url of preferred) if (url && (await isCached(url))) return url;
+	return quality === 'high' ? low : null;
+}

@@ -30,6 +30,7 @@
 	import List from '@lucide/svelte/icons/list';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import X from '@lucide/svelte/icons/x';
 	import Coins from '@lucide/svelte/icons/coins';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { cardQuery } from '$lib/tcg/card-query';
@@ -46,6 +47,7 @@
 		type PriceSource
 	} from '$lib/card-details';
 	import { priceBook } from '$lib/prices.svelte';
+	import { dataSaver } from '$lib/pwa/data-saver.svelte';
 	import { prefs, WANT_VIEW_LABELS, type WantView } from '$lib/prefs.svelte';
 	import { store, wantKey, type WantProgress } from '$lib/store.svelte';
 	import { cn } from '$lib/utils';
@@ -160,8 +162,11 @@
 
 	const wantedIds = $derived([...new Set(rows.map((row) => row.card.id))]);
 
+	// Data saver shows the quotes already stored; Refresh prices still fetches on request.
 	$effect(() => {
-		if (prefs.showPrices) priceBook.request(wantedIds);
+		if (!prefs.showPrices) return;
+		if (dataSaver.active) priceBook.fromCache(wantedIds);
+		else priceBook.request(wantedIds);
 	});
 
 	/** The chosen marketplace's quote — the only one that can go into a total. */
@@ -264,8 +269,28 @@
 		);
 	}
 
+	/**
+	 * Off the list in one tap, so the button can sit right on the row — the toast's Undo
+	 * puts it back as it was, note, priority and all.
+	 */
+	function remove(row: Row) {
+		const { want, card } = row;
+		try {
+			store.removeWant(refOf(row));
+		} catch (error) {
+			toast.error((error as Error).message);
+			return;
+		}
+		toast.success(`Removed ${card.name} from ${listName(want.listId)}`, {
+			action: { label: 'Undo', onClick: () => write(() => store.setWant({ ...want })) }
+		});
+	}
+
+	// Stepping down past one removes the want, so it gets the same Undo.
 	const adjust = (row: Row, delta: number) =>
-		write(() => store.updateWant(refOf(row), { quantity: row.want.quantity + delta }));
+		row.want.quantity + delta <= 0
+			? remove(row)
+			: write(() => store.updateWant(refOf(row), { quantity: row.want.quantity + delta }));
 
 	/** Found them: file the missing copies into a lot and tick the want off the list. */
 	function found(row: Row) {
@@ -356,7 +381,7 @@
 				<DropdownMenu.Item onclick={() => (listDialogOpen = true)}>New list…</DropdownMenu.Item>
 			</DropdownMenu.Group>
 			<DropdownMenu.Separator />
-			<DropdownMenu.Item variant="destructive" onclick={() => write(() => store.removeWant(refOf(row)))}>
+			<DropdownMenu.Item variant="destructive" onclick={() => remove(row)}>
 				<Trash2 class="size-4" /> Remove from wants
 			</DropdownMenu.Item>
 		</DropdownMenu.Content>
@@ -417,6 +442,20 @@
 	>
 		<Check class="size-4" />
 		{#if label}<span class="max-sm:sr-only">Got it</span>{/if}
+	</Button>
+{/snippet}
+
+<!-- Always on the row, not only in the menu: on a phone there is no hover to reveal it. -->
+{#snippet removeButton(row: Row)}
+	<Button
+		variant="ghost"
+		size="icon"
+		class="text-muted-foreground hover:text-destructive size-8"
+		aria-label="Remove {row.card.name} from wants"
+		title="Remove from wants"
+		onclick={() => remove(row)}
+	>
+		<Trash2 class="size-4" />
 	</Button>
 {/snippet}
 
@@ -493,6 +532,9 @@
 				</DropdownMenu.Item>
 				<DropdownMenu.Label class="text-muted-foreground text-xs font-normal">
 					Approximate, from TCGdex. Kept for half a day.
+					{#if dataSaver.active}
+						Data saver is on, so only prices already fetched show — Refresh fetches the rest.
+					{/if}
 				</DropdownMenu.Label>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
@@ -672,15 +714,26 @@
 							onclick={() => open(row.card)}
 							class={row.missing === 0 ? 'opacity-60' : undefined}
 						/>
+						<!-- Top right is the count, or the tick once there is nothing left to find. -->
 						{#if row.missing === 0}
 							<span
-								class="bg-primary text-primary-foreground pointer-events-none absolute top-1.5 left-1.5 grid size-6 place-items-center rounded-full shadow"
+								class="bg-primary text-primary-foreground pointer-events-none absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full shadow"
 								title="You own enough of this finish"
 							>
 								<Check class="size-4" />
 							</span>
 						{/if}
-						<!-- Bottom left: the top corners already carry the count and the found tick. -->
+						<!-- A sibling of the tile, not inside it: the tile is itself a button. -->
+						<button
+							type="button"
+							class="bg-background/85 text-muted-foreground hover:text-destructive focus-visible:ring-ring absolute top-1.5 left-1.5 grid size-7 place-items-center rounded-full shadow transition-colors focus-visible:ring-2 focus-visible:outline-none"
+							aria-label="Remove {row.card.name} from wants"
+							title="Remove from wants"
+							onclick={() => remove(row)}
+						>
+							<X class="size-4" />
+						</button>
+						<!-- Bottom left: the top corners already carry the remove button and the count. -->
 						<span
 							class="ring-background/70 pointer-events-none absolute bottom-11 left-1.5 size-2.5 rounded-full ring-2 {DOT[
 								row.want.priority
@@ -732,6 +785,7 @@
 						</button>
 						{@render priceTag(row)}
 						{@render gotIt(row, false)}
+						{@render removeButton(row)}
 						{@render rowMenu(row)}
 					</div>
 				{/each}
@@ -796,6 +850,7 @@
 							{@render stepper(row)}
 							{@render priorityPicker(row, 'h-8 w-24')}
 							{@render gotIt(row, true)}
+							{@render removeButton(row)}
 							{@render rowMenu(row)}
 						</div>
 					</div>
