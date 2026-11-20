@@ -18,7 +18,8 @@ import { buildBuylist, type Buylist } from '$lib/tcg/buylist';
 import { diffDecks, type DeckDiff } from '$lib/tcg/deck-diff';
 import { parseRules } from '$lib/tcg/format-rules';
 import { checkLegality, isStandardLegal, type LegalityReport } from '$lib/tcg/legality';
-import { deckNameKey, normalizeName } from '$lib/tcg/normalize';
+import { normalizeName } from '$lib/tcg/normalize';
+import { ownedByPlayKey, playKey } from '$lib/tcg/play-key';
 import { parseDecklist } from '$lib/tcg/parser';
 import { parseQuickAdd, parseQuickAddLine, pickVariant, resolveQuickAdd } from '$lib/tcg/quick-add';
 import { resolveEntries, type ResolvedEntry } from '$lib/tcg/resolver';
@@ -215,19 +216,15 @@ export function deckView(data: UserData, catalogue: Catalogue, ref: string): Dec
 	const deck = findDeck(data, ref);
 	const owned = data.collection.flatMap((row) => {
 		const card = catalogue.byId.get(row.cardId);
-		return card ? [{ name: card.name, quantity: row.quantity }] : [];
+		return card ? [{ card, quantity: row.quantity }] : [];
 	});
-	const ownedByName = new Map<string, number>();
-	for (const row of owned) {
-		const key = deckNameKey(row.name);
-		ownedByName.set(key, (ownedByName.get(key) ?? 0) + row.quantity);
-	}
+	const ownedByKey = ownedByPlayKey(data.collection, catalogue.byId);
 	const order = { Pokemon: 0, Trainer: 1, Energy: 2 };
 	const entries = deck.cards
 		.flatMap((row) => {
 			const card = catalogue.byId.get(row.cardId);
 			return card
-				? [{ card, quantity: row.quantity, owned: ownedByName.get(deckNameKey(card.name)) ?? 0 }]
+				? [{ card, quantity: row.quantity, owned: ownedByKey.get(playKey(card)) ?? 0 }]
 				: [];
 		})
 		.sort((a, b) => order[a.card.supertype] - order[b.card.supertype] || a.card.name.localeCompare(b.card.name));
@@ -296,7 +293,7 @@ export function deckDiffView(
 
 	const owned = data.collection.flatMap((row) => {
 		const card = catalogue.byId.get(row.cardId);
-		return card ? [{ name: card.name, quantity: row.quantity }] : [];
+		return card ? [{ card, quantity: row.quantity }] : [];
 	});
 
 	return {

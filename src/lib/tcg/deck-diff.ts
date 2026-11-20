@@ -1,8 +1,9 @@
 /**
  * Two decks side by side: what came in, what went out, and what stayed.
  *
- * Cards are matched by NAME, not by printing — the same rule (`deckNameKey`) the buylist
- * and deck requirements use. Two versions of one archetype often differ only in where a card was
+ * Cards are matched as playable cards, not by printing — the same rule (`playKey`) the
+ * buylist and deck requirements use: Trainers and Energy by name, Pokémon by name and game
+ * text, so swapping one Pikachu for a Pikachu with other attacks is a change. Two versions of one archetype often differ only in where a card was
  * pulled from ("4 Iono PAL 185" vs "4 Iono PAF 80"), and calling that a change would
  * bury the real differences. A name both decks run in the same count but from different
  * printings is still flagged (`reprintOnly`), because regulation marks matter.
@@ -12,7 +13,7 @@
 import type { Card, Supertype } from '$lib/types';
 import { deckStats, type DeckStats } from './deck-stats';
 import type { DeckEntry } from './legality';
-import { deckNameKey } from './normalize';
+import { playKey } from './play-key';
 
 /** Which side of the comparison a row belongs to, read from left (A) to right (B). */
 export type DiffStatus =
@@ -28,6 +29,7 @@ export type DiffStatus =
 export type DeckDiffRow = {
 	/** As spelled by whichever deck has it (B wins, so a rename reads forwards). */
 	name: string;
+	/** The `playKey` both sides were matched on — unique per row. */
 	nameNormalized: string;
 	supertype: Supertype;
 	status: DiffStatus;
@@ -84,10 +86,10 @@ const SECTION_LABEL: Record<Supertype, string> = {
 
 type Side = { quantity: number; cards: Card[] };
 
-function byName(entries: DeckEntry[]): Map<string, Side> {
+function byPlayKey(entries: DeckEntry[]): Map<string, Side> {
 	const sides = new Map<string, Side>();
 	for (const { card, quantity } of entries) {
-		const key = deckNameKey(card.name);
+		const key = playKey(card);
 		const side = sides.get(key);
 		if (side) {
 			side.quantity += quantity;
@@ -109,8 +111,8 @@ const samePrintings = (a: Card[], b: Card[]) =>
 const tierOf = (row: DeckDiffRow) => (row.status === 'same' ? (row.reprintOnly ? 1 : 2) : 0);
 
 export function diffDecks(a: DeckEntry[], b: DeckEntry[]): DeckDiff {
-	const left = byName(a);
-	const right = byName(b);
+	const left = byPlayKey(a);
+	const right = byPlayKey(b);
 
 	const rows: DeckDiffRow[] = [];
 	for (const key of new Set([...left.keys(), ...right.keys()])) {
@@ -189,9 +191,17 @@ export function diffDecks(a: DeckEntry[], b: DeckEntry[]): DeckDiff {
  * `-2 Iono` / `+2 Professor's Research`. Copy-paste fodder for a chat or a note.
  */
 export function diffToText(diff: DeckDiff): string {
+	// Two Pokémon of one name that play differently need their printing to tell them apart.
+	const nameCounts = new Map<string, number>();
+	for (const row of diff.rows) nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
+	const label = (row: DeckDiffRow) =>
+		nameCounts.get(row.name)! > 1
+			? `${row.name} ${row.card.set.ptcglCode ?? row.card.set.id} ${row.card.localId}`
+			: row.name;
+
 	const lines = diff.rows
 		.filter((row) => row.delta !== 0)
 		.sort((x, y) => y.delta - x.delta || x.name.localeCompare(y.name))
-		.map((row) => `${row.delta > 0 ? '+' : '-'}${Math.abs(row.delta)} ${row.name}`);
+		.map((row) => `${row.delta > 0 ? '+' : '-'}${Math.abs(row.delta)} ${label(row)}`);
 	return lines.length ? lines.join('\n') + '\n' : 'The two lists are identical.\n';
 }

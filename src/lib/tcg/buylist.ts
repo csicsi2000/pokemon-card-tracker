@@ -1,17 +1,19 @@
 /**
  * "What do I still need to buy?" — the reason this app exists alongside a spreadsheet.
  *
- * Requirements are per card NAME (any Charmander printing satisfies "4 Charmander",
- * any professor's Professor's Research satisfies another — see `deckNameKey`), and
- * ownership sums every printing and variant the user has. The result is the
- * shortfall, plus the printing that was asked for as a suggestion of what to look for.
+ * Requirements are per *playable* card (`playKey`): any printing of a Trainer or Energy
+ * with that name — any professor's Professor's Research satisfies another — but only
+ * Pokémon printings with the same game text, so a Charmander with different attacks does
+ * not fill a slot. Ownership sums every such printing and finish the user has. The result
+ * is the shortfall, plus the printing that was asked for as a suggestion of what to look for.
  */
 import type { Card } from '$lib/types';
-import { deckDisplayName, deckNameKey } from './normalize';
+import { deckDisplayName } from './normalize';
+import { playKey } from './play-key';
 
 export type Requirement = { card: Card; quantity: number };
-/** Owned copies of one printing; `name` lets us aggregate across printings. */
-export type OwnedRow = { name: string; quantity: number };
+/** Owned copies of one printing; the card lets us aggregate across printings. */
+export type OwnedRow = { card: Pick<Card, 'id' | 'name' | 'supertype' | 'textKey'>; quantity: number };
 
 export type BuylistRow = {
 	name: string;
@@ -31,13 +33,13 @@ export type Buylist = {
 export function buildBuylist(requirements: Requirement[], owned: OwnedRow[]): Buylist {
 	const ownedByName = new Map<string, number>();
 	for (const row of owned) {
-		const key = deckNameKey(row.name);
+		const key = playKey(row.card);
 		ownedByName.set(key, (ownedByName.get(key) ?? 0) + row.quantity);
 	}
 
 	const neededByName = new Map<string, { name: string; needed: number; suggestion: Card }>();
 	for (const { card, quantity } of requirements) {
-		const key = deckNameKey(card.name);
+		const key = playKey(card);
 		const existing = neededByName.get(key);
 		if (existing) {
 			existing.needed += quantity;

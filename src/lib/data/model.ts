@@ -274,9 +274,12 @@ export const copiesToFind = (
 	owned: number
 ): number => (want.counting === 'extra' ? want.quantity : Math.max(0, want.quantity - owned));
 
-/** How far along one want is. `owned` is every copy of that finish; `counted` is its share. */
+/** How far along one want is. `owned` is every copy that would do; `counted` is its share. */
 export type WantProgress = {
-	/** Copies of the printing and finish in the collection, whichever list they serve. */
+	/**
+	 * Copies in the collection that would do for this want, whichever list they serve: any
+	 * printing and finish of the same playable card (see `playKey` in tcg/play-key.ts).
+	 */
 	owned: number;
 	/** The copies that count towards this want — never more than its quantity. */
 	counted: number;
@@ -297,10 +300,18 @@ const byClaim = (a: WantEntry, b: WantEntry) =>
 	wantKey(a).localeCompare(wantKey(b));
 
 /**
+ * What a want can be filled by: `pool` names the group of copies that would do — wants
+ * sharing a pool share its copies — and `owned` is how many copies the pool holds.
+ */
+export type WantPool = { pool: string; owned: number };
+
+/**
  * The progress of every want, keyed by `wantKey`, with the copies owned shared out
- * between the wants for one printing and finish rather than counted towards each of
- * them in turn. Wanting one Charizard for a deck and one for a binder is wanting two;
- * owning one should tick off one list, not both.
+ * between the wants that one copy would do for rather than counted towards each of
+ * them in turn. Which copies would do is the caller's to say (`poolOf`): the app pools
+ * every printing and finish of one playable card, so a reprint fills a want too.
+ * Wanting one Charizard for a deck and one for a binder is wanting two; owning one
+ * should tick off one list, not both.
  *
  * Only wants that count "copies to own" take a share — a "copies to find" want is
  * asking for more whatever is in the binder, so it leaves the copies for the others.
@@ -309,24 +320,23 @@ const byClaim = (a: WantEntry, b: WantEntry) =>
  */
 export function wantProgress(
 	wants: readonly WantEntry[],
-	ownedOf: (cardId: string, variant: CardVariant) => number
+	poolOf: (cardId: string, variant: CardVariant) => WantPool
 ): Map<string, WantProgress> {
 	const progress = new Map<string, WantProgress>();
 	const owned = new Map<string, number>();
 	const unclaimed = new Map<string, number>();
 
 	for (const want of [...wants].sort(byClaim)) {
-		const finish = `${want.cardId}|${want.variant}`;
-		if (!owned.has(finish)) {
-			const copies = ownedOf(want.cardId, want.variant);
-			owned.set(finish, copies);
-			unclaimed.set(finish, copies);
+		const { pool, owned: copies } = poolOf(want.cardId, want.variant);
+		if (!owned.has(pool)) {
+			owned.set(pool, copies);
+			unclaimed.set(pool, copies);
 		}
 		const counted =
-			want.counting === 'total' ? Math.min(want.quantity, unclaimed.get(finish)!) : 0;
-		unclaimed.set(finish, unclaimed.get(finish)! - counted);
+			want.counting === 'total' ? Math.min(want.quantity, unclaimed.get(pool)!) : 0;
+		unclaimed.set(pool, unclaimed.get(pool)! - counted);
 		progress.set(wantKey(want), {
-			owned: owned.get(finish)!,
+			owned: owned.get(pool)!,
 			counted,
 			missing: copiesToFind(want, counted)
 		});

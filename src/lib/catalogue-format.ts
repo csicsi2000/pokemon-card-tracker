@@ -29,10 +29,12 @@ export type SetRow = [
 
 /**
  * [id, setIndex, localId, name, supertype, subtypes, rarity, regulationMark, hp,
- *  types, evolvesFrom, variants, hasImage]
+ *  types, evolvesFrom, variants, hasImage, textKey]
  *
  * `supertype` is P/T/E and `variants` is a letter per available finish
- * (n normal, r reverse, h holo, f firstEdition, w wPromo).
+ * (n normal, r reverse, h holo, f firstEdition, w wPromo). `textKey` is the Pokémon's
+ * game-text hash (`pokemonTextKey` in tcg/play-key.ts), null for other cards; it may be
+ * absent from rows cached before it existed.
  */
 export type CardRow = [
 	string,
@@ -47,7 +49,8 @@ export type CardRow = [
 	string[],
 	string | null,
 	string,
-	0 | 1
+	0 | 1,
+	(string | null)?
 ];
 
 export type CatalogueFile = {

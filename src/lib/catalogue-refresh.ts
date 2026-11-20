@@ -34,7 +34,9 @@ import {
 	type Fetcher
 } from './tcg/tcgdex';
 
-const STORAGE_KEY = 'cardex:catalogue-delta:v1';
+/** v2: card rows gained `textKey`; a v1 cache lacks it, so it is dropped and refetched. */
+const STORAGE_KEY = 'cardex:catalogue-delta:v2';
+const STALE_KEYS = ['cardex:catalogue-delta:v1'];
 
 /** How long a check stays good for. The catalogue moves in days, not minutes. */
 export const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -70,6 +72,7 @@ export function readDelta(baseGeneratedAt: string): CatalogueDelta | null {
 	if (typeof localStorage === 'undefined') return null;
 
 	try {
+		for (const stale of STALE_KEYS) localStorage.removeItem(stale);
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return null;
 

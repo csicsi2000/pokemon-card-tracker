@@ -40,7 +40,8 @@ export function makeCard(overrides: Partial<Card> & { name: string }): Card {
 		types: overrides.types ?? [],
 		evolvesFrom: overrides.evolvesFrom ?? null,
 		variants: overrides.variants ?? ['normal'],
-		image: overrides.image ?? null
+		image: overrides.image ?? null,
+		textKey: overrides.textKey ?? null
 	};
 }
 

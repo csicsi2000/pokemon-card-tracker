@@ -66,7 +66,8 @@ function toCard(row: CardRow, sets: CardSet[]): Card {
 		evolvesFrom: row[10],
 		// Plainest first, so `variants[0]` is the finish to assume when none is asked for.
 		variants: sortVariants([...row[11]].map((letter) => VARIANTS[letter]).filter(Boolean)),
-		image: row[12] === 1 && set.imageBase ? `${set.imageBase}/${row[2]}` : null
+		image: row[12] === 1 && set.imageBase ? `${set.imageBase}/${row[2]}` : null,
+		textKey: row[13] ?? null
 	};
 }
 

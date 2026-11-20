@@ -7,7 +7,7 @@
  * the state, persists it, and counts revisions so the sync engine knows when to push.
  */
 import { browser } from '$app/environment';
-import type { CardVariant } from './types';
+import type { Card, CardVariant } from './types';
 import { createClock } from './data/clock';
 import { migrate } from './data/migrate';
 import {
@@ -34,6 +34,7 @@ import * as mutate from './data/mutations';
 import { repair } from './data/repair';
 import { DEFAULT_RULES } from './tcg/format-rules';
 import { packLogText } from './tcg/battle-log/storage';
+import { playPools } from './tcg/play-key';
 
 export const STORAGE_KEY = 'cardex:data:v2';
 /** Where v1 builds kept their data; read once and left untouched. */
@@ -161,10 +162,17 @@ class Store {
 
 	/**
 	 * How far along every want is, keyed by `wantKey`. Always over every list, so that a
-	 * copy counted towards one list's want is not counted towards another's as well.
+	 * copy counted towards one list's want is not counted towards another's as well. Any
+	 * copy of the same playable card counts — any printing or finish of a Trainer's name,
+	 * of a Pokémon with the same text — which is why it needs the catalogue.
 	 */
-	wantProgress() {
-		return wantProgress(this.#data.wants, (cardId, variant) => this.ownedOf(cardId, variant));
+	wantProgress(byId: ReadonlyMap<string, Card>) {
+		return wantProgress(this.#data.wants, playPools(this.#data.collection, byId));
+	}
+
+	/** Copies owned that would do for `card` in a deck or a want: see `playPools`. */
+	ownedPlayable(card: Card, byId: ReadonlyMap<string, Card>) {
+		return playPools(this.#data.collection, byId)(card.id, 'normal').owned;
 	}
 
 	/** Copies wanted of one printing across every finish and list. */

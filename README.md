@@ -123,7 +123,9 @@ sheet puts one on the list without leaving the page you are on.
 
 Each want says what its quantity counts. **Copies to find** (the default for a new want)
 is copies on top of whatever you already own, shown as `+2`; **Copies to own** is the
-total you want to end up with, shown as `2/4` — two owned, two still to find. The counters
+total you want to end up with, shown as `2/4` — two owned, two still to find. The copies
+that count as owned are any that play the same as the wanted card: any printing or finish
+of a Trainer or Energy with that name, or of a Pokémon with the same text. The counters
 and the **Cards to find** tile always count the gap rather than the wish. When the cards
 arrive, **Got it** adds exactly the missing copies to the lot chosen in the panel on the
 right and clears the want. **Copy list** puts everything still missing on the clipboard,
@@ -241,8 +243,10 @@ Pokémon / Trainer / Energy counts of each, and what you would still have to buy
 from the left deck to the right one. Both decks are in the URL (`?a=…&b=…`), so a
 comparison can be bookmarked or sent to someone.
 
-Cards are matched **by name**, so a different printing of the same card is not a change —
-those are called out separately as reprint swaps, since the regulation mark can differ. Pair
+Cards are matched as **playable cards** — Trainers and Energy by name, Pokémon by name and
+text — so a different printing of the same card is not a change, while swapping a Pikachu for
+a Pikachu with other attacks is. Reprints are called out separately as reprint swaps, since
+the regulation mark can differ. Pair
 it with **Duplicate**: copy a deck, change the copy, then compare the two.
 
 ## Sync (optional)
@@ -498,9 +502,15 @@ cannot place is listed for you to fix by hand rather than guessed at.
 ### Printings vs. names
 
 The collection tracks **printings and variants** (normal / reverse / holo / 1st
-edition), because that is what sits in a binder. Copy limits and buylists count by
-**card name**, because that is how the rules work — four Charmander from four different
-sets is still four Charmander, and any printing you own counts toward what a deck needs.
+edition), because that is what sits in a binder. Copy limits count by **card name**,
+because that is how the rules work — four Charmander from four different sets is still four
+Charmander.
+
+What a deck needs, the buylist and wants count by **playable card**: a Trainer or Energy is
+its name, so any printing you own counts (any professor's Professor's Research too). A
+Pokémon is its name *and* its text — HP, abilities and attacks — so a reprint with the same
+attacks counts, but a same-name Pokémon that plays differently does not. The text is hashed
+into the catalogue at build time (`textKey`, see `src/lib/tcg/play-key.ts`).
 
 ## Scripts
 

@@ -104,7 +104,7 @@
 				.map((row) => ({ card: row.card, quantity: row.b })),
 			store.collection.flatMap((entry) => {
 				const card = data.catalogue.byId.get(entry.cardId);
-				return card ? [{ name: card.name, quantity: entry.quantity }] : [];
+				return card ? [{ card, quantity: entry.quantity }] : [];
 			})
 		)
 	);

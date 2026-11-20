@@ -4,7 +4,10 @@ import { migrate } from '../src/lib/data/migrate';
 import { copiesToFind, wantKey, wantProgress, type WantEntry } from '../src/lib/data/model';
 import * as mutate from '../src/lib/data/mutations';
 import { repair } from '../src/lib/data/repair';
+import { playPools } from '../src/lib/tcg/play-key';
+import type { Card, CardVariant } from '../src/lib/types';
 import { fixedClock, makeUserData, makeWant, makeWantList } from './data-helpers';
+import { makeCard, makeSet } from './helpers';
 
 const NOW = '2026-06-01T00:00:00.000Z';
 
@@ -156,8 +159,11 @@ describe('want mutations', () => {
 });
 
 describe('sharing the copies owned between lists', () => {
-	const owning = (copies: Record<string, number>) => (cardId: string, variant: string) =>
-		copies[`${cardId}|${variant}`] ?? 0;
+	// Each printing and finish its own pool, so these tests are about the sharing alone.
+	const owning = (copies: Record<string, number>) => (cardId: string, variant: string) => ({
+		pool: `${cardId}|${variant}`,
+		owned: copies[`${cardId}|${variant}`] ?? 0
+	});
 	const missingOf = (wants: WantEntry[], ownedOf: ReturnType<typeof owning>) =>
 		Object.fromEntries(
 			[...wantProgress(wants, ownedOf)].map(([key, { missing }]) => [key, missing])
@@ -215,7 +221,7 @@ describe('sharing the copies owned between lists', () => {
 		});
 	});
 
-	it('another finish, or another card, is its own pool of copies', () => {
+	it('wants in different pools do not share copies', () => {
 		const wants = [
 			makeWant({ cardId: 'a', counting: 'total' }),
 			makeWant({ cardId: 'a', variant: 'reverse', counting: 'total', listId: 'shiny' }),
@@ -239,6 +245,54 @@ describe('sharing the copies owned between lists', () => {
 		// Looking at the deck list alone must not hand it the copy the Main list already counts.
 		expect(all.get('a|normal|deck')!.missing).toBe(1);
 		expect(wantProgress([wants[1]], owning({ 'a|normal': 1 })).get('a|normal|deck')!.missing).toBe(0);
+	});
+});
+
+describe('which copies fill a want', () => {
+	const set = makeSet({ id: 's' });
+	const card = (id: string, name: string, supertype: Card['supertype'], textKey: string | null = null) =>
+		makeCard({ id, name, supertype, textKey, set, localId: id });
+	const ultraA = card('ub1', 'Ultra Ball', 'Trainer');
+	const ultraB = card('ub2', 'Ultra Ball', 'Trainer');
+	const pikaA = card('pk1', 'Pikachu', 'Pokemon', 'thunder');
+	const pikaReprint = card('pk2', 'Pikachu', 'Pokemon', 'thunder');
+	const pikaOther = card('pk3', 'Pikachu', 'Pokemon', 'quick');
+	const byId = new Map([ultraA, ultraB, pikaA, pikaReprint, pikaOther].map((c) => [c.id, c]));
+	const holding = (...rows: [string, CardVariant, number][]) =>
+		rows.map(([cardId, variant, quantity]) => ({ cardId, variant, quantity }));
+
+	it('any printing or finish of a Trainer with that name does', () => {
+		const pools = playPools(holding(['ub2', 'reverse', 2]), byId);
+		const progress = wantProgress([makeWant({ cardId: 'ub1', counting: 'total', quantity: 3 })], pools);
+
+		expect(progress.get('ub1|normal|')).toEqual({ owned: 2, counted: 2, missing: 1 });
+	});
+
+	it('a Pokémon reprint with the same text does, one with other text does not', () => {
+		const pools = playPools(holding(['pk2', 'holo', 1], ['pk3', 'normal', 4]), byId);
+		const progress = wantProgress([makeWant({ cardId: 'pk1', counting: 'total', quantity: 2 })], pools);
+
+		expect(progress.get('pk1|normal|')).toEqual({ owned: 1, counted: 1, missing: 1 });
+	});
+
+	it('wants for two printings of one playable card share the copies', () => {
+		const pools = playPools(holding(['pk1', 'normal', 1]), byId);
+		const progress = wantProgress(
+			[
+				makeWant({ cardId: 'pk1', counting: 'total' }),
+				makeWant({ cardId: 'pk2', counting: 'total', listId: 'deck' })
+			],
+			pools
+		);
+
+		expect(progress.get('pk1|normal|')!.missing).toBe(0);
+		expect(progress.get('pk2|normal|deck')!.missing).toBe(1);
+	});
+
+	it('a printing gone from the catalogue is only filled by itself, in that finish', () => {
+		const pools = playPools(holding(['gone', 'normal', 1], ['gone', 'reverse', 5]), byId);
+
+		expect(pools('gone', 'normal')).toEqual({ pool: 'gone|normal', owned: 1 });
 	});
 });
 

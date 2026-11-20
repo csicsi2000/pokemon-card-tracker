@@ -112,13 +112,14 @@
 	const currentName = $derived(listValue === '*' ? 'All lists' : listName(targetListId));
 
 	/**
-	 * Wants joined to the catalogue and to what you own. A want is for one finish, so
-	 * only copies in that finish count towards it — however many lots they sit in. The
-	 * progress is worked out over every list, whichever one is showing: when two lists
-	 * want the same card, the copies owned go to one of them, not to both.
+	 * Wants joined to the catalogue and to what you own. Any copy that plays the same
+	 * counts towards a want — another printing or finish of a Trainer, a Pokémon reprint
+	 * with the same text — however many lots they sit in. The progress is worked out over
+	 * every list, whichever one is showing: when two lists want the same card, the copies
+	 * owned go to one of them, not to both.
 	 */
 	const rows = $derived.by(() => {
-		const progress = store.wantProgress();
+		const progress = store.wantProgress(data.catalogue.byId);
 		return store
 			.wantsIn(listId)
 			.flatMap((want): Row[] => {

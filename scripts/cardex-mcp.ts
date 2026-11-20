@@ -125,7 +125,7 @@ server.registerTool(
 	'get_deck',
 	{
 		title: 'Get one deck',
-		description: 'A deck in full: each card with quantity and how many the user owns (by name, any printing), plus the buylist of what is missing.',
+		description: 'A deck in full: each card with quantity and how many the user owns (any printing that plays the same: Trainers/Energy by name, Pokémon by name and text), plus the buylist of what is missing.',
 		inputSchema: { deck: z.string().describe('Deck name or id') }
 	},
 	guarded(({ deck }) => {
@@ -151,7 +151,7 @@ server.registerTool(
 	{
 		title: 'Compare two decks',
 		description:
-			'Two decks side by side — what came in, what went out, what stayed, and how similar the lists are. Cards are matched by name, so a different printing of the same card is not a change (those are reported separately as reprint swaps). Use it to compare two versions of one archetype.',
+			'Two decks side by side — what came in, what went out, what stayed, and how similar the lists are. Cards are matched as playable cards (Trainers/Energy by name, Pokémon by name and text), so a different printing of the same card is not a change (those are reported separately as reprint swaps). Use it to compare two versions of one archetype.',
 		inputSchema: { a: z.string().describe('The deck to compare from — name or id'), b: z.string().describe('The deck to compare to — name or id') }
 	},
 	guarded(({ a, b }) => {

@@ -18,6 +18,7 @@
  * preflight, so the browser may call them directly — no proxy, no key.
  */
 import type { CardDetailRow, CardRow, SetRow } from '../catalogue-format';
+import { pokemonTextKey } from './play-key';
 import { cleanText } from './text';
 
 export const TCGDEX_REST = 'https://api.tcgdex.net/v2/en';
@@ -219,12 +220,14 @@ export function toCardRow(card: GqlCard, setIndex: number): CardRow {
 		.map(([key]) => VARIANT_CODE[key])
 		.join('');
 
-	return [
+	const supertype = SUPERTYPE_CODE[card.category?.toLowerCase()] ?? 'T';
+
+	const row: CardRow = [
 		card.id,
 		setIndex,
 		card.localId,
 		card.name,
-		SUPERTYPE_CODE[card.category?.toLowerCase()] ?? 'T',
+		supertype,
 		subtypes,
 		card.rarity ?? null,
 		card.regulationMark ?? null,
@@ -234,6 +237,10 @@ export function toCardRow(card: GqlCard, setIndex: number): CardRow {
 		variants,
 		card.image ? 1 : 0
 	];
+	// Only Pokémon carry one; leaving the slot off the rest keeps the file small.
+	const textKey = supertype === 'P' ? pokemonTextKey(card.hp, toDetailRow(card)) : null;
+	if (textKey) row.push(textKey);
+	return row;
 }
 
 /** Drops empty keys so the detail files stay compact. */

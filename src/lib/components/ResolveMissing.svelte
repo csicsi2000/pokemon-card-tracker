@@ -4,13 +4,14 @@
 	 *
 	 * A shortfall is only ever resolved two ways: the copies were already in a binder and
 	 * never got recorded, or they still have to be bought. Both are one tap from here, so
-	 * a deck can be reconciled without leaving the deck page. Requirements count by card
-	 * *name* (any printing counts), so copies land on the printing the deck asks for —
-	 * which is also the one the user is looking at.
+	 * a deck can be reconciled without leaving the deck page. Requirements count by
+	 * playable card (any printing that plays the same counts — see `playKey`), so copies
+	 * land on the printing the deck asks for — which is also the one the user is looking at.
 	 *
 	 * The two writes are exported so a page can offer them in bulk ("put the whole buylist
 	 * on my wants") without re-deriving which finish to record.
 	 */
+	import { getCatalogue } from '$lib/catalogue';
 	import { copiesToFind } from '$lib/data/model';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { store } from '$lib/store.svelte';
@@ -27,7 +28,8 @@
 	export function wantMissing(card: Card, missing: number): boolean {
 		const variant = plainFinish(card);
 		const existing = store.want({ cardId: card.id, variant });
-		const owned = store.ownedOf(card.id, variant);
+		// Wants count any copy that plays the same, so the copies already owned are those.
+		const owned = store.ownedPlayable(card, getCatalogue()?.byId ?? new Map([[card.id, card]]));
 		if (existing && copiesToFind(existing, owned) >= missing) return false;
 		// A want that counts its total includes the copies already owned.
 		const quantity = existing?.counting === 'total' ? missing + owned : missing;

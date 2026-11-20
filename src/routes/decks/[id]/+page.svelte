@@ -43,7 +43,7 @@
 	import { parseRules } from '$lib/tcg/format-rules';
 	import { checkLegality, type DeckEntry } from '$lib/tcg/legality';
 	import { buildBuylist } from '$lib/tcg/buylist';
-	import { deckNameKey } from '$lib/tcg/normalize';
+	import { ownedByPlayKey, playKey } from '$lib/tcg/play-key';
 	import { battleRecord, recordLabel } from '$lib/tcg/battle-log/record';
 	import { toAiEntries, AI_PREAMBLE } from '$lib/tcg/exporter';
 	import { cn } from '$lib/utils';
@@ -89,15 +89,11 @@
 		return checkLegality(entries, rules, poolIds);
 	});
 
-	/** Copies owned per card name, any printing or finish — how deck requirements count. */
-	const ownedByName = $derived.by(() => {
-		const totals = new Map<string, number>();
-		for (const row of store.collection) {
-			const card = data.catalogue.byId.get(row.cardId);
-			if (card) totals.set(deckNameKey(card.name), (totals.get(deckNameKey(card.name)) ?? 0) + row.quantity);
-		}
-		return totals;
-	});
+	/**
+	 * Copies owned per playable card — any printing or finish of a Trainer's name, or of a
+	 * Pokémon with the same text — how deck requirements count.
+	 */
+	const ownedByKey = $derived(ownedByPlayKey(store.collection, data.catalogue.byId));
 
 	/** What you would still have to buy to sleeve this deck up. */
 	const buylist = $derived(
@@ -105,7 +101,7 @@
 			entries,
 			store.collection.flatMap((entry) => {
 				const card = data.catalogue.byId.get(entry.cardId);
-				return card ? [{ name: card.name, quantity: entry.quantity }] : [];
+				return card ? [{ card, quantity: entry.quantity }] : [];
 			})
 		)
 	);
@@ -374,7 +370,7 @@
 							class="grid grid-cols-3 gap-3 pt-1 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5"
 						>
 							{#each entries as entry, index (entry.card.id)}
-								{@const owned = ownedByName.get(deckNameKey(entry.card.name)) ?? 0}
+								{@const owned = ownedByKey.get(playKey(entry.card)) ?? 0}
 								{@const missing = Math.max(0, entry.quantity - owned)}
 								<div
 									animate:flip={{ duration: 200 }}
@@ -442,7 +438,7 @@
 						</div>
 					{:else}
 						{#each entries as entry (entry.card.id)}
-							{@const owned = ownedByName.get(deckNameKey(entry.card.name)) ?? 0}
+							{@const owned = ownedByKey.get(playKey(entry.card)) ?? 0}
 							{@const missing = Math.max(0, entry.quantity - owned)}
 							<div
 								animate:flip={{ duration: 200 }}

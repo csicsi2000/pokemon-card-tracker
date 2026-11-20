@@ -117,6 +117,12 @@ export type Card = {
 	variants: CardVariant[];
 	/** Base URL with no extension; append '/low.webp' or '/high.webp'. */
 	image: string | null;
+	/**
+	 * Pokémon only: a hash of the game text, so reprints with the same attacks can be told
+	 * from same-name cards that play differently. Null for Trainers and Energy, and for
+	 * Pokémon the source has no text for. Use `playKey` (tcg/play-key.ts), not this.
+	 */
+	textKey: string | null;
 };
 
 // ---------------------------------------------------------------------------

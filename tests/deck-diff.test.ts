@@ -3,8 +3,9 @@ import { diffDecks, diffToText } from '../src/lib/tcg/deck-diff';
 import type { DeckEntry } from '../src/lib/tcg/legality';
 import { makeCard, makeSet } from './helpers';
 
+// The same text by default, so two calls make two printings of one playable card.
 const pokemon = (name: string, extra = {}) =>
-	makeCard({ name, supertype: 'Pokemon', subtypes: ['Basic'], ...extra });
+	makeCard({ name, supertype: 'Pokemon', subtypes: ['Basic'], textKey: 'same', ...extra });
 const trainer = (name: string) => makeCard({ name, supertype: 'Trainer', subtypes: ['Supporter'] });
 const energy = (name: string) => makeCard({ name, supertype: 'Energy', subtypes: ['Basic'] });
 
@@ -48,8 +49,8 @@ describe('diffDecks', () => {
 	});
 
 	it('treats a different printing of the same card as the same card', () => {
-		const pal = makeCard({ id: 'pal-185', name: 'Iono', set: makeSet({ id: 'pal' }), localId: '185' });
-		const paf = makeCard({ id: 'paf-80', name: 'Iono', set: makeSet({ id: 'paf' }), localId: '80' });
+		const pal = makeCard({ id: 'pal-185', name: 'Iono', supertype: 'Trainer', set: makeSet({ id: 'pal' }), localId: '185' });
+		const paf = makeCard({ id: 'paf-80', name: 'Iono', supertype: 'Trainer', set: makeSet({ id: 'paf' }), localId: '80' });
 
 		const diff = diffDecks([{ card: pal, quantity: 4 }], [{ card: paf, quantity: 4 }]);
 
@@ -60,6 +61,38 @@ describe('diffDecks', () => {
 		// The row shows B's printing, so the diff reads left to right.
 		expect(row(diff, 'Iono').card.id).toBe('paf-80');
 		expect(row(diff, 'Iono').printings).toEqual({ a: [pal], b: [paf] });
+	});
+
+	it('treats a Pokémon reprint with the same text as the same card', () => {
+		const obf = pokemon('Charizard ex', { id: 'sv03-125', textKey: 'k1' });
+		const promo = pokemon('Charizard ex', { id: 'svp-074', textKey: 'k1' });
+
+		const diff = diffDecks([{ card: obf, quantity: 2 }], [{ card: promo, quantity: 2 }]);
+
+		expect(diff.changes).toBe(0);
+		expect(diff.rows).toHaveLength(1);
+		expect(diff.rows[0]).toMatchObject({ status: 'same', reprintOnly: true });
+	});
+
+	it('treats a same-name Pokémon with other text as a swap, and names the printings', () => {
+		const obf = pokemon('Charizard ex', {
+			id: 'sv03-125',
+			localId: '125',
+			textKey: 'k1',
+			set: makeSet({ id: 'sv03', ptcglCode: 'OBF' })
+		});
+		const mew = pokemon('Charizard ex', {
+			id: 'sv03.5-006',
+			localId: '6',
+			textKey: 'k2',
+			set: makeSet({ id: 'sv03.5', ptcglCode: 'MEW' })
+		});
+
+		const diff = diffDecks([{ card: obf, quantity: 2 }], [{ card: mew, quantity: 2 }]);
+
+		expect(diff.changes).toBe(2);
+		expect(diff.rows.map((r) => r.status).sort()).toEqual(['added', 'removed']);
+		expect(diffToText(diff)).toBe('+2 Charizard ex MEW 6\n-2 Charizard ex OBF 125\n');
 	});
 
 	it("treats another professor's Professor's Research as a reprint, not a swap", () => {

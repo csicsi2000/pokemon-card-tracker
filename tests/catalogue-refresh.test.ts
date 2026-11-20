@@ -180,7 +180,7 @@ describe('refreshDelta', () => {
 });
 
 describe('refreshCatalogue', () => {
-	const STORAGE_KEY = 'cardex:catalogue-delta:v1';
+	const STORAGE_KEY = 'cardex:catalogue-delta:v2';
 
 	afterEach(() => {
 		vi.unstubAllGlobals();

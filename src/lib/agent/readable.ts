@@ -10,6 +10,7 @@ import { battleLogsFor, wantKey, wantProgress } from '$lib/data/model';
 import { battleRecord, matchups, recordLabel } from '$lib/tcg/battle-log/record';
 import { folderPath } from '$lib/data/folders';
 import { buildBuylist } from '$lib/tcg/buylist';
+import { playPools } from '$lib/tcg/play-key';
 import { exportSetCode } from '$lib/tcg/set-code-overrides';
 
 export type ReadableRow = {
@@ -74,17 +75,13 @@ const wantLists = (data: UserData) => [
 ];
 
 /**
- * The wants list, joined to the catalogue and to what is already owned. A want is for
- * one finish, so only copies in that finish count towards it — and whether they count at
- * all is the want's own choice. Copies are shared out between lists wanting the same
- * card, so `missing` comes from wantProgress rather than being worked out per want.
+ * The wants list, joined to the catalogue and to what is already owned. Any copy that
+ * plays the same counts towards a want (`playPools`) — and whether they count at all is
+ * the want's own choice. Copies are shared out between lists wanting the same card, so
+ * `missing` comes from wantProgress rather than being worked out per want.
  */
 function wantRows(data: UserData, catalogue: Catalogue) {
-	const progress = wantProgress(data.wants, (cardId, variant) =>
-		data.collection
-			.filter((row) => row.cardId === cardId && row.variant === variant)
-			.reduce((sum, row) => sum + row.quantity, 0)
-	);
+	const progress = wantProgress(data.wants, playPools(data.collection, catalogue.byId));
 	return data.wants
 		.flatMap((want) => {
 			const card = catalogue.byId.get(want.cardId);
@@ -113,11 +110,11 @@ function tradeRows(data: UserData, catalogue: Catalogue) {
 		.sort((a, b) => a.card.name.localeCompare(b.card.name) || a.card.id.localeCompare(b.card.id));
 }
 
-/** Owned copies by card name — any printing counts towards a deck. */
+/** Owned copies per printing; the buylist pools those that play the same (`playKey`). */
 function ownedRows(data: UserData, catalogue: Catalogue) {
 	return data.collection.flatMap((row) => {
 		const card = catalogue.byId.get(row.cardId);
-		return card ? [{ name: card.name, quantity: row.quantity }] : [];
+		return card ? [{ card, quantity: row.quantity }] : [];
 	});
 }
 
@@ -142,8 +139,9 @@ export function toReadableMarkdown(
 	out.push(
 		'Card lines use the PTCGL format `<qty> <name> <SET CODE> <number>`; a trailing `rh` means ' +
 			'reverse holo and `h` means holo. Lines in this format can be pasted straight back into ' +
-			'Cardex (Import / Export → Import). Deck requirements count by card name, so any printing ' +
-			'of a name the owner has satisfies a deck line.'
+			'Cardex (Import / Export → Import). Deck requirements and wants count by playable card: any ' +
+			'printing of a Trainer or Energy with that name satisfies a line, but a Pokémon only counts ' +
+			'when its text (HP, abilities, attacks) matches — a same-name Pokémon with other attacks does not.'
 	);
 	out.push('');
 

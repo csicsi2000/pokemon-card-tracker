@@ -27,7 +27,7 @@
 	import { parseDecklist } from '$lib/tcg/parser';
 	import { resolveEntries, type ResolvedEntry } from '$lib/tcg/resolver';
 	import { buildBuylist } from '$lib/tcg/buylist';
-	import { deckNameKey } from '$lib/tcg/normalize';
+	import { ownedByPlayKey, playKey } from '$lib/tcg/play-key';
 	import { toPtcglText, toAiEntries, AI_PREAMBLE, type ExportLine } from '$lib/tcg/exporter';
 	import { pickVariant } from '$lib/tcg/quick-add';
 	import { VARIANT_LABELS, type CardVariant } from '$lib/types';
@@ -96,15 +96,11 @@ Total Cards: 3`;
 	const unresolvedCount = $derived(rows.filter((row) => !row.card).length);
 	const importable = $derived(rows.filter((row) => row.card));
 
-	/** Copies owned per card name — any printing satisfies a decklist line. */
-	const ownedByName = $derived.by(() => {
-		const totals = new Map<string, number>();
-		for (const row of store.collection) {
-			const card = data.catalogue.byId.get(row.cardId);
-			if (card) totals.set(deckNameKey(card.name), (totals.get(deckNameKey(card.name)) ?? 0) + row.quantity);
-		}
-		return totals;
-	});
+	/**
+	 * Copies owned per playable card — any printing of a Trainer's name, or of a Pokémon
+	 * with the same text, satisfies a decklist line.
+	 */
+	const ownedByKey = $derived(ownedByPlayKey(store.collection, data.catalogue.byId));
 
 	/** Have / missing for the pasted list against the whole collection. */
 	const coverage = $derived(
@@ -112,7 +108,7 @@ Total Cards: 3`;
 			importable.map((row) => ({ card: row.card!, quantity: row.entry.quantity })),
 			store.collection.flatMap((entry) => {
 				const card = data.catalogue.byId.get(entry.cardId);
-				return card ? [{ name: card.name, quantity: entry.quantity }] : [];
+				return card ? [{ card, quantity: entry.quantity }] : [];
 			})
 		)
 	);
@@ -495,7 +491,7 @@ Total Cards: 3`;
 							<div class="flex flex-col divide-y">
 								{#each rows as row (row.entry.lineNumber)}
 									{@const label = matchLabel(row)}
-									{@const owned = row.card ? (ownedByName.get(deckNameKey(row.card.name)) ?? 0) : 0}
+									{@const owned = row.card ? (ownedByKey.get(playKey(row.card)) ?? 0) : 0}
 									<!-- The printing picker drops to its own line on a phone. -->
 									<div class="flex flex-wrap items-center gap-3 py-2">
 										{#if row.card}
